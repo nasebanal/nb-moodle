@@ -23,3 +23,26 @@ yum_repository 'epel' do
 	gpgkey 'http://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-6'
 	action :create
 end
+
+
+## Install wget
+
+package "wget" do
+	action :upgrade
+	version "1.12"
+end
+
+
+## Install unzip
+
+package "unzip" do
+	action :upgrade
+	version "6.0"
+end
+
+## Install git
+
+package "git" do
+	action :upgrade
+	version "1.7.1"
+end

@@ -2,9 +2,11 @@
 	"run_list" : [
 		"yum",
 		"recipe[base]",
+		"recipe[user]",
 		"recipe[sshd]",
 		"recipe[httpd]",
 		"recipe[mysqld]",
-		"recipe[php]"
+		"recipe[php]",
+		"recipe[moodle]"
 	]
 }

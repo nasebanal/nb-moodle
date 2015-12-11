@@ -6,15 +6,18 @@ You can get Docker image from https://hub.docker.com/r/syatsuzuka/nb-wordpress/
 [Component]
 * epel 6
 * tar 1.23
+* wget 1.12
+* unzip 6.0
+* git 1.7.1
 * sshd 5.3
 * httpd 2.2.15
 * mysql-server 5.1.73
-* php 5.3.3
-* php-mysql 5.3.3
-* php-mbstring 5.3.3
-* php-gd 5.3.3
+* php 5.5
+* php-mysql 5.5
+* php-mbstring 5.5
+* php-gd 5.5
 * phpMyAdmin 4.0.10
-* wordpress 4.1
+* moodle 3.0
 
 
 [How to Use]
