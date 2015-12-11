@@ -1,0 +1,10 @@
+{
+	"run_list" : [
+		"yum",
+		"recipe[base]",
+		"recipe[sshd]",
+		"recipe[httpd]",
+		"recipe[mysqld]",
+		"recipe[php]"
+	]
+}
