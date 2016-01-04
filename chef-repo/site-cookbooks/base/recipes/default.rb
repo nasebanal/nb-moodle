@@ -40,6 +40,14 @@ package "unzip" do
 	version "6.0"
 end
 
+
+## Install sudo
+
+package "sudo" do
+	action :upgrade
+	version "1.8"
+end
+
 ## Install git
 
 package "git" do

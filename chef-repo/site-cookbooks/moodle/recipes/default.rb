@@ -14,20 +14,12 @@ directory node['moodle']['working_dir'] do
 end
 
 
-## Copy Moodle file
+## Prepare Moodle directory
 
-cookbook_file node['moodle']['installer_path'] do
-	source "moodle-3.0.zip"
-	mode  00644
+remote_directory node['moodle']['install_dir'] do
+	source "moodle"
+	owner "apache"
+	group "apache"
+	mode 00755
 end
 
-
-## Install Moodle
-
-bash 'install moodle' do
-	action :run
-	cwd node['moodle']['working_dir']
-	code <<-EOH
-unzip moodle-3.0.zip
-EOH
-end

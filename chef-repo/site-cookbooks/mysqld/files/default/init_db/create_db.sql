@@ -1,5 +1,3 @@
-create database wordpress default character set utf8;
-create user wordpressuser@localhost;
-set password for wordpressuser@localhost=password("wordpress");
-grant all on wordpress.* to wordpressuser@localhost identified by 'wordpress';
-flush privileges;
+CREATE DATABASE moodle DEFAULT CHARACTER SET utf8 COLLATE utf8_unicode_ci;
+GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,CREATE TEMPORARY TABLES,DROP,INDEX,ALTER ON moodle.* TO moodleuser@localhost IDENTIFIED BY 'moodleuser';
+

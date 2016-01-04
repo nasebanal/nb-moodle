@@ -8,14 +8,12 @@ You can get Docker image from https://hub.docker.com/r/syatsuzuka/nb-wordpress/
 * tar 1.23
 * wget 1.12
 * unzip 6.0
+* sudo 1.8
 * git 1.7.1
 * sshd 5.3
-* httpd 2.2.15
+* httpd 2.4.6
 * mysql-server 5.1.73
 * php 5.5
-* php-mysql 5.5
-* php-mbstring 5.5
-* php-gd 5.5
 * phpMyAdmin 4.0.10
 * moodle 3.0
 

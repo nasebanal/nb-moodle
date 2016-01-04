@@ -34,7 +34,7 @@ echo "$LOG_HEADER	CREATE_SQL	= $CREATE_SQL"
 
 ## Initialize Database
 
-mysqladmin -u root password 'wordpress'
+mysqladmin -u root password 'moodle'
 mysql -uroot -p$PASSWORD < $DROP_SQL
 mysql -uroot -p$PASSWORD < $CREATE_SQL
 

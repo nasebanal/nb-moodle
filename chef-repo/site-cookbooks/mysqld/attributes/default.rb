@@ -5,7 +5,7 @@ default['mysqld']['init_db_dir'] = ::File.join(node['mysqld']['working_dir'], 'i
 ## for file path
 default['mysqld']['init_sh'] = 'init_db.sh'
 default['mysqld']['init_sh_path'] = ::File.join(node['mysqld']['init_db_dir'], node['mysqld']['init_sh'])
-default['mysqld']['root_password'] = 'wordpress'
+default['mysqld']['root_password'] = 'moodle'
 default['mysqld']['drop_db'] = 'drop_db.sql'
 default['mysqld']['drop_db_path'] = ::File.join(node['mysqld']['init_db_dir'], node['mysqld']['drop_db'])
 default['mysqld']['create_db'] = 'create_db.sql'

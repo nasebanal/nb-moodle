@@ -1,2 +1,2 @@
-drop user wordpressuser@localhost;
-drop database wordpress;
+drop user moodleuser@localhost;
+drop database moodle;
