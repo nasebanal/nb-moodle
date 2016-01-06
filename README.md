@@ -1,7 +1,7 @@
-# NASEBANAL Wordpress
+# NASEBANAL Moodle
 
-This is Chef Recipe to create docker image for NASEBANAL Wordpress
-You can get Docker image from https://hub.docker.com/r/syatsuzuka/nb-wordpress/
+This is Chef Recipe to create docker image for NASEBANAL Moodle
+You can get Docker image from https://hub.docker.com/r/syatsuzuka/nb-moodle/
 
 [Component]
 * epel 6
@@ -26,11 +26,11 @@ Step.1) Prepare working directory
 
 Step.2) Download the recipe
 
-	$ git clone https://github.com/nasebanal/nb-wordpress.git
+	$ git clone https://github.com/nasebanal/nb-moodle.git
 
 Step.3) Execute the following command to create docker image
 
-	$ cd nb-wordpress
+	$ cd nb-moodle
 	$ sudo docker build -t <Docker Image Name> .
 
 Step.4) Run Docker
@@ -44,4 +44,4 @@ Step.5) Start services
 
 Step.6) Access the following URL
 
-	http://<IP address>/wordpress/
+	http://<IP address>/moodle/
