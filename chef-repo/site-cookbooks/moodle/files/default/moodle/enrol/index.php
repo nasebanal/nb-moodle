@@ -1,4 +1,5 @@
 <?php
+
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -17,7 +18,8 @@
 /**
  * This page shows all course enrolment options for current user.
  *
- * @package    core_enrol
+ * @package    core
+ * @subpackage enrol
  * @copyright  2010 Petr Skoda {@link http://skodak.org}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -26,38 +28,27 @@ require('../config.php');
 require_once("$CFG->libdir/formslib.php");
 
 $id = required_param('id', PARAM_INT);
-$returnurl = optional_param('returnurl', 0, PARAM_LOCALURL);
 
 if (!isloggedin()) {
-    $referer = get_local_referer();
-    if (empty($referer)) {
-        // A user that is not logged in has arrived directly on this page,
-        // they should be redirected to the course page they are trying to enrol on after logging in.
-        $SESSION->wantsurl = "$CFG->wwwroot/course/view.php?id=$id";
-    }
     // do not use require_login here because we are usually coming from it,
     // it would also mess up the SESSION->wantsurl
     redirect(get_login_url());
 }
 
 $course = $DB->get_record('course', array('id'=>$id), '*', MUST_EXIST);
-$context = context_course::instance($course->id, MUST_EXIST);
+$context = get_context_instance(CONTEXT_COURSE, $course->id, MUST_EXIST);
 
 // Everybody is enrolled on the frontpage
 if ($course->id == SITEID) {
     redirect("$CFG->wwwroot/");
 }
 
-if (!$course->visible && !has_capability('moodle/course:viewhiddencourses', context_course::instance($course->id))) {
-    print_error('coursehidden');
-}
-
 $PAGE->set_course($course);
-$PAGE->set_pagelayout('incourse');
+$PAGE->set_pagelayout('course');
 $PAGE->set_url('/enrol/index.php', array('id'=>$course->id));
 
 // do not allow enrols when in login-as session
-if (\core\session\manager::is_loggedinas() and $USER->loginascontext->contextlevel == CONTEXT_COURSE) {
+if (session_is_loggedinas() and $USER->loginascontext->contextlevel == CONTEXT_COURSE) {
     print_error('loginasnoenrol', '', $CFG->wwwroot.'/course/view.php?id='.$USER->loginascontext->instanceid);
 }
 
@@ -93,8 +84,33 @@ $PAGE->navbar->add(get_string('enrolmentoptions','enrol'));
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('enrolmentoptions','enrol'));
 
-$courserenderer = $PAGE->get_renderer('core', 'course');
-echo $courserenderer->course_info_box($course);
+echo $OUTPUT->box_start('generalbox info');
+
+$summary = file_rewrite_pluginfile_urls($course->summary, 'pluginfile.php', $context->id, 'course', 'summary', null);
+echo format_text($summary, $course->summaryformat, array('overflowdiv'=>true), $course->id);
+if (!empty($CFG->coursecontact)) {
+    $coursecontactroles = explode(',', $CFG->coursecontact);
+    foreach ($coursecontactroles as $roleid) {
+        $role = $DB->get_record('role', array('id'=>$roleid));
+        $roleid = (int) $roleid;
+        if ($users = get_role_users($roleid, $context, true)) {
+            foreach ($users as $teacher) {
+                $fullname = fullname($teacher, has_capability('moodle/site:viewfullnames', $context));
+                $namesarray[] = format_string(role_get_name($role, $context)).': <a href="'.$CFG->wwwroot.'/user/view.php?id='.
+                    $teacher->id.'&amp;course='.SITEID.'">'.$fullname.'</a>';
+            }
+        }
+    }
+
+    if (!empty($namesarray)) {
+        echo "<ul class=\"teachers\">\n<li>";
+        echo implode('</li><li>', $namesarray);
+        echo "</li></ul>";
+    }
+}
+
+echo $OUTPUT->box_end();
+
 
 //TODO: find if future enrolments present and display some info
 
@@ -105,14 +121,8 @@ foreach ($forms as $form) {
 if (!$forms) {
     if (isguestuser()) {
         notice(get_string('noguestaccess', 'enrol'), get_login_url());
-    } else if ($returnurl) {
-        notice(get_string('notenrollable', 'enrol'), $returnurl);
     } else {
-        $url = get_local_referer(false);
-        if (empty($url)) {
-            $url = new moodle_url('/index.php');
-        }
-        notice(get_string('notenrollable', 'enrol'), $url);
+        notice(get_string('notenrollable', 'enrol'), "$CFG->wwwroot/index.php");
     }
 }
 

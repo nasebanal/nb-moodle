@@ -18,13 +18,13 @@
 /**
  * URL module main user interface
  *
- * @package    mod_url
+ * @package    mod
+ * @subpackage url
  * @copyright  2009 Petr Skoda  {@link http://skodak.org}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 require('../../config.php');
-require_once("$CFG->dirroot/mod/url/lib.php");
 require_once("$CFG->dirroot/mod/url/locallib.php");
 require_once($CFG->libdir . '/completionlib.php');
 
@@ -44,11 +44,14 @@ if ($u) {  // Two ways to specify the module
 $course = $DB->get_record('course', array('id'=>$cm->course), '*', MUST_EXIST);
 
 require_course_login($course, true, $cm);
-$context = context_module::instance($cm->id);
+$context = get_context_instance(CONTEXT_MODULE, $cm->id);
 require_capability('mod/url:view', $context);
 
-// Completion and trigger events.
-url_view($url, $course, $cm, $context);
+add_to_log($course->id, 'url', 'view', 'view.php?id='.$cm->id, $url->id, $cm->id);
+
+// Update 'viewed' state if required by completion system
+$completion = new completion_info($course);
+$completion->set_module_viewed($cm);
 
 $PAGE->set_url('/mod/url/view.php', array('id' => $cm->id));
 
@@ -68,7 +71,7 @@ $displaytype = url_get_final_display_type($url);
 if ($displaytype == RESOURCELIB_DISPLAY_OPEN) {
     // For 'open' links, we always redirect to the content - except if the user
     // just chose 'save and display' from the form then that would be confusing
-    if (strpos(get_local_referer(false), 'modedit.php') === false) {
+    if (!isset($_SERVER['HTTP_REFERER']) || strpos($_SERVER['HTTP_REFERER'], 'modedit.php') === false) {
         $redirect = true;
     }
 }
@@ -76,25 +79,8 @@ if ($displaytype == RESOURCELIB_DISPLAY_OPEN) {
 if ($redirect) {
     // coming from course page or url index page,
     // the redirection is needed for completion tracking and logging
-    $fullurl = str_replace('&amp;', '&', url_get_full_url($url, $cm, $course));
-
-    if (!course_get_format($course)->has_view_page()) {
-        // If course format does not have a view page, add redirection delay with a link to the edit page.
-        // Otherwise teacher is redirected to the external URL without any possibility to edit activity or course settings.
-        $editurl = null;
-        if (has_capability('moodle/course:manageactivities', $context)) {
-            $editurl = new moodle_url('/course/modedit.php', array('update' => $cm->id));
-            $edittext = get_string('editthisactivity');
-        } else if (has_capability('moodle/course:update', $context->get_course_context())) {
-            $editurl = new moodle_url('/course/edit.php', array('id' => $course->id));
-            $edittext = get_string('editcoursesettings');
-        }
-        if ($editurl) {
-            redirect($fullurl, html_writer::link($editurl, $edittext)."<br/>".
-                    get_string('pageshouldredirect'), 10);
-        }
-    }
-    redirect($fullurl);
+    $fullurl = url_get_full_url($url, $cm, $course);
+    redirect(str_replace('&amp;', '&', $fullurl));
 }
 
 switch ($displaytype) {

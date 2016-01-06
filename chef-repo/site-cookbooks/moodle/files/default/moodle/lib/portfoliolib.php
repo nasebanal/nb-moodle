@@ -60,12 +60,12 @@ require_once($CFG->libdir . '/portfolio/caller.php');
  * This class can be used like this:
  * <code>
  * $button = new portfolio_add_button();
- * $button->set_callback_options('name_of_caller_class', array('id' => 6), 'yourcomponent'); eg. mod_forum
- * $button->render(PORTFOLIO_ADD_FULL_FORM, get_string('addeverythingtoportfolio', 'yourcomponent'));
+ * $button->set_callback_options('name_of_caller_class', array('id' => 6), '/your/mod/lib.php');
+ * $button->render(PORTFOLIO_ADD_FULL_FORM, get_string('addeverythingtoportfolio', 'yourmodule'));
  * </code>
  * or like this:
  * <code>
- * $button = new portfolio_add_button(array('callbackclass' => 'name_of_caller_class', 'callbackargs' => array('id' => 6), 'callbackcomponent' => 'yourcomponent')); eg. mod_forum
+ * $button = new portfolio_add_button(array('callbackclass' => 'name_of_caller_class', 'callbackargs' => array('id' => 6), 'callbackfile' => '/your/mod/lib.php'));
  * $somehtml .= $button->to_html(PORTFOLIO_ADD_TEXT_LINK);
  * </code>
  *{@link http://docs.moodle.org/dev/Adding_a_Portfolio_Button_to_a_page} for more information
@@ -84,7 +84,7 @@ class portfolio_add_button {
     private $callbackargs;
 
     /** @var string caller file */
-    private $callbackcomponent;
+    private $callbackfile;
 
     /** @var array array of more specific formats (eg based on mime detection) */
     private $formats;
@@ -105,7 +105,7 @@ class portfolio_add_button {
      * @param array $options keyed array of options:
      *                       key 'callbackclass': name of the caller class (eg forum_portfolio_caller')
      *                       key 'callbackargs': the array of callback arguments your caller class wants passed to it in the constructor
-     *                       key 'callbackcomponent': the file containing the class definition of your caller class.
+     *                       key 'callbackfile': the file containing the class definition of your caller class.
      *                       See set_callback_options for more information on these three.
      *                       key 'formats': an array of PORTFOLIO_FORMATS this caller will support
      *                       See set_formats or set_format_by_file for more information on this.
@@ -121,42 +121,54 @@ class portfolio_add_button {
         if (empty($options)) {
             return true;
         }
-        $constructoroptions = array('callbackclass', 'callbackargs', 'callbackcomponent');
+        $constructoroptions = array('callbackclass', 'callbackargs', 'callbackfile', 'formats');
         foreach ((array)$options as $key => $value) {
             if (!in_array($key, $constructoroptions)) {
                 throw new portfolio_button_exception('invalidbuttonproperty', 'portfolio', $key);
             }
+            $this->{$key} = $value;
         }
-
-        $this->set_callback_options($options['callbackclass'], $options['callbackargs'], $options['callbackcomponent']);
     }
 
     /**
      * Function to set the callback options
      *
-     * @param string $class Name of the class containing the callback functions
-     *      activity components should ALWAYS use their name_portfolio_caller
-     *      other locations must use something unique
+     * @param string $class   Name of the class containing the callback functions
+     *                        activity modules should ALWAYS use their name_portfolio_caller
+     *                        other locations must use something unique
      * @param array $argarray This can be an array or hash of arguments to pass
-     *      back to the callback functions (passed by reference)
-     *      these MUST be primatives to be added as hidden form fields.
-     *      and the values get cleaned to PARAM_ALPHAEXT or PARAM_FLOAT or PARAM_PATH
-     * @param string $component This is the name of the component in Moodle, eg 'mod_forum'
+     *                        back to the callback functions (passed by reference)
+     *                        these MUST be primatives to be added as hidden form fields.
+     *                        and the values get cleaned to PARAM_ALPHAEXT or PARAM_NUMBER or PARAM_PATH
+     * @param string $file    This can be autodetected if it's in the same file as your caller,
+     *                        but often, the caller is a script.php and the class in a lib.php
+     *                        so you can pass it here if necessary.
+     *                        This path should be relative (ie, not include) dirroot, eg '/mod/forum/lib.php'
      */
-    public function set_callback_options($class, array $argarray, $component) {
+    public function set_callback_options($class, array $argarray, $file=null) {
         global $CFG;
+        if (empty($file)) {
+            $backtrace = debug_backtrace();
+            if (!array_key_exists(0, $backtrace) || !array_key_exists('file', $backtrace[0]) || !is_readable($backtrace[0]['file'])) {
+                throw new portfolio_button_exception('nocallbackfile', 'portfolio');
+            }
 
-        // Require the base class first before any other files.
-        require_once($CFG->libdir . '/portfolio/caller.php');
+            $file = substr($backtrace[0]['file'], strlen($CFG->dirroot));
+        } else if (!is_readable($CFG->dirroot . $file)) {
+            throw new portfolio_button_exception('nocallbackfile', 'portfolio', '', $file);
+        }
+        $this->callbackfile = $file;
+        require_once($CFG->libdir . '/portfolio/caller.php'); // require the base class first
+        require_once($CFG->dirroot . $file);
+        if (!class_exists($class)) {
+            throw new portfolio_button_exception('nocallbackclass', 'portfolio', '', $class);
+        }
 
-        // Include any potential callback files and check for errors.
-        portfolio_include_callback_file($component, $class);
-
-        // This will throw exceptions but should not actually do anything other than verify callbackargs.
+        // this will throw exceptions
+        // but should not actually do anything other than verify callbackargs
         $test = new $class($argarray);
         unset($test);
 
-        $this->callbackcomponent = $component;
         $this->callbackclass = $class;
         $this->callbackargs = $argarray;
     }
@@ -266,7 +278,7 @@ class portfolio_add_button {
         if (!$this->is_renderable()) {
             return;
         }
-        if (empty($this->callbackclass) || empty($this->callbackcomponent)) {
+        if (empty($this->callbackclass) || empty($this->callbackfile)) {
             throw new portfolio_button_exception('mustsetcallbackoptions', 'portfolio');
         }
         if (empty($this->formats)) {
@@ -285,7 +297,7 @@ class portfolio_add_button {
             $url->param('ca_' . $key, $value);
         }
         $url->param('sesskey', sesskey());
-        $url->param('callbackcomponent', $this->callbackcomponent);
+        $url->param('callbackfile', $this->callbackfile);
         $url->param('callbackclass', $this->callbackclass);
         $url->param('course', (!empty($COURSE)) ? $COURSE->id : 0);
         $url->param('callerformats', implode(',', $this->formats));
@@ -341,7 +353,7 @@ class portfolio_add_button {
 
         $formoutput = '<form method="post" action="' . $CFG->wwwroot . '/portfolio/add.php" id="portfolio-add-button">' . "\n";
         $formoutput .= html_writer::input_hidden_params($url);
-        $linkoutput = '';
+        $linkoutput = '<a class="portfolio-add-link" title="'.$addstr.'" href="' . $url->out();
 
         switch ($format) {
             case PORTFOLIO_ADD_FULL_FORM:
@@ -355,12 +367,10 @@ class portfolio_add_button {
                 $formoutput .= "\n" . '</form>';
             break;
             case PORTFOLIO_ADD_ICON_LINK:
-                $linkoutput = $OUTPUT->action_icon($url, new pix_icon('t/portfolioadd', $addstr, '',
-                    array('class' => 'portfolio-add-icon smallicon')));
+                $linkoutput .= '"><img class="portfolio-add-icon iconsmall" src="' . $OUTPUT->pix_url('t/portfolioadd') . '" alt="' . $addstr .'" /></a>';
             break;
             case PORTFOLIO_ADD_TEXT_LINK:
-                $linkoutput = html_writer::link($url, $addstr, array('class' => 'portfolio-add-link',
-                    'title' => $addstr));
+                $linkoutput .= '">' . $addstr .'</a>';
             break;
             default:
                 debugging(get_string('invalidaddformat', 'portfolio', $format));
@@ -411,12 +421,12 @@ class portfolio_add_button {
     }
 
     /**
-     * Getter for $callbackcomponent property
+     * Getter for $callbackfile property
      *
      * @return string
      */
-    public function get_callbackcomponent() {
-        return $this->callbackcomponent;
+    public function get_callbackfile() {
+        return $this->callbackfile;
     }
 
     /**
@@ -531,16 +541,6 @@ function portfolio_instances($visibleonly=true, $useronly=true) {
         $instances[$instance->id] = portfolio_instance($instance->id, $instance);
     }
     return $instances;
-}
-
-/**
- * Return whether there are visible instances in portfolio.
- *
- * @return bool true when there are some visible instances.
- */
-function portfolio_has_visible_instances() {
-    global $DB;
-    return $DB->record_exists('portfolio_instance', array('visible' => 1));
 }
 
 /**
@@ -825,7 +825,7 @@ function portfolio_plugin_sanity_check($plugins=null) {
     if (is_string($plugins)) {
         $plugins = array($plugins);
     } else if (empty($plugins)) {
-        $plugins = core_component::get_plugin_list('portfolio');
+        $plugins = get_plugin_list('portfolio');
         $plugins = array_keys($plugins);
     }
 
@@ -930,9 +930,30 @@ function portfolio_report_insane($insane, $instances=false, $return=false) {
     echo $output;
 }
 
+
+/**
+ * Event handler for the portfolio_send event
+ *
+ * @param int $eventdata event id
+ * @return bool
+ */
+function portfolio_handle_event($eventdata) {
+    global $CFG;
+
+    require_once($CFG->libdir . '/portfolio/exporter.php');
+    $exporter = portfolio_exporter::rewaken_object($eventdata);
+    $exporter->process_stage_package();
+    $exporter->process_stage_send();
+    $exporter->save();
+    $exporter->process_stage_cleanup();
+    return true;
+}
+
 /**
  * Main portfolio cronjob.
  * Currently just cleans up expired transfer records.
+ *
+ * @todo - MDL-15997 - Add hooks in the plugins - either per instance or per plugin
  */
 function portfolio_cron() {
     global $DB, $CFG;
@@ -946,20 +967,6 @@ function portfolio_cron() {
             } catch (Exception $e) {
                 mtrace('Exception thrown in portfolio cron while cleaning up ' . $d->id . ': ' . $e->getMessage());
             }
-        }
-    }
-
-    $process = $DB->get_records('portfolio_tempdata', array('queued' => 1), 'id ASC', 'id');
-    foreach ($process as $d) {
-        try {
-            $exporter = portfolio_exporter::rewaken_object($d->id);
-            $exporter->process_stage_package();
-            $exporter->process_stage_send();
-            $exporter->save();
-            $exporter->process_stage_cleanup();
-        } catch (Exception $e) {
-            // This will get probably retried in the next cron until it is discarded by the code above.
-            mtrace('Exception thrown in portfolio cron while processing ' . $d->id . ': ' . $e->getMessage());
         }
     }
 }
@@ -1090,7 +1097,7 @@ function portfolio_insane_notify_admins($insane, $instances=false) {
     $site = get_site();
 
     $a = new StdClass;
-    $a->sitename = format_string($site->fullname, true, array('context' => context_course::instance(SITEID)));
+    $a->sitename = format_string($site->fullname, true, array('context' => get_context_instance(CONTEXT_COURSE, SITEID)));
     $a->fixurl   = "$CFG->wwwroot/$CFG->admin/settings.php?section=manageportfolios";
     $a->htmllist = portfolio_report_insane($insane, $instances, true);
     $a->textlist = '';
@@ -1113,7 +1120,7 @@ function portfolio_insane_notify_admins($insane, $instances=false) {
         $eventdata->modulename = 'portfolio';
         $eventdata->component = 'portfolio';
         $eventdata->name = 'notices';
-        $eventdata->userfrom = get_admin();
+        $eventdata->userfrom = $admin;
         $eventdata->userto = $admin;
         $eventdata->subject = $subject;
         $eventdata->fullmessage = $plainbody;
@@ -1227,25 +1234,13 @@ function portfolio_format_text_options() {
  * @return object|array|string
  */
 function portfolio_rewrite_pluginfile_url_callback($contextid, $component, $filearea, $itemid, $format, $options, $matches) {
-    $matches = $matches[0]; // No internal matching.
-
-    // Loads the HTML.
+    $matches = $matches[0]; // no internal matching
     $dom = new DomDocument();
-    if (!$dom->loadHTML($matches)) {
+    if (!$dom->loadXML($matches)) {
         return $matches;
     }
-
-    // Navigates to the node.
-    $xpath = new DOMXPath($dom);
-    $nodes = $xpath->query('/html/body/child::*');
-    if (empty($nodes) || count($nodes) > 1) {
-        // Unexpected sequence, none or too many nodes.
-        return $matches;
-    }
-    $dom = $nodes->item(0);
-
     $attributes = array();
-    foreach ($dom->attributes as $attr => $node) {
+    foreach ($dom->documentElement->attributes as $attr => $node) {
         $attributes[$attr] = $node->value;
     }
     // now figure out the file
@@ -1277,85 +1272,68 @@ function portfolio_rewrite_pluginfile_url_callback($contextid, $component, $file
 }
 
 /**
- * Function to require any potential callback files, throwing exceptions
- * if an issue occurs.
- *
- * @param string $component This is the name of the component in Moodle, eg 'mod_forum'
- * @param string $class Name of the class containing the callback functions
- *     activity components should ALWAYS use their name_portfolio_caller
- *     other locations must use something unique
- */
-function portfolio_include_callback_file($component, $class = null) {
+* Function to require any potential callback files, throwing exceptions
+* if an issue occurs.
+*
+* @param string $callbackfile This is the location of the callback file '/mod/forum/locallib.php'
+* @param string $class Name of the class containing the callback functions
+* activity components should ALWAYS use their name_portfolio_caller
+* other locations must use something unique
+*/
+function portfolio_include_callback_file($callbackfile, $class = null) {
     global $CFG;
     require_once($CFG->libdir . '/adminlib.php');
 
-    // It's possible that they are passing a file path rather than passing a component.
-    // We want to try and convert this to a component name, eg. mod_forum.
-    $pos = strrpos($component, '/');
-    if ($pos !== false) {
-        // Get rid of the first slash (if it exists).
-        $component = ltrim($component, '/');
-        // Get a list of valid plugin types.
-        $plugintypes = core_component::get_plugin_types();
-        // Assume it is not valid for now.
-        $isvalid = false;
-        // Go through the plugin types.
-        foreach ($plugintypes as $type => $path) {
-            // Getting the path relative to the dirroot.
-            $path = preg_replace('|^' . preg_quote($CFG->dirroot, '|') . '/|', '', $path);
-            if (strrpos($component, $path) === 0) {
-                // Found the plugin type.
-                $isvalid = true;
-                $plugintype = $type;
-                $pluginpath = $path;
-            }
+    // Get the last occurrence of '/' in the file path.
+    $pos = strrpos($callbackfile, '/');
+    // Get rid of the first slash (if it exists).
+    $callbackfile = ltrim($callbackfile, '/');
+    // Get a list of valid plugin types.
+    $plugintypes = get_plugin_types(false);
+    // Assume it is not valid for now.
+    $isvalid = false;
+    // Go through the plugin types.
+    foreach ($plugintypes as $type => $path) {
+        if (strrpos($callbackfile, $path) === 0) {
+            // Found the plugin type.
+            $isvalid = true;
+            $plugintype = $type;
+            $pluginpath = $path;
         }
-        // Throw exception if not a valid component.
-        if (!$isvalid) {
-            throw new coding_exception('Somehow a non-valid plugin path was passed, could be a hackz0r attempt, exiting.');
-        }
-        // Remove the file name.
-        $component = trim(substr($component, 0, $pos), '/');
-        // Replace the path with the type.
-        $component = str_replace($pluginpath, $plugintype, $component);
-        // Ok, replace '/' with '_'.
-        $component = str_replace('/', '_', $component);
-        // Place a debug message saying the third parameter should be changed.
-        debugging('The third parameter sent to the function set_callback_options should be the component name, not a file path, please update this.', DEBUG_DEVELOPER);
     }
-
+    // Throw exception if not a valid component.
+    if (!$isvalid) {
+        throw new coding_exception('Somehow a non-valid plugin path was passed, could be a hackz0r attempt, exiting.');
+    }
+    // Keep record of the filename.
+    $filename = substr($callbackfile, $pos);
+    // Remove the file name.
+    $component = trim(substr($callbackfile, 0, $pos), '/');
+    // Replace the path with the type.
+    $component = str_replace($pluginpath, $plugintype, $component);
+    // Ok, replace '/' with '_'.
+    $component = str_replace('/', '_', $component);
     // Check that it is a valid component.
     if (!get_component_version($component)) {
         throw new portfolio_button_exception('nocallbackcomponent', 'portfolio', '', $component);
     }
 
     // Obtain the component's location.
-    if (!$componentloc = core_component::get_component_directory($component)) {
+    if (!$componentloc = get_component_directory($component)) {
         throw new portfolio_button_exception('nocallbackcomponent', 'portfolio', '', $component);
     }
 
-    // Check if the component contains the necessary file for the portfolio plugin.
-    // These are locallib.php, portfoliolib.php and portfolio_callback.php.
-    $filefound = false;
-    if (file_exists($componentloc . '/locallib.php')) {
-        $filefound = true;
-        require_once($componentloc . '/locallib.php');
-    }
-    if (file_exists($componentloc . '/portfoliolib.php')) {
-        $filefound = true;
-        debugging('Please standardise your plugin by renaming your portfolio callback file to locallib.php, or if that file already exists moving the portfolio functionality there.', DEBUG_DEVELOPER);
-        require_once($componentloc . '/portfoliolib.php');
-    }
-    if (file_exists($componentloc . '/portfolio_callback.php')) {
-        $filefound = true;
-        debugging('Please standardise your plugin by renaming your portfolio callback file to locallib.php, or if that file already exists moving the portfolio functionality there.', DEBUG_DEVELOPER);
-        require_once($componentloc . '/portfolio_callback.php');
+    // Check if the filename does not meet any of the expected names.
+    if (($filename != 'locallib.php') && ($filename != 'portfoliolib.php') && ($filename != 'portfolio_callback.php')) {
+        debugging('Please standardise your plugin by keeping your portfolio callback functionality in the file locallib.php.', DEBUG_DEVELOPER);
     }
 
-    // Ensure that we found a file we can use, if not throw an exception.
-    if (!$filefound) {
-        throw new portfolio_button_exception('nocallbackfile', 'portfolio', '', $component);
+    // Throw error if file does not exist.
+    if (!file_exists($componentloc . '/' . $filename)) {
+        throw new portfolio_button_exception('nocallbackfile', 'portfolio', '', $callbackfile);
     }
+
+    require_once($componentloc . '/' . $filename);
 
     if (!is_null($class) && !class_exists($class)) {
         throw new portfolio_button_exception('nocallbackclass', 'portfolio', '', $class);
@@ -1377,11 +1355,7 @@ function portfolio_include_callback_file($component, $class = null) {
  * @return mixed
  */
 function portfolio_rewrite_pluginfile_urls($text, $contextid, $component, $filearea, $itemid, $format, $options=null) {
-    $patterns = array(
-        '(<(a|A)[^<]*?href="@@PLUGINFILE@@/[^>]*?>.*?</(a|A)>)',
-        '(<(img|IMG)\s[^<]*?src="@@PLUGINFILE@@/[^>]*?/?>)',
-    );
-    $pattern = '~' . implode('|', $patterns) . '~';
+    $pattern = '/(<[^<]*?="@@PLUGINFILE@@\/[^>]*?(?:\/>|>.*?<\/[^>]*?>))/';
     $callback = partial('portfolio_rewrite_pluginfile_url_callback', $contextid, $component, $filearea, $itemid, $format, $options);
     return preg_replace_callback($pattern, $callback, $text);
 }

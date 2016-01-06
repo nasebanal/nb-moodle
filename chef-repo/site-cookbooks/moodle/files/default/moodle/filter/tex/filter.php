@@ -34,8 +34,6 @@
 
 defined('MOODLE_INTERNAL') || die;
 
-require_once($CFG->libdir . '/classes/useragent.php');
-
 /**
  * Create TeX image link.
  *
@@ -94,7 +92,7 @@ function filter_text_image($imagefile, $tex, $height, $width, $align, $alt) {
     }
     $anchorcontents .= "\" $style/>";
 
-    if (!file_exists("$CFG->dataroot/filter/tex/$imagefile") && has_capability('moodle/site:config', context_system::instance())) {
+    if (!file_exists("$CFG->dataroot/filter/tex/$imagefile") && has_capability('moodle/site:config', get_context_instance(CONTEXT_SYSTEM))) {
         $link = '/filter/tex/texdebug.php';
         $action = null;
     } else {
@@ -102,7 +100,6 @@ function filter_text_image($imagefile, $tex, $height, $width, $align, $alt) {
         $action = new popup_action('click', $link, 'popup', array('width'=>320,'height'=>240));
     }
     $output = $OUTPUT->action_link($link, $anchorcontents, $action, array('title'=>'TeX')); //TODO: the popups do not work when text caching is enabled!!
-    $output = "<span class=\"MathJax_Preview\">$output</span><script type=\"math/tex\">$tex</script>";
 
     return $output;
 }
@@ -117,11 +114,7 @@ class filter_tex extends moodle_text_filter {
         global $CFG, $DB;
 
         /// Do a quick check using stripos to avoid unnecessary work
-        if ((!preg_match('/<tex/i', $text)) &&
-                (strpos($text,'$$') === false) &&
-                (strpos($text,'\\[') === false) &&
-                (strpos($text, '\\(') === false) &&
-                (!preg_match('/\[tex/i',$text))) {
+        if (!preg_match('/<tex/i',$text) and !strstr($text,'$$') and !strstr($text,'\\[') and !preg_match('/\[tex/i',$text)) { //added one more tag (dlnsk)
             return $text;
         }
 
@@ -153,20 +146,9 @@ class filter_tex extends moodle_text_filter {
         // or $$ TeX expression $$
         // or \[ TeX expression \]          // original tag of MathType and TeXaide (dlnsk)
         // or [tex] TeX expression [/tex]   // somtime it's more comfortable than <tex> (dlnsk)
-        $rules = array(
-            '<tex(?:\s+alt=["\'](.*?)["\'])?>(.+?)<\/tex>',
-            '\$\$(.+?)\$\$',
-            '\\\\\[(.+?)\\\\\]',
-            '\\\\\((.+?)\\\\\)',
-            '\\[tex\\](.+?)\\[\/tex\\]'
-        );
-        $megarule = '/' . implode($rules, '|') . '/is';
-        preg_match_all($megarule, $text, $matches);
+        preg_match_all('/<tex(?:\s+alt=["\'](.*?)["\'])?>(.+?)<\/tex>|\$\$(.+?)\$\$|\\\\\[(.+?)\\\\\]|\\[tex\\](.+?)\\[\/tex\\]/is', $text, $matches);
         for ($i=0; $i<count($matches[0]); $i++) {
-            $texexp = '';
-            for ($j = 0; $j < count($rules); $j++) {
-                $texexp .= $matches[$j + 2][$i];
-            }
+            $texexp = $matches[2][$i] . $matches[3][$i] . $matches[4][$i] . $matches[5][$i];
             $alt = $matches[1][$i];
             $texexp = str_replace('<nolink>','',$texexp);
             $texexp = str_replace('</nolink>','',$texexp);
@@ -199,11 +181,7 @@ class filter_tex extends moodle_text_filter {
                 $texcache->timemodified = time();
                 $DB->insert_record("cache_filters", $texcache, false);
             }
-            $convertformat = get_config('filter_tex', 'convertformat');
-            if ($convertformat == 'svg' && !core_useragent::supports_svg()) {
-                $convertformat = 'png';
-            }
-            $filename = $md5.".{$convertformat}";
+            $filename = $md5 . ".{$CFG->filter_tex_convertformat}";
             $text = str_replace( $matches[0][$i], filter_text_image($filename, $texexp, 0, 0, $align, $alt), $text);
         }
         return $text;

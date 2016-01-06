@@ -360,11 +360,7 @@ function grade_get_grades($courseid, $itemtype, $itemmodule, $iteminstance, $use
             if (empty($grade_item->outcomeid)) {
                 // prepare information about grade item
                 $item = new stdClass();
-                $item->id = $grade_item->id;
                 $item->itemnumber = $grade_item->itemnumber;
-                $item->itemtype  = $grade_item->itemtype;
-                $item->itemmodule = $grade_item->itemmodule;
-                $item->iteminstance = $grade_item->iteminstance;
                 $item->scaleid    = $grade_item->scaleid;
                 $item->name       = $grade_item->get_name();
                 $item->grademin   = $grade_item->grademin;
@@ -463,11 +459,7 @@ function grade_get_grades($courseid, $itemtype, $itemmodule, $iteminstance, $use
 
                 // outcome info
                 $outcome = new stdClass();
-                $outcome->id = $grade_item->id;
                 $outcome->itemnumber = $grade_item->itemnumber;
-                $outcome->itemtype   = $grade_item->itemtype;
-                $outcome->itemmodule = $grade_item->itemmodule;
-                $outcome->iteminstance = $grade_item->iteminstance;
                 $outcome->scaleid    = $grade_outcome->scaleid;
                 $outcome->name       = $grade_outcome->get_name();
                 $outcome->locked     = $grade_item->is_locked();
@@ -766,7 +758,7 @@ function grade_format_gradevalue_percentage($value, $grade_item, $decimals, $loc
  * @return string
  */
 function grade_format_gradevalue_letter($value, $grade_item) {
-    $context = context_course::instance($grade_item->courseid, IGNORE_MISSING);
+    $context = get_context_instance(CONTEXT_COURSE, $grade_item->courseid);
     if (!$letters = grade_get_letters($context)) {
         return ''; // no letters??
     }
@@ -816,7 +808,7 @@ function grade_get_categories_menu($courseid, $includenew=false) {
     foreach ($categories as $category) {
         $cats[$category->id] = $category->get_name();
     }
-    core_collator::asort($cats);
+    collatorlib::asort($cats);
 
     return ($result+$cats);
 }
@@ -847,7 +839,7 @@ function grade_get_letters($context=null) {
 
     $letters = array();
 
-    $contexts = $context->get_parent_context_ids();
+    $contexts = get_parent_contexts($context);
     array_unshift($contexts, $context->id);
 
     foreach ($contexts as $ctxid) {
@@ -947,7 +939,7 @@ function grade_recover_history_grades($userid, $courseid) {
     //Check the user is enrolled in this course
     //Dont bother checking if they have a gradeable role. They may get one later so recover
     //whatever grades they have now just in case.
-    $course_context = context_course::instance($courseid);
+    $course_context = get_context_instance(CONTEXT_COURSE, $courseid);
     if (!is_enrolled($course_context, $userid)) {
         debugging('Attempting to recover the grades of a user who is deleted or not enrolled. Skipping recover.');
         return false;
@@ -1014,8 +1006,6 @@ function grade_recover_history_grades($userid, $courseid) {
  * @return bool true if ok, array of errors if problems found. Grade item id => error message
  */
 function grade_regrade_final_grades($courseid, $userid=null, $updated_item=null) {
-    // This may take a very long time.
-    \core_php_time_limit::raise();
 
     $course_item = grade_item::fetch_course_item($courseid);
 
@@ -1033,25 +1023,6 @@ function grade_regrade_final_grades($courseid, $userid=null, $updated_item=null)
         if (!$course_item->needsupdate) {
             // nothing to do :-)
             return true;
-        }
-    }
-
-    // Categories might have to run some processing before we fetch the grade items.
-    // This gives them a final opportunity to update and mark their children to be updated.
-    // We need to work on the children categories up to the parent ones, so that, for instance,
-    // if a category total is updated it will be reflected in the parent category.
-    $cats = grade_category::fetch_all(array('courseid' => $courseid));
-    $flatcattree = array();
-    foreach ($cats as $cat) {
-        if (!isset($flatcattree[$cat->depth])) {
-            $flatcattree[$cat->depth] = array();
-        }
-        $flatcattree[$cat->depth][] = $cat;
-    }
-    krsort($flatcattree);
-    foreach ($flatcattree as $depth => $cats) {
-        foreach ($cats as $cat) {
-            $cat->pre_regrade_final_grades();
         }
     }
 
@@ -1167,7 +1138,7 @@ function grade_grab_course_grades($courseid, $modname=null, $userid=0) {
         return;
     }
 
-    if (!$mods = core_component::get_plugin_list('mod') ) {
+    if (!$mods = get_plugin_list('mod') ) {
         print_error('nomodules', 'debug');
     }
 
@@ -1257,7 +1228,7 @@ function remove_course_grades($courseid, $showfeedback) {
 
     $course_category = grade_category::fetch_course_category($courseid);
     $course_category->delete('coursedelete');
-    $fs->delete_area_files(context_course::instance($courseid)->id, 'grade', 'feedback');
+    $fs->delete_area_files(get_context_instance(CONTEXT_COURSE, $courseid)->id, 'grade', 'feedback');
     if ($showfeedback) {
         echo $OUTPUT->notification($strdeleted.' - '.get_string('grades', 'grades').', '.get_string('items', 'grades').', '.get_string('categories', 'grades'), 'notifysuccess');
     }
@@ -1298,7 +1269,7 @@ function remove_course_grades($courseid, $showfeedback) {
 function grade_course_category_delete($categoryid, $newparentid, $showfeedback) {
     global $DB;
 
-    $context = context_coursecat::instance($categoryid);
+    $context = get_context_instance(CONTEXT_COURSECAT, $categoryid);
     $DB->delete_records('grade_letters', array('contextid'=>$context->id));
 }
 
@@ -1466,7 +1437,7 @@ function grade_floats_different($f1, $f2) {
  * Do not use rounding for 10,5 at the database level as the results may be
  * different from php round() function.
  *
- * @since Moodle 2.0
+ * @since 2.0
  * @param float $f1 Float one to compare
  * @param float $f2 Float two to compare
  * @return bool True if the values should be considered as the same grades

@@ -95,7 +95,7 @@ abstract class backup_check {
         $type     = $backup_controller->get_type();
         $mode     = $backup_controller->get_mode();
         $courseid = $backup_controller->get_courseid();
-        $coursectx= context_course::instance($courseid);
+        $coursectx= get_context_instance(CONTEXT_COURSE, $courseid);
         $userid   = $backup_controller->get_userid();
         $id       = $backup_controller->get_id(); // courseid / sectionid / cmid
 
@@ -118,7 +118,7 @@ abstract class backup_check {
                 break;
             case backup::TYPE_1ACTIVITY :
                 get_coursemodule_from_id(null, $id, $courseid, false, MUST_EXIST); // cm exists
-                $modulectx = context_module::instance($id);
+                $modulectx = get_context_instance(CONTEXT_MODULE, $id);
                 $typecapstocheck['moodle/backup:backupactivity'] = $modulectx;
                 break;
             default :

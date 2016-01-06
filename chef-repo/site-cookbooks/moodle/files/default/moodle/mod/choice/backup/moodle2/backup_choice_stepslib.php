@@ -16,7 +16,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * @package    mod_choice
+ * @package moodlecore
  * @subpackage backup-moodle2
  * @copyright 2010 onwards Eloy Lafuente (stronk7) {@link http://stronk7.com}
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -41,7 +41,7 @@ class backup_choice_activity_structure_step extends backup_activity_structure_st
             'name', 'intro', 'introformat', 'publish',
             'showresults', 'display', 'allowupdate', 'showunanswered',
             'limitanswers', 'timeopen', 'timeclose', 'timemodified',
-            'completionsubmit', 'showpreview', 'includeinactive'));
+            'completionsubmit'));
 
         $options = new backup_nested_element('options');
 
@@ -63,7 +63,12 @@ class backup_choice_activity_structure_step extends backup_activity_structure_st
         // Define sources
         $choice->set_source_table('choice', array('id' => backup::VAR_ACTIVITYID));
 
-        $option->set_source_table('choice_options', array('choiceid' => backup::VAR_PARENTID), 'id ASC');
+        $option->set_source_sql('
+            SELECT *
+            FROM {choice_options}
+            WHERE choiceid = ?
+            ORDER BY id',
+            array(backup::VAR_PARENTID));
 
         // All the rest of elements only happen if we are including user info
         if ($userinfo) {

@@ -17,9 +17,10 @@
 /**
  * Defines the renderer for the quiz module.
  *
- * @package   mod_quiz
- * @copyright 2011 The Open University
- * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @package    mod
+ * @subpackage quiz
+ * @copyright  2011 The Open University
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 
@@ -79,9 +80,9 @@ class mod_quiz_renderer extends plugin_renderer_base {
         $output .= $this->review_summary_table($summarydata, 0);
 
         if (!is_null($seq)) {
-            $output .= $attemptobj->render_question_at_step($slot, $seq, true, $this);
+            $output .= $attemptobj->render_question_at_step($slot, $seq, true);
         } else {
-            $output .= $attemptobj->render_question($slot, true, $this);
+            $output .= $attemptobj->render_question($slot, true);
         }
 
         $output .= $this->close_window_button();
@@ -98,8 +99,6 @@ class mod_quiz_renderer extends plugin_renderer_base {
     public function review_question_not_allowed($message) {
         $output = '';
         $output .= $this->header();
-        $output .= $this->heading(format_string($attemptobj->get_quiz_name(), true,
-                                  array("context" => $attemptobj->get_quizobj()->get_context())));
         $output .= $this->notification($message);
         $output .= $this->close_window_button();
         $output .= $this->footer();
@@ -182,7 +181,7 @@ class mod_quiz_renderer extends plugin_renderer_base {
                               mod_quiz_display_options $displayoptions) {
         $output = '';
         foreach ($slots as $slot) {
-            $output .= $attemptobj->render_question($slot, $reviewing, $this,
+            $output .= $attemptobj->render_question($slot, $reviewing,
                     $attemptobj->review_url($slot, $page, $showall));
         }
         return $output;
@@ -227,18 +226,28 @@ class mod_quiz_renderer extends plugin_renderer_base {
     /**
      * Returns either a liink or button
      *
-     * @param quiz_attempt $attemptobj instance of quiz_attempt
+     * @param $url contains a url for the review link
      */
-    public function finish_review_link(quiz_attempt $attemptobj) {
-        $url = $attemptobj->view_url();
+    public function finish_review_link($url) {
 
-        if ($attemptobj->get_access_manager(time())->attempt_must_be_in_popup()) {
+        // This is an ugly hack to fix MDL-34733 without changing the renderer API.
+        global $attemptobj;
+        if (!empty($attemptobj)) {
+            // I think that every page in standard Moodle that ends up calling
+            // this method will actually end up coming down this branch.
+            $inpopup = $attemptobj->get_access_manager(time())->attempt_must_be_in_popup();
+        } else {
+            // Else fall back to old (not very good) heuristic.
+            $inpopup = $this->page->pagelayout == 'popup';
+        }
+
+        if ($inpopup) {
+            // In a 'secure' popup window.
             $this->page->requires->js_init_call('M.mod_quiz.secure_window.init_close_button',
                     array($url), quiz_get_js_module());
             return html_writer::empty_tag('input', array('type' => 'button',
                     'value' => get_string('finishreview', 'quiz'),
                     'id' => 'secureclosebutton'));
-
         } else {
             return html_writer::link($url, get_string('finishreview', 'quiz'));
         }
@@ -253,7 +262,7 @@ class mod_quiz_renderer extends plugin_renderer_base {
      */
     public function review_next_navigation(quiz_attempt $attemptobj, $page, $lastpage) {
         if ($lastpage) {
-            $nav = $this->finish_review_link($attemptobj);
+            $nav = $this->finish_review_link($attemptobj->view_url());
         } else {
             $nav = link_arrow_right(get_string('next'), $attemptobj->review_url(null, $page + 1));
         }
@@ -303,17 +312,12 @@ class mod_quiz_renderer extends plugin_renderer_base {
         $output = '';
         $userpicture = $panel->user_picture();
         if ($userpicture) {
-            $fullname = fullname($userpicture->user);
-            if ($userpicture->size === true) {
-                $fullname = html_writer::div($fullname);
-            }
-            $output .= html_writer::tag('div', $this->render($userpicture) . $fullname,
+            $output .= html_writer::tag('div', $this->render($userpicture),
                     array('id' => 'user-picture', 'class' => 'clearfix'));
         }
         $output .= $panel->render_before_button_bits($this);
 
-        $bcc = $panel->get_button_container_class();
-        $output .= html_writer::start_tag('div', array('class' => "qn_buttons clearfix $bcc"));
+        $output .= html_writer::start_tag('div', array('class' => 'qn_buttons'));
         foreach ($panel->get_question_buttons() as $button) {
             $output .= $this->render($button);
         }
@@ -329,18 +333,17 @@ class mod_quiz_renderer extends plugin_renderer_base {
     }
 
     /**
-     * Display a quiz navigation button.
+     * Returns the quizzes navigation button
      *
      * @param quiz_nav_question_button $button
-     * @return string HTML fragment.
      */
     protected function render_quiz_nav_question_button(quiz_nav_question_button $button) {
         $classes = array('qnbutton', $button->stateclass, $button->navmethod);
-        $extrainfo = array();
+        $attributes = array();
 
         if ($button->currentpage) {
             $classes[] = 'thispage';
-            $extrainfo[] = get_string('onthispage', 'quiz');
+            $attributes[] = get_string('onthispage', 'quiz');
         }
 
         // Flagged?
@@ -350,7 +353,7 @@ class mod_quiz_renderer extends plugin_renderer_base {
         } else {
             $flaglabel = '';
         }
-        $extrainfo[] = html_writer::tag('span', $flaglabel, array('class' => 'flagstate'));
+        $attributes[] = html_writer::tag('span', $flaglabel, array('class' => 'flagstate'));
 
         if (is_numeric($button->number)) {
             $qnostring = 'questionnonav';
@@ -360,28 +363,18 @@ class mod_quiz_renderer extends plugin_renderer_base {
 
         $a = new stdClass();
         $a->number = $button->number;
-        $a->attributes = implode(' ', $extrainfo);
+        $a->attributes = implode(' ', $attributes);
         $tagcontents = html_writer::tag('span', '', array('class' => 'thispageholder')) .
                         html_writer::tag('span', '', array('class' => 'trafficlight')) .
                         get_string($qnostring, 'quiz', $a);
         $tagattributes = array('class' => implode(' ', $classes), 'id' => $button->id,
-                                  'title' => $button->statestring, 'data-quiz-page' => $button->page);
+                                  'title' => $button->statestring);
 
         if ($button->url) {
             return html_writer::link($button->url, $tagcontents, $tagattributes);
         } else {
             return html_writer::tag('span', $tagcontents, $tagattributes);
         }
-    }
-
-    /**
-     * Display a quiz navigation heading.
-     *
-     * @param quiz_nav_section_heading $heading the heading.
-     * @return string HTML fragment.
-     */
-    protected function render_quiz_nav_section_heading(quiz_nav_section_heading $heading) {
-        return $this->heading($heading->heading, 3, 'mod_quiz-section-heading');
     }
 
     /**
@@ -393,12 +386,10 @@ class mod_quiz_renderer extends plugin_renderer_base {
             mod_quiz_links_to_other_attempts $links) {
         $attemptlinks = array();
         foreach ($links->links as $attempt => $url) {
-            if (!$url) {
-                $attemptlinks[] = html_writer::tag('strong', $attempt);
-            } else if ($url instanceof renderable) {
-                $attemptlinks[] = $this->render($url);
-            } else {
+            if ($url) {
                 $attemptlinks[] = html_writer::link($url, $attempt);
+            } else {
+                $attemptlinks[] = html_writer::tag('strong', $attempt);
             }
         }
         return implode(', ', $attemptlinks);
@@ -407,8 +398,6 @@ class mod_quiz_renderer extends plugin_renderer_base {
     public function start_attempt_page(quiz $quizobj, mod_quiz_preflight_check_form $mform) {
         $output = '';
         $output .= $this->header();
-        $output .= $this->heading(format_string($quizobj->get_quiz_name(), true,
-                                  array("context" => $quizobj->get_context())));
         $output .= $this->quiz_intro($quizobj->get_quiz(), $quizobj->get_cm());
         ob_start();
         $mform->display();
@@ -472,8 +461,8 @@ class mod_quiz_renderer extends plugin_renderer_base {
 
         // Print all the questions.
         foreach ($slots as $slot) {
-            $output .= $attemptobj->render_question($slot, false, $this,
-                    $attemptobj->attempt_url($slot, $page), $this);
+            $output .= $attemptobj->render_question($slot, false,
+                    $attemptobj->attempt_url($slot, $page));
         }
 
         $output .= html_writer::start_tag('div', array('class' => 'submitbtns'));
@@ -499,31 +488,13 @@ class mod_quiz_renderer extends plugin_renderer_base {
         // if you navigate before the form has finished loading, it does not wipe all
         // the student's answers.
         $output .= html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'slots',
-                'value' => implode(',', $attemptobj->get_active_slots($page))));
+                'value' => implode(',', $slots)));
 
         // Finish the form.
         $output .= html_writer::end_tag('div');
         $output .= html_writer::end_tag('form');
 
-        $output .= $this->connection_warning();
-
         return $output;
-    }
-
-    /**
-     * Render a button which allows students to redo a question in the attempt.
-     *
-     * @param int $slot the number of the slot to generate the button for.
-     * @param bool $disabled if true, output the button disabled.
-     * @return string HTML fragment.
-     */
-    public function redo_question_button($slot, $disabled) {
-        $attributes = array('type' => 'submit',  'name' => 'redoslot' . $slot,
-                'value' => get_string('redoquestion', 'quiz'), 'class' => 'mod_quiz-redo_question_button');
-        if ($disabled) {
-            $attributes['disabled'] = 'disabled';
-        }
-        return html_writer::div(html_writer::empty_tag('input', $attributes));
     }
 
     /**
@@ -618,31 +589,18 @@ class mod_quiz_renderer extends plugin_renderer_base {
             $table->align[] = 'left';
             $table->size[] = '';
         }
-        $tablewidth = count($table->align);
         $table->data = array();
 
         // Get the summary info for each question.
         $slots = $attemptobj->get_slots();
         foreach ($slots as $slot) {
-            // Add a section headings if we need one here.
-            $heading = $attemptobj->get_heading_before_slot($slot);
-            if ($heading) {
-                $cell = new html_table_cell(format_string($heading));
-                $cell->header = true;
-                $cell->colspan = $tablewidth;
-                $table->data[] = array($cell);
-            }
-
-            // Don't display information items.
             if (!$attemptobj->is_real_question($slot)) {
                 continue;
             }
-
-            // Real question, show it.
             $flag = '';
             if ($attemptobj->is_question_flagged($slot)) {
                 $flag = html_writer::empty_tag('img', array('src' => $this->pix_url('i/flagged'),
-                        'alt' => get_string('flagged', 'question'), 'class' => 'questionflag icon-post'));
+                        'alt' => get_string('flagged', 'question'), 'class' => 'questionflag'));
             }
             if ($attemptobj->can_navigate_to($slot)) {
                 $row = array(html_writer::link($attemptobj->attempt_url($slot),
@@ -656,7 +614,7 @@ class mod_quiz_renderer extends plugin_renderer_base {
                 $row[] = $attemptobj->get_question_mark($slot);
             }
             $table->data[] = $row;
-            $table->rowclasses[] = 'quizsummary' . $slot . ' ' . $attemptobj->get_question_state_class(
+            $table->rowclasses[] = $attemptobj->get_question_state_class(
                     $slot, $displayoptions->correctness);
         }
 
@@ -738,6 +696,7 @@ class mod_quiz_renderer extends plugin_renderer_base {
         $output = '';
         $output .= $this->view_information($quiz, $cm, $context, $viewobj->infomessages);
         $output .= $this->view_table($quiz, $context, $viewobj);
+        $output .= $this->view_best_score($viewobj);
         $output .= $this->view_result_info($quiz, $context, $cm, $viewobj);
         $output .= $this->box($this->view_page_buttons($viewobj), 'quizattempt');
         return $output;
@@ -751,7 +710,6 @@ class mod_quiz_renderer extends plugin_renderer_base {
      * @return string HTML to output.
      */
     public function view_page_buttons(mod_quiz_view_object $viewobj) {
-        global $CFG;
         $output = '';
 
         if (!$viewobj->quizhasquestions) {
@@ -765,9 +723,8 @@ class mod_quiz_renderer extends plugin_renderer_base {
                     $viewobj->startattempturl, $viewobj->startattemptwarning,
                     $viewobj->popuprequired, $viewobj->popupoptions);
 
-        }
-
-        if ($viewobj->showbacktocourse) {
+        } else if ($viewobj->buttontext === '') {
+            // We should show a 'back to the course' button.
             $output .= $this->single_button($viewobj->backtocourseurl,
                     get_string('backtocourse', 'quiz'), 'get',
                     array('class' => 'continuebutton'));
@@ -850,8 +807,8 @@ class mod_quiz_renderer extends plugin_renderer_base {
         $output .= $this->view_information($quiz, $cm, $context, $messages);
         $guestno = html_writer::tag('p', get_string('guestsno', 'quiz'));
         $liketologin = html_writer::tag('p', get_string('liketologin'));
-        $referer = get_local_referer(false);
-        $output .= $this->confirm($guestno."\n\n".$liketologin."\n", get_login_url(), $referer);
+        $output .= $this->confirm($guestno."\n\n".$liketologin."\n", get_login_url(),
+                get_referer(false));
         return $output;
     }
 
@@ -888,15 +845,14 @@ class mod_quiz_renderer extends plugin_renderer_base {
         global $CFG;
 
         $output = '';
-
         // Print quiz name and description.
         $output .= $this->heading(format_string($quiz->name));
-        $output .= $this->quiz_intro($quiz, $cm);
-
-        // Output any access messages.
-        if ($messages) {
-            $output .= $this->box($this->access_messages($messages), 'quizinfo');
+        if (trim(strip_tags($quiz->intro))) {
+            $output .= $this->box(format_module_intro('quiz', $quiz, $cm->id), 'generalbox',
+                    'intro');
         }
+
+        $output .= $this->box($this->access_messages($messages), 'quizinfo');
 
         // Show number of attempts summary to those who can view reports.
         if (has_capability('mod/quiz:viewreports', $context)) {
@@ -916,18 +872,20 @@ class mod_quiz_renderer extends plugin_renderer_base {
      * @return string HTML to output.
      */
     public function quiz_intro($quiz, $cm) {
-        if (html_is_blank($quiz->intro)) {
+        if (trim(strip_tags($quiz->intro))) {
+            return $this->box(format_module_intro('quiz', $quiz, $cm->id),
+                    'generalbox', 'intro');
+
+        } else {
             return '';
         }
-
-        return $this->box(format_module_intro('quiz', $quiz, $cm->id), 'generalbox', 'intro');
     }
 
     /**
      * Generates the table heading.
      */
     public function view_table_heading() {
-        return $this->heading(get_string('summaryofattempts', 'quiz'), 3);
+        return $this->heading(get_string('summaryofattempts', 'quiz'));
     }
 
     /**
@@ -1014,7 +972,6 @@ class mod_quiz_renderer extends plugin_renderer_base {
                     // Highlight the highest grade if appropriate.
                     if ($viewobj->overallstats && !$attemptobj->is_preview()
                             && $viewobj->numattempts > 1 && !is_null($viewobj->mygrade)
-                            && $attemptobj->get_state() == quiz_attempt::FINISHED
                             && $attemptgrade == $viewobj->mygrade
                             && $quiz->grademethod == QUIZ_GRADEHIGHEST) {
                         $table->rowclasses[$attemptobj->get_attempt_number()] = 'bestrow';
@@ -1081,6 +1038,20 @@ class mod_quiz_renderer extends plugin_renderer_base {
     }
 
     /**
+     * Prints the students best score
+     *
+     * @param mod_quiz_view_object $viewobj
+     */
+    public function view_best_score($viewobj) {
+        $output = '';
+        // Print information about the student's best score for this quiz if possible.
+        if (!$viewobj->moreattempts) {
+            $output .= $this->heading(get_string('nomoreattempts', 'quiz'));
+        }
+        return $output;
+    }
+
+    /**
      * Generates data pertaining to quiz results
      *
      * @param array $quiz Array containing quiz data
@@ -1101,13 +1072,14 @@ class mod_quiz_renderer extends plugin_renderer_base {
                 $a->method = quiz_get_grading_option_name($quiz->grademethod);
                 $a->mygrade = quiz_format_grade($quiz, $viewobj->mygrade);
                 $a->quizgrade = quiz_format_grade($quiz, $quiz->grade);
-                $resultinfo .= $this->heading(get_string('gradesofar', 'quiz', $a), 3);
+                $resultinfo .= $this->heading(get_string('gradesofar', 'quiz', $a), 2, 'main');
             } else {
                 $a = new stdClass();
                 $a->grade = quiz_format_grade($quiz, $viewobj->mygrade);
                 $a->maxgrade = quiz_format_grade($quiz, $quiz->grade);
                 $a = get_string('outofshort', 'quiz', $a);
-                $resultinfo .= $this->heading(get_string('yourfinalgradeis', 'quiz', $a), 3);
+                $resultinfo .= $this->heading(get_string('yourfinalgradeis', 'quiz', $a), 2,
+                        'main');
             }
         }
 
@@ -1117,14 +1089,15 @@ class mod_quiz_renderer extends plugin_renderer_base {
                     array('class' => 'overriddennotice'))."\n";
         }
         if ($viewobj->gradebookfeedback) {
-            $resultinfo .= $this->heading(get_string('comment', 'quiz'), 3);
-            $resultinfo .= html_writer::div($viewobj->gradebookfeedback, 'quizteacherfeedback') . "\n";
+            $resultinfo .= $this->heading(get_string('comment', 'quiz'), 3, 'main');
+            $resultinfo .= '<p class="quizteacherfeedback">'.$viewobj->gradebookfeedback.
+                    "</p>\n";
         }
         if ($viewobj->feedbackcolumn) {
-            $resultinfo .= $this->heading(get_string('overallfeedback', 'quiz'), 3);
-            $resultinfo .= html_writer::div(
+            $resultinfo .= $this->heading(get_string('overallfeedback', 'quiz'), 3, 'main');
+            $resultinfo .= html_writer::tag('p',
                     quiz_feedback_for_grade($viewobj->mygrade, $quiz, $context),
-                    'quizgradefeedback') . "\n";
+                    array('class' => 'quizgradefeedback'))."\n";
         }
 
         if ($resultinfo) {
@@ -1203,34 +1176,22 @@ class mod_quiz_renderer extends plugin_renderer_base {
     public function graph(moodle_url $url, $title) {
         global $CFG;
 
-        $graph = html_writer::empty_tag('img', array('src' => $url, 'alt' => $title));
+        if (empty($CFG->gdversion)) {
+            $graph = get_string('gdneed');
+        } else {
+            $graph = html_writer::empty_tag('img', array('src' => $url, 'alt' => $title));
+        }
 
-        return $this->heading($title, 3) . html_writer::tag('div', $graph, array('class' => 'graph'));
-    }
-
-    /**
-     * Output the connection warning messages, which are initially hidden, and
-     * only revealed by JavaScript if necessary.
-     */
-    public function connection_warning() {
-        $options = array('filter' => false, 'newlines' => false);
-        $warning = format_text(get_string('connectionerror', 'quiz'), FORMAT_MARKDOWN, $options);
-        $ok = format_text(get_string('connectionok', 'quiz'), FORMAT_MARKDOWN, $options);
-        return html_writer::tag('div', $warning,
-                    array('id' => 'connection-error', 'style' => 'display: none;', 'role' => 'alert')) .
-                    html_writer::tag('div', $ok, array('id' => 'connection-ok', 'style' => 'display: none;', 'role' => 'alert'));
+        return $this->heading($title) . html_writer::tag('div', $graph, array('class' => 'graph'));
     }
 }
-
 
 class mod_quiz_links_to_other_attempts implements renderable {
     /**
      * @var array string attempt number => url, or null for the current attempt.
-     * url may be either a moodle_url, or a renderable.
      */
     public $links = array();
 }
-
 
 class mod_quiz_view_object {
     /** @var array $infomessages of messages with information to display about the quiz. */
@@ -1286,8 +1247,6 @@ class mod_quiz_view_object {
     public $startattempturl;
     /** @var moodle_url $startattempturl URL for any Back to the course button. */
     public $backtocourseurl;
-    /** @var bool $showbacktocourse should we show a back to the course button? */
-    public $showbacktocourse;
     /** @var bool whether the attempt must take place in a popup window. */
     public $popuprequired;
     /** @var array options to use for the popup window, if required. */

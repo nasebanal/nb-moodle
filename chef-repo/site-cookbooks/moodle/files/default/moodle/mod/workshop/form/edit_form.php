@@ -1,4 +1,5 @@
 <?php
+
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -17,7 +18,8 @@
 /**
  * This file defines a base class for all grading strategy editing forms.
  *
- * @package    mod_workshop
+ * @package    mod
+ * @subpackage workshop
  * @copyright  2009 David Mudrak <david.mudrak@gmail.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -81,23 +83,6 @@ class workshop_edit_strategy_form extends moodleform {
     }
 
     /**
-     * Validate the submitted form data.
-     *
-     * Grading strategy plugins can provide their own validation rules by
-     * overriding the {@link self::validation_inner()} method.
-     *
-     * @param array $data
-     * @param array $files
-     * @return array
-     */
-    final public function validation($data, $files) {
-        return array_merge(
-            parent::validation($data, $files),
-            $this->validation_inner($data, $files)
-        );
-    }
-
-    /**
      * Add any strategy specific form fields.
      *
      * @param stdClass $mform the form being built.
@@ -106,14 +91,4 @@ class workshop_edit_strategy_form extends moodleform {
         // By default, do nothing.
     }
 
-    /**
-     * Add strategy specific validation rules.
-     *
-     * @param array $data
-     * @param array $files
-     * @return array
-     */
-    protected function validation_inner($data, $files) {
-        return array();
-    }
 }

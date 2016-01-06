@@ -15,7 +15,7 @@ You can get Docker image from https://hub.docker.com/r/syatsuzuka/nb-wordpress/
 * mysql-server 5.1.73
 * php 5.5
 * phpMyAdmin 4.0.10
-* moodle 3.0
+* moodle 2.3 (Stable)
 
 
 [How to Use]

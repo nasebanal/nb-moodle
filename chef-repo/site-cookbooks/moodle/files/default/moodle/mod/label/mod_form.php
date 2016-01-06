@@ -18,7 +18,8 @@
 /**
  * Add label form
  *
- * @package mod_label
+ * @package    mod
+ * @subpackage label
  * @copyright  2006 Jamie Pratt
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -33,8 +34,7 @@ class mod_label_mod_form extends moodleform_mod {
 
         $mform = $this->_form;
 
-        $mform->addElement('header', 'generalhdr', get_string('general'));
-        $this->standard_intro_elements(get_string('labeltext', 'label'));
+        $this->add_intro_editor(true, get_string('labeltext', 'label'));
 
         $this->standard_coursemodule_elements();
 

@@ -88,17 +88,13 @@ class cc_quiz extends entities {
 
                     if (!empty($assessment_file)) {
 
-                        $assessment = $this->load_xml_resource(
-                            cc2moodle::$path_to_manifest_folder . DIRECTORY_SEPARATOR . $assessment_file
-                        );
+                        $assessment = $this->load_xml_resource(cc2moodle::$path_to_manifest_folder . DIRECTORY_SEPARATOR . $assessment_file);
 
                         if (!empty($assessment)) {
 
                             $replace_values = array('unlimited' => 0);
 
-                            $questions = $this->get_questions(
-                                $assessment, $last_question_id, $last_answer_id, dirname($assessment_file), $is_question_bank
-                            );
+                            $questions = $this->get_questions($assessment, $last_question_id, $last_answer_id, dirname($assessment_file), $is_question_bank);
                             $question_count = count($questions);
 
                             if (!empty($question_count)) {
@@ -109,10 +105,8 @@ class cc_quiz extends entities {
                                 $instances[$instance['resource_indentifier']]['id'] = $last_instance_id;
                                 $instances[$instance['resource_indentifier']]['title'] = $instance['title'];
                                 $instances[$instance['resource_indentifier']]['is_question_bank'] = $is_question_bank;
-                                $instances[$instance['resource_indentifier']]['options']['timelimit'] =
-                                    $this->get_global_config($assessment, 'qmd_timelimit', 0);
-                                $instances[$instance['resource_indentifier']]['options']['max_attempts'] =
-                                    $this->get_global_config($assessment, 'cc_maxattempts', 0, $replace_values);
+                                $instances[$instance['resource_indentifier']]['options']['timelimit'] = $this->get_global_config($assessment, 'qmd_timelimit', 0);
+                                $instances[$instance['resource_indentifier']]['options']['max_attempts'] = $this->get_global_config($assessment, 'cc_maxattempts', 0, $replace_values);
                             }
                         }
                     }
@@ -154,7 +148,7 @@ class cc_quiz extends entities {
                                 $instance['options']['max_attempts'],
                                 $instance['options']['timelimit'],
                                 $node_course_modules_quiz_question_instances,
-                                $node_course_modules_quiz_feedback); // This one has tags.
+                                $node_course_modules_quiz_feedback); //this one has tags
 
         $node_question_mod = str_replace($find_tags, $replace_values, $sheet_question_mod);
 
@@ -200,14 +194,10 @@ class cc_quiz extends entities {
 
             foreach ($instance['questions'] as $question) {
                 $replace_values = array($question['id'] , $question['id']);
-                $node_course_module_mod_quiz_questions_instances .= str_replace(
-                    $find_tags, $replace_values, $sheet_question_mod_instance
-                );
+                $node_course_module_mod_quiz_questions_instances .= str_replace($find_tags, $replace_values, $sheet_question_mod_instance);
             }
 
-            $node_course_module_mod_quiz_questions_instances = str_replace(
-                $find_tags, $replace_values, $node_course_module_mod_quiz_questions_instances
-            );
+            $node_course_module_mod_quiz_questions_instances = str_replace($find_tags, $replace_values, $node_course_module_mod_quiz_questions_instances);
         }
 
         return $node_course_module_mod_quiz_questions_instances;
@@ -228,7 +218,7 @@ class cc_quiz extends entities {
         return $questions_string;
     }
 
-    private function create_node_course_question_categories($instances) {
+    private function create_node_course_question_categories ($instances) {
 
         $sheet_question_categories = cc2moodle::loadsheet(SHEET_COURSE_QUESTION_CATEGORIES);
 
@@ -237,8 +227,7 @@ class cc_quiz extends entities {
             $node_course_question_categories_question_category = '';
 
             foreach ($instances as $instance) {
-                $node_course_question_categories_question_category .=
-                    $this->create_node_course_question_categories_question_category($instance);
+                $node_course_question_categories_question_category .= $this->create_node_course_question_categories_question_category($instance);
             }
 
             $find_tags = array('[#node_course_question_categories_question_category#]');
@@ -261,10 +250,8 @@ class cc_quiz extends entities {
                            '[#quiz_stamp#]',
                            '[#node_course_question_categories_question_category_questions#]');
 
-        $node_course_question_categories_questions =
-            $this->create_node_course_question_categories_question_category_question($instance);
-        $node_course_question_categories_questions =
-            empty($node_course_question_categories_questions) ? '' : $node_course_question_categories_questions;
+        $node_course_question_categories_questions = $this->create_node_course_question_categories_question_category_question($instance);
+        $node_course_question_categories_questions = empty($node_course_question_categories_questions) ? '' : $node_course_question_categories_questions;
 
         $quiz_stamp = 'localhost+' . time() . '+' . $this->generate_random_string(6);
 
@@ -666,9 +653,8 @@ class cc_quiz extends entities {
 
         $question_cc_type = $this->get_question_type($identifier, $assessment);
         $question_cc_type = $question_cc_type['cc'];
-        $is_multiresponse = ($question_cc_type == CC_QUIZ_MULTIPLE_RESPONSE);
 
-        if ($question_cc_type == CC_QUIZ_MULTIPLE_CHOICE || $is_multiresponse || $question_cc_type == CC_QUIZ_TRUE_FALSE) {
+        if ($question_cc_type == CC_QUIZ_MULTIPLE_CHOICE || $question_cc_type == CC_QUIZ_MULTIPLE_RESPONSE || $question_cc_type == CC_QUIZ_TRUE_FALSE) {
 
             $query_answers = '//xmlns:item[@ident="' . $identifier . '"]/xmlns:presentation/xmlns:response_lid/xmlns:render_choice/xmlns:response_label';
             $query_answers_with_flow = '//xmlns:item[@ident="' . $identifier . '"]/xmlns:presentation/xmlns:flow/xmlns:response_lid/xmlns:render_choice/xmlns:response_label';
@@ -718,19 +704,7 @@ class cc_quiz extends entities {
             }
 
             if (!empty($response_items)) {
-                if ($is_multiresponse) {
-                    $correct_answer_score = 0;
-                    //get the correct answers count
-                    $canswers_query = "//xmlns:item[@ident='{$identifier}']//xmlns:setvar[@varname='SCORE'][.=100]/../xmlns:conditionvar//xmlns:varequal[@case='Yes'][not(parent::xmlns:not)]";
-                    $canswers = $xpath->query($canswers_query);
-                    if ($canswers->length > 0) {
-                        $correct_answer_score = round(1.0 / (float)$canswers->length, 7); //weird
-                        $correct_answers_ident = array();
-                        foreach ($canswers as $cnode) {
-                            $correct_answers_ident[$cnode->nodeValue] = true;
-                        }
-                    }
-                }
+
                 foreach ($response_items as $response_item) {
 
                     $last_answer_id++;
@@ -744,10 +718,6 @@ class cc_quiz extends entities {
                     $answer_feedback = $this->get_feedback($assessment, $answer_identifier, $identifier, $question_cc_type);
 
                     $answer_score = $this->get_score($assessment, $answer_identifier, $identifier);
-
-                    if ($is_multiresponse && isset($correct_answers_ident[$answer_identifier])) {
-                        $answer_score = $correct_answer_score;
-                    }
 
                     $answers[] = array('id' => $last_answer_id,
                                        'title' => $answer_title,
@@ -787,7 +757,7 @@ class cc_quiz extends entities {
             }
         }
 
-        $score = empty($score) ? 0 : sprintf("%.7F", $score);
+        $score = empty($score) ? 0 : $score;
 
         return $score;
     }
@@ -885,30 +855,27 @@ class cc_quiz extends entities {
 
         $sheet_question_categories_question = cc2moodle::loadsheet(SHEET_COURSE_QUESTION_CATEGORIES_QUESTION_CATEGORY_QUESTION_TRUE_FALSE);
 
-        $trueanswer  = null;
-        $falseanswer = null;
+        $max_score = 0;
+        $true_answer_id = 0;
+        $false_answer_id = 0;
 
         if (!empty($question['answers'])) {
 
-            // Identify the true and false answers.
             foreach ($question['answers'] as $answer) {
-                if ($answer['identifier'] == 'true') {
-                    $trueanswer = $answer;
-                } else if ($answer['identifier'] == 'false') {
-                    $falseanswer = $answer;
-                } else {
-                    // Should not happen, but just in case.
-                    throw new coding_exception("Unknown answer identifier detected" .
-                            " in true/false quiz question with id {$question['id']}.");
+                if ($answer['score'] > $max_score) {
+                    $max_score = $answer['score'];
+                    $true_answer_id = $answer['id'];
                 }
 
                 $node_course_question_categories_question_answer .= $this->create_node_course_question_categories_question_category_question_answer($answer);
             }
 
-            // Make sure the true and false answer was found.
-            if (is_null($trueanswer) || is_null($falseanswer)) {
-                throw new coding_exception("Unable to correctly identify the " .
-                        "true and false answers in the question with id {$question['id']}.");
+            foreach ($question['answers'] as $answer) {
+
+                if ($answer['id'] != $true_answer_id) {
+                    $max_score = $answer['score'];
+                    $false_answer_id = $answer['id'];
+                }
             }
         }
 
@@ -917,8 +884,8 @@ class cc_quiz extends entities {
                            '[#false_answer_id#]');
 
         $replace_values = array($node_course_question_categories_question_answer,
-                                $trueanswer['id'],
-                                $falseanswer['id']);
+                                $true_answer_id,
+                                $false_answer_id);
 
         $node_question_categories_question = str_replace($find_tags, $replace_values, $sheet_question_categories_question);
 

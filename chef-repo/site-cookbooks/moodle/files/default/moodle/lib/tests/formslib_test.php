@@ -32,7 +32,7 @@ require_once($CFG->libdir . '/form/select.php');
 require_once($CFG->libdir . '/form/text.php');
 
 
-class core_formslib_testcase extends advanced_testcase {
+class formslib_testcase extends basic_testcase {
 
     public function test_require_rule() {
         global $CFG;
@@ -44,15 +44,13 @@ class core_formslib_testcase extends advanced_testcase {
 
         $rule = new MoodleQuickForm_Rule_Required();
 
-        // First run the tests with strictformsrequired off.
+        // First run the tests with strictformsrequired off
         $CFG->strictformsrequired = false;
-        // Passes.
+        // Passes
         $this->assertTrue($rule->validate('Something'));
         $this->assertTrue($rule->validate("Something\nmore"));
         $this->assertTrue($rule->validate("\nmore"));
         $this->assertTrue($rule->validate(" more "));
-        $this->assertTrue($rule->validate('ш'));
-        $this->assertTrue($rule->validate("の"));
         $this->assertTrue($rule->validate("0"));
         $this->assertTrue($rule->validate(0));
         $this->assertTrue($rule->validate(true));
@@ -77,21 +75,19 @@ class core_formslib_testcase extends advanced_testcase {
         $this->assertTrue($rule->validate('<br/>'));
         $this->assertTrue($rule->validate('<br>'));
         $this->assertTrue($rule->validate('&nbsp;'));
-        // Fails.
+        // Fails
         $this->assertFalse($rule->validate(''));
         $this->assertFalse($rule->validate(false));
         $this->assertFalse($rule->validate(null));
 
-        // Now run the same tests with it on to make sure things work as expected.
+        // Now run the same tests with it on to make sure things work as expected
         $CFG->strictformsrequired = true;
-        // Passes.
+        // Passes
         $this->assertTrue($rule->validate('Something'));
         $this->assertTrue($rule->validate("Something\nmore"));
         $this->assertTrue($rule->validate("\nmore"));
         $this->assertTrue($rule->validate(" more "));
         $this->assertTrue($rule->validate("0"));
-        $this->assertTrue($rule->validate('ш'));
-        $this->assertTrue($rule->validate("の"));
         $this->assertTrue($rule->validate(0));
         $this->assertTrue($rule->validate(true));
         $this->assertTrue($rule->validate('<p>x</p>'));
@@ -102,7 +98,7 @@ class core_formslib_testcase extends advanced_testcase {
         $this->assertTrue($rule->validate('<hr/>'));
         $this->assertTrue($rule->validate('<hr>'));
         $this->assertTrue($rule->validate('<hr></hr>'));
-        // Fails.
+        // Fails
         $this->assertFalse($rule->validate(' '));
         $this->assertFalse($rule->validate('      '));
         $this->assertFalse($rule->validate("\t"));
@@ -125,126 +121,43 @@ class core_formslib_testcase extends advanced_testcase {
         }
     }
 
-    public function test_range_rule() {
-        global $CFG;
-
-        require_once('HTML/QuickForm/Rule/Range.php'); // Requires this pear stuff.
-
-        $strictformsrequired = null;
-        if (isset($CFG->strictformsrequired)) {
-            $strictformsrequired = $CFG->strictformsrequired;
-        }
-
-        $rule = new HTML_QuickForm_Rule_Range();
-
-        // First run the tests with strictformsrequired off.
-        $CFG->strictformsrequired = false;
-        // Passes.
-        $rule->setName('minlength'); // Let's verify some min lengths.
-        $this->assertTrue($rule->validate('12', 2));
-        $this->assertTrue($rule->validate('123', 2));
-        $this->assertTrue($rule->validate('áé', 2));
-        $this->assertTrue($rule->validate('áéí', 2));
-        $rule->setName('maxlength'); // Let's verify some max lengths.
-        $this->assertTrue($rule->validate('1', 2));
-        $this->assertTrue($rule->validate('12', 2));
-        $this->assertTrue($rule->validate('á', 2));
-        $this->assertTrue($rule->validate('áé', 2));
-        $rule->setName('----'); // Let's verify some ranges.
-        $this->assertTrue($rule->validate('', array(0, 2)));
-        $this->assertTrue($rule->validate('1', array(0, 2)));
-        $this->assertTrue($rule->validate('12', array(0, 2)));
-        $this->assertTrue($rule->validate('á', array(0, 2)));
-        $this->assertTrue($rule->validate('áé', array(0, 2)));
-
-        // Fail.
-        $rule->setName('minlength'); // Let's verify some min lengths.
-        $this->assertFalse($rule->validate('', 2));
-        $this->assertFalse($rule->validate('1', 2));
-        $this->assertFalse($rule->validate('á', 2));
-        $rule->setName('maxlength'); // Let's verify some max lengths.
-        $this->assertFalse($rule->validate('123', 2));
-        $this->assertFalse($rule->validate('áéí', 2));
-        $rule->setName('----'); // Let's verify some ranges.
-        $this->assertFalse($rule->validate('', array(1, 2)));
-        $this->assertFalse($rule->validate('123', array(1, 2)));
-        $this->assertFalse($rule->validate('áéí', array(1, 2)));
-
-        // Now run the same tests with it on to make sure things work as expected.
-        $CFG->strictformsrequired = true;
-        // Passes.
-        $rule->setName('minlength'); // Let's verify some min lengths.
-        $this->assertTrue($rule->validate('12', 2));
-        $this->assertTrue($rule->validate('123', 2));
-        $this->assertTrue($rule->validate('áé', 2));
-        $this->assertTrue($rule->validate('áéí', 2));
-        $rule->setName('maxlength'); // Let's verify some min lengths.
-        $this->assertTrue($rule->validate('1', 2));
-        $this->assertTrue($rule->validate('12', 2));
-        $this->assertTrue($rule->validate('á', 2));
-        $this->assertTrue($rule->validate('áé', 2));
-        $rule->setName('----'); // Let's verify some ranges.
-        $this->assertTrue($rule->validate('', array(0, 2)));
-        $this->assertTrue($rule->validate('1', array(0, 2)));
-        $this->assertTrue($rule->validate('12', array(0, 2)));
-        $this->assertTrue($rule->validate('á', array(0, 2)));
-        $this->assertTrue($rule->validate('áé', array(0, 2)));
-
-        // Fail.
-        $rule->setName('minlength'); // Let's verify some min lengths.
-        $this->assertFalse($rule->validate('', 2));
-        $this->assertFalse($rule->validate('1', 2));
-        $this->assertFalse($rule->validate('á', 2));
-        $rule->setName('maxlength'); // Let's verify some min lengths.
-        $this->assertFalse($rule->validate('123', 2));
-        $this->assertFalse($rule->validate('áéí', 2));
-        $rule->setName('----'); // Let's verify some ranges.
-        $this->assertFalse($rule->validate('', array(1, 2)));
-        $this->assertFalse($rule->validate('123', array(1, 2)));
-        $this->assertFalse($rule->validate('áéí', array(1, 2)));
-
-        if (isset($strictformsrequired)) {
-            $CFG->strictformsrequired = $strictformsrequired;
-        }
-    }
-
     public function test_generate_id_select() {
         $el = new MoodleQuickForm_select('choose_one', 'Choose one',
             array(1 => 'One', '2' => 'Two'));
         $el->_generateId();
-        $this->assertSame('id_choose_one', $el->getAttribute('id'));
+        $this->assertEquals('id_choose_one', $el->getAttribute('id'));
     }
 
     public function test_generate_id_like_repeat() {
         $el = new MoodleQuickForm_text('text[7]', 'Type something');
         $el->_generateId();
-        $this->assertSame('id_text_7', $el->getAttribute('id'));
+        $this->assertEquals('id_text_7', $el->getAttribute('id'));
     }
 
     public function test_can_manually_set_id() {
         $el = new MoodleQuickForm_text('elementname', 'Type something',
             array('id' => 'customelementid'));
         $el->_generateId();
-        $this->assertSame('customelementid', $el->getAttribute('id'));
+        $this->assertEquals('customelementid', $el->getAttribute('id'));
     }
 
     public function test_generate_id_radio() {
         $el = new MoodleQuickForm_radio('radio', 'Label', 'Choice label', 'choice_value');
         $el->_generateId();
-        $this->assertSame('id_radio_choice_value', $el->getAttribute('id'));
+        $this->assertEquals('id_radio_choice_value', $el->getAttribute('id'));
     }
 
     public function test_radio_can_manually_set_id() {
         $el = new MoodleQuickForm_radio('radio2', 'Label', 'Choice label', 'choice_value',
             array('id' => 'customelementid2'));
         $el->_generateId();
-        $this->assertSame('customelementid2', $el->getAttribute('id'));
+        $this->assertEquals('customelementid2', $el->getAttribute('id'));
     }
 
     public function test_generate_id_radio_like_repeat() {
         $el = new MoodleQuickForm_radio('repeatradio[2]', 'Label', 'Choice label', 'val');
         $el->_generateId();
-        $this->assertSame('id_repeatradio_2_val', $el->getAttribute('id'));
+        $this->assertEquals('id_repeatradio_2_val', $el->getAttribute('id'));
     }
 
     public function test_rendering() {
@@ -276,100 +189,6 @@ class core_formslib_testcase extends advanced_testcase {
 
         $this->assertTag(array('tag'=>'input', 'id'=>'id_repeatradio_2_2',
             'attributes'=>array('type'=>'radio', 'name'=>'repeatradio[2]', 'value'=>'2')), $html);
-    }
-
-    public function test_settype_debugging_text() {
-        $mform = new formslib_settype_debugging_text();
-        $this->assertDebuggingCalled("Did you remember to call setType() for 'texttest'? Defaulting to PARAM_RAW cleaning.");
-
-        // Check form still there though.
-        $this->expectOutputRegex('/<input[^>]*name="texttest[^>]*type="text/');
-        $mform->display();
-    }
-
-    public function test_settype_debugging_hidden() {
-        $mform = new formslib_settype_debugging_hidden();
-        $this->assertDebuggingCalled("Did you remember to call setType() for 'hiddentest'? Defaulting to PARAM_RAW cleaning.");
-
-        // Check form still there though.
-        $this->expectOutputRegex('/<input[^>]*name="hiddentest[^>]*type="hidden/');
-        $mform->display();
-    }
-
-    public function test_settype_debugging_url() {
-        $this->resetAfterTest(true);
-        $this->setAdminUser();
-        $mform = new formslib_settype_debugging_url();
-        $this->assertDebuggingCalled("Did you remember to call setType() for 'urltest'? Defaulting to PARAM_RAW cleaning.");
-
-        // Check form still there though.
-        $this->expectOutputRegex('/<input[^>]*name="urltest"[^>]*type="text/');
-        $mform->display();
-    }
-
-    public function test_settype_debugging_repeat() {
-        $mform = new formslib_settype_debugging_repeat();
-        $this->assertDebuggingCalled("Did you remember to call setType() for 'repeattest[0]'? Defaulting to PARAM_RAW cleaning.");
-
-        // Check form still there though.
-        $this->expectOutputRegex('/<input[^>]*name="repeattest[^>]*type="text/');
-        $mform->display();
-    }
-
-    public function test_settype_debugging_repeat_ok() {
-        $mform = new formslib_settype_debugging_repeat_ok();
-        // No debugging expected here.
-
-        $this->expectOutputRegex('/<input[^>]*name="repeattest[^>]*type="text/');
-        $mform->display();
-    }
-
-    public function test_settype_debugging_group() {
-        $mform = new formslib_settype_debugging_group();
-        $this->assertDebuggingCalled("Did you remember to call setType() for 'groupel1'? Defaulting to PARAM_RAW cleaning.");
-        $this->expectOutputRegex('/<input[^>]*name="groupel1"[^>]*type="text/');
-        $this->expectOutputRegex('/<input[^>]*name="groupel2"[^>]*type="text/');
-        $mform->display();
-    }
-
-    public function test_settype_debugging_namedgroup() {
-        $mform = new formslib_settype_debugging_namedgroup();
-        $this->assertDebuggingCalled("Did you remember to call setType() for 'namedgroup[groupel1]'? Defaulting to PARAM_RAW cleaning.");
-        $this->expectOutputRegex('/<input[^>]*name="namedgroup\[groupel1\]"[^>]*type="text/');
-        $this->expectOutputRegex('/<input[^>]*name="namedgroup\[groupel2\]"[^>]*type="text/');
-        $mform->display();
-    }
-
-    public function test_settype_debugging_funky_name() {
-        $mform = new formslib_settype_debugging_funky_name();
-        $this->assertDebuggingCalled("Did you remember to call setType() for 'blah[foo][bar][1]'? Defaulting to PARAM_RAW cleaning.");
-        $this->expectOutputRegex('/<input[^>]*name="blah\[foo\]\[bar\]\[0\]"[^>]*type="text/');
-        $this->expectOutputRegex('/<input[^>]*name="blah\[foo\]\[bar\]\[1\]"[^>]*type="text/');
-        $mform->display();
-    }
-
-    public function test_settype_debugging_type_inheritance() {
-        $mform = new formslib_settype_debugging_type_inheritance();
-        $this->expectOutputRegex('/<input[^>]*name="blah\[foo\]\[bar\]\[0\]"[^>]*type="text/');
-        $this->expectOutputRegex('/<input[^>]*name="blah\[bar\]\[foo\]\[1\]"[^>]*type="text/');
-        $this->expectOutputRegex('/<input[^>]*name="blah\[any\]\[other\]\[2\]"[^>]*type="text/');
-        $mform->display();
-    }
-
-    public function test_settype_debugging_type_group_in_repeat() {
-        $mform = new formslib_settype_debugging_type_group_in_repeat();
-        $this->assertDebuggingCalled("Did you remember to call setType() for 'test2[0]'? Defaulting to PARAM_RAW cleaning.");
-        $this->expectOutputRegex('/<input[^>]*name="test1\[0\]"[^>]*type="text/');
-        $this->expectOutputRegex('/<input[^>]*name="test2\[0\]"[^>]*type="text/');
-        $mform->display();
-    }
-
-    public function test_settype_debugging_type_namedgroup_in_repeat() {
-        $mform = new formslib_settype_debugging_type_namedgroup_in_repeat();
-        $this->assertDebuggingCalled("Did you remember to call setType() for 'namedgroup[0][test2]'? Defaulting to PARAM_RAW cleaning.");
-        $this->expectOutputRegex('/<input[^>]*name="namedgroup\[0\]\[test1\]"[^>]*type="text/');
-        $this->expectOutputRegex('/<input[^>]*name="namedgroup\[0\]\[test2\]"[^>]*type="text/');
-        $mform->display();
     }
 
     public function test_type_cleaning() {
@@ -564,12 +383,7 @@ class formslib_test_form extends moodleform {
         $repeatels = array(
             $this->_form->createElement('text', 'text', 'Type something')
         );
-        // TODO: The repeat_elements() is far from perfect. Everything should be
-        // repeated auto-magically by default with options only defining exceptions.
-        // Surely this is caused because we are storing some element information OUT
-        // from the element (type...) at form level. Anyway, the method should do its
-        // work better, no matter of that.
-        $this->repeat_elements($repeatels, 2, array('text' => array('type' => PARAM_RAW)), 'numtexts', 'addtexts');
+        $this->repeat_elements($repeatels, 2, array(), 'numtexts', 'addtexts');
 
         $this->_form->addElement('radio', 'radio', 'Label', 'Choice label', 'choice_value');
 
@@ -584,159 +398,7 @@ class formslib_test_form extends moodleform {
     }
 }
 
-/**
- * Used to test debugging is called when text added without setType.
- */
-class formslib_settype_debugging_text extends moodleform {
-    public function definition() {
-        $mform = $this->_form;
-
-        $mform->addElement('text', 'texttest', 'test123', 'testing123');
-    }
-}
-
-/**
- * Used to test debugging is called when hidden added without setType.
- */
-class formslib_settype_debugging_hidden extends moodleform {
-    public function definition() {
-        $mform = $this->_form;
-
-        $mform->addElement('hidden', 'hiddentest', '1');
-    }
-}
-
-/**
- * Used to test debugging is called when hidden added without setType.
- */
-class formslib_settype_debugging_url extends moodleform {
-    public function definition() {
-        $mform = $this->_form;
-
-        $mform->addElement('url', 'urltest', 'urltest');
-    }
-}
-
-/**
- * Used to test debugging is called when repeated text added without setType.
- */
-class formslib_settype_debugging_repeat extends moodleform {
-    public function definition() {
-        $mform = $this->_form;
-
-        $repeatels = array(
-            $mform->createElement('text', 'repeattest', 'Type something')
-        );
-
-        $this->repeat_elements($repeatels, 1, array(), 'numtexts', 'addtexts');
-    }
-}
-
-/**
- * Used to no debugging is called when correctly test.
- */
-class formslib_settype_debugging_repeat_ok extends moodleform {
-    public function definition() {
-        $mform = $this->_form;
-
-        $repeatels = array(
-            $mform->createElement('text', 'repeattest', 'Type something')
-        );
-
-        $this->repeat_elements($repeatels, 2, array('repeattest' => array('type' => PARAM_RAW)), 'numtexts', 'addtexts');
-    }
-}
-
-/**
- * Used to test if debugging is called when a group contains elements without type.
- */
-class formslib_settype_debugging_group extends moodleform {
-    public function definition() {
-        $mform = $this->_form;
-        $group = array(
-            $mform->createElement('text', 'groupel1', 'groupel1'),
-            $mform->createElement('text', 'groupel2', 'groupel2')
-        );
-        $mform->addGroup($group);
-        $mform->setType('groupel2', PARAM_INT);
-    }
-}
-
-/**
- * Used to test if debugging is called when a named group contains elements without type.
- */
-class formslib_settype_debugging_namedgroup extends moodleform {
-    public function definition() {
-        $mform = $this->_form;
-        $group = array(
-            $mform->createElement('text', 'groupel1', 'groupel1'),
-            $mform->createElement('text', 'groupel2', 'groupel2')
-        );
-        $mform->addGroup($group, 'namedgroup');
-        $mform->setType('namedgroup[groupel2]', PARAM_INT);
-    }
-}
-
-/**
- * Used to test if debugging is called when has a funky name.
- */
-class formslib_settype_debugging_funky_name extends moodleform {
-    public function definition() {
-        $mform = $this->_form;
-        $mform->addElement('text', 'blah[foo][bar][0]', 'test', 'test');
-        $mform->addElement('text', 'blah[foo][bar][1]', 'test', 'test');
-        $mform->setType('blah[foo][bar][0]', PARAM_INT);
-    }
-}
-
-/**
- * Used to test that debugging is not called with type inheritance.
- */
-class formslib_settype_debugging_type_inheritance extends moodleform {
-    public function definition() {
-        $mform = $this->_form;
-        $mform->addElement('text', 'blah[foo][bar][0]', 'test1', 'test');
-        $mform->addElement('text', 'blah[bar][foo][1]', 'test2', 'test');
-        $mform->addElement('text', 'blah[any][other][2]', 'test3', 'test');
-        $mform->setType('blah[foo][bar]', PARAM_INT);
-        $mform->setType('blah[bar]', PARAM_FLOAT);
-        $mform->setType('blah', PARAM_TEXT);
-    }
-}
-
-/**
- * Used to test the debugging when using groups in repeated elements.
- */
-class formslib_settype_debugging_type_group_in_repeat extends moodleform {
-    public function definition() {
-        $mform = $this->_form;
-        $groupelements = array(
-            $mform->createElement('text', 'test1', 'test1', 'test'),
-            $mform->createElement('text', 'test2', 'test2', 'test')
-        );
-        $group = $mform->createElement('group', null, 'group1', $groupelements, null, false);
-        $this->repeat_elements(array($group), 1, array('test1' => array('type' => PARAM_INT)), 'hidden', 'button');
-    }
-}
-
-/**
- * Used to test the debugging when using named groups in repeated elements.
- */
-class formslib_settype_debugging_type_namedgroup_in_repeat extends moodleform {
-    public function definition() {
-        $mform = $this->_form;
-        $groupelements = array(
-            $mform->createElement('text', 'test1', 'test1', 'test'),
-            $mform->createElement('text', 'test2', 'test2', 'test')
-        );
-        $group = $mform->createElement('group', 'namedgroup', 'group1', $groupelements, null, true);
-        $this->repeat_elements(array($group), 1, array('namedgroup[test1]' => array('type' => PARAM_INT)), 'hidden', 'button');
-    }
-}
-
-/**
- * Used to check value cleaning.
- */
+// Used to check value cleaning.
 class formslib_clean_value extends moodleform {
     public function get_form() {
         return $this->_form;

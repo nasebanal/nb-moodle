@@ -36,7 +36,7 @@ $PAGE->set_pagelayout('admin');
 if ($courseid) {
     $course = $DB->get_record('course', array('id' => $courseid), '*', MUST_EXIST);
     require_login($course);
-    $context = context_course::instance($course->id);
+    $context = get_context_instance(CONTEXT_COURSE, $course->id);
     require_capability('moodle/grade:manageoutcomes', $context);
 
     if (empty($CFG->enableoutcomes)) {
@@ -76,7 +76,7 @@ switch ($action) {
         }
 
         if (empty($outcome->courseid)) {
-            require_capability('moodle/grade:manage', context_system::instance());
+            require_capability('moodle/grade:manage', get_context_instance(CONTEXT_SYSTEM));
         } else if ($outcome->courseid != $courseid) {
             print_error('invalidcourseid');
         }
@@ -105,7 +105,7 @@ switch ($action) {
         break;
 }
 
-$systemcontext = context_system::instance();
+$systemcontext = get_context_instance(CONTEXT_SYSTEM);
 $caneditsystemscales = has_capability('moodle/course:managescales', $systemcontext);
 
 if ($courseid) {
@@ -132,14 +132,13 @@ if ($courseid and $outcomes = grade_outcome::fetch_all_local($courseid)) {
         $scale = $outcome->load_scale();
         if (empty($scale->id)) {   // hopefully never happens
             $line[] = $scale->get_name();
-            debugging("Found a scale with no ID ({$scale->get_name()}) while outputting course outcomes", DEBUG_DEVELOPER);
         } else {
             if (empty($scale->courseid)) {
                 $caneditthisscale = $caneditsystemscales;
             } else if ($scale->courseid == $courseid) {
                 $caneditthisscale = $caneditcoursescales;
             } else {
-                $context = context_course::instance($scale->courseid);
+                $context = get_context_instance(CONTEXT_COURSE, $scale->courseid);
                 $caneditthisscale = has_capability('moodle/course:managescales', $context);
             }
             if ($caneditthisscale) {
@@ -182,14 +181,13 @@ if ($outcomes = grade_outcome::fetch_all_global()) {
         $scale = $outcome->load_scale();
         if (empty($scale->id)) {   // hopefully never happens
             $line[] = $scale->get_name();
-            debugging("Found a scale with no ID ({$scale->get_name()}) while outputting global outcomes", DEBUG_DEVELOPER);
         } else {
             if (empty($scale->courseid)) {
                 $caneditthisscale = $caneditsystemscales;
             } else if ($scale->courseid == $courseid) {
                 $caneditthisscale = $caneditcoursescales;
             } else {
-                $context = context_course::instance($scale->courseid);
+                $context = get_context_instance(CONTEXT_COURSE, $scale->courseid);
                 $caneditthisscale = has_capability('moodle/course:managescales', $context);
             }
             if ($caneditthisscale) {
@@ -203,10 +201,10 @@ if ($outcomes = grade_outcome::fetch_all_global()) {
         $line[] = $outcome->get_item_uses_count();
 
         $buttons = "";
-        if (has_capability('moodle/grade:manage', context_system::instance())) {
+        if (has_capability('moodle/grade:manage', get_context_instance(CONTEXT_SYSTEM))) {
             $buttons .= grade_button('edit', $courseid, $outcome);
         }
-        if (has_capability('moodle/grade:manage', context_system::instance()) and $outcome->can_delete()) {
+        if (has_capability('moodle/grade:manage', get_context_instance(CONTEXT_SYSTEM)) and $outcome->can_delete()) {
             $buttons .= grade_button('delete', $courseid, $outcome);
         }
         $line[] = $buttons;

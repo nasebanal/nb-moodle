@@ -1,4 +1,4 @@
-<?php
+<?PHP
       // This function fetches math. images from the data directory
       // If not, it obtains the corresponding TeX expression from the cache_tex db table
       // and uses mimeTeX to create the image file
@@ -9,7 +9,7 @@ define('NO_MOODLE_COOKIES', true); // Because it interferes with caching
 
     require_once('../../config.php');
 
-    if (!filter_is_enabled('tex')) {
+    if (!filter_is_enabled('filter/tex')) {
         print_error('filternotenabled');
     }
 
@@ -32,11 +32,7 @@ define('NO_MOODLE_COOKIES', true); // Because it interferes with caching
     }
 
     if (!file_exists($pathname)) {
-        $convertformat = get_config('filter_tex', 'convertformat');
-        if (strpos($image, '.png')) {
-            $convertformat = 'png';
-        }
-        $md5 = str_replace(".{$convertformat}", '', $image);
+        $md5 = str_replace(".{$CFG->filter_tex_convertformat}",'',$image);
         if ($texcache = $DB->get_record('cache_filters', array('filter'=>'tex', 'md5key'=>$md5))) {
             if (!file_exists($CFG->dataroot.'/filter/tex')) {
                 make_upload_directory('filter/tex');
@@ -44,12 +40,12 @@ define('NO_MOODLE_COOKIES', true); // Because it interferes with caching
 
             // try and render with latex first
             $latex = new latex();
-            $density = get_config('filter_tex', 'density');
-            $background = get_config('filter_tex', 'latexbackground');
+            $density = $CFG->filter_tex_density;
+            $background = $CFG->filter_tex_latexbackground;
             $texexp = $texcache->rawtext; // the entities are now decoded before inserting to DB
-            $lateximage = $latex->render($texexp, $image, 12, $density, $background);
-            if ($lateximage) {
-                copy($lateximage, $pathname);
+            $latex_path = $latex->render($texexp, $md5, 12, $density, $background);
+            if ($latex_path) {
+                copy($latex_path, $pathname);
                 $latex->clean_up($md5);
 
             } else {

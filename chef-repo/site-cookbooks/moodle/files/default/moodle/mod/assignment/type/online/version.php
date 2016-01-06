@@ -17,13 +17,14 @@
 /**
  * Version details
  *
- * @package    assignment_online
+ * @package    assignment
+ * @subpackage online
  * @copyright  1999 onwards Martin Dougiamas  {@link http://moodle.com}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2015111600;        // The current plugin version (Date: YYYYMMDDXX)
-$plugin->requires  = 2015111000;        // Requires this Moodle version
+$plugin->version   = 2012061700;        // The current plugin version (Date: YYYYMMDDXX)
+$plugin->requires  = 2012061700;        // Requires this Moodle version
 $plugin->component = 'assignment_online'; // Full name of the plugin (used for diagnostics)

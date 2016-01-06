@@ -17,7 +17,7 @@
 /**
  * A helper class to access dropbox resources
  *
- * @since Moodle 2.0
+ * @since 2.0
  * @package    repository_dropbox
  * @copyright  2012 Marina Glancy
  * @copyright  2010 Dongsheng Cai
@@ -25,7 +25,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
+require_once(dirname(dirname(dirname(__FILE__))).'/config.php');
 require_once($CFG->libdir.'/oauthlib.php');
 
 /**

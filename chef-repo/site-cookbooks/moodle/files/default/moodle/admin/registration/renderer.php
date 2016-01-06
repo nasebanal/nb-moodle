@@ -31,18 +31,18 @@
 class core_register_renderer extends plugin_renderer_base {
 
     /**
-     * Display message about the benefits of registering on Moodle.org
+     * Display Moodle.org registration message about benefit to register on Moodle.org
      *
      * @return string
      */
     public function moodleorg_registration_message() {
-        $moodleorgstatslink = html_writer::link('http://moodle.net/stats',
-                                               get_string('statsmoodleorg', 'admin'),
-                                               array('target' => '_blank'));
-
-        $moodleorgregmsg = get_string('registermoodleorg', 'admin');
+        $moodleorgurl = html_writer::link('http://moodle.org', 'Moodle.org');
+        $moodleorgstatsurl = html_writer::link('http://moodle.org/stats', get_string('statsmoodleorg', 'admin'));
+        $moochurl = html_writer::link(HUB_MOODLEORGHUBURL, 'Moodle.net');
+        $moodleorgregmsg = get_string('registermoodleorg', 'admin', $moodleorgurl);
         $items = array(get_string('registermoodleorgli1', 'admin'),
-                       get_string('registermoodleorgli2', 'admin', $moodleorgstatslink));
+            get_string('registermoodleorgli2', 'admin', $moodleorgstatsurl),
+            get_string('registermoodleorgli3', 'admin', $moochurl));
         $moodleorgregmsg .= html_writer::alist($items);
         return $moodleorgregmsg;
     }

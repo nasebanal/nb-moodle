@@ -40,6 +40,7 @@ class quizaccess_timelimit_testcase extends basic_testcase {
     public function test_time_limit_access_rule() {
         $quiz = new stdClass();
         $quiz->timelimit = 3600;
+        $quiz->questions = '';
         $cm = new stdClass();
         $cm->id = 0;
         $quizobj = new quiz($quiz, $cm, null);

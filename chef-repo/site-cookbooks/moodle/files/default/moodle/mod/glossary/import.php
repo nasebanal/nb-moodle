@@ -3,7 +3,6 @@
 require_once("../../config.php");
 require_once("lib.php");
 require_once("$CFG->dirroot/course/lib.php");
-require_once("$CFG->dirroot/course/modlib.php");
 require_once('import_form.php');
 
 $id = required_param('id', PARAM_INT);    // Course Module ID
@@ -34,7 +33,7 @@ if (! $glossary = $DB->get_record("glossary", array("id"=>$cm->instance))) {
 
 require_login($course, false, $cm);
 
-$context = context_module::instance($cm->id);
+$context = get_context_instance(CONTEXT_MODULE, $cm->id);
 require_capability('mod/glossary:import', $context);
 
 $strglossaries = get_string("modulenameplural", "glossary");
@@ -47,7 +46,7 @@ $strsearch = get_string("search");
 $strimportentries = get_string('importentriesfromxml', 'glossary');
 
 $PAGE->navbar->add($strimportentries);
-$PAGE->set_title($glossary->name);
+$PAGE->set_title(format_string($glossary->name));
 $PAGE->set_heading($course->fullname);
 
 echo $OUTPUT->header();
@@ -77,16 +76,11 @@ if (empty($result)) {
     die();
 }
 
-// Large exports are likely to take their time and memory.
-core_php_time_limit::raise();
-raise_memory_limit(MEMORY_EXTRA);
-
 if ($xml = glossary_read_imported_file($result)) {
     $importedentries = 0;
     $importedcats    = 0;
     $entriesrejected = 0;
     $rejections      = '';
-    $glossarycontext = $context;
 
     if ($data->dest == 'newglossary') {
         // If the user chose to create a new glossary
@@ -94,16 +88,17 @@ if ($xml = glossary_read_imported_file($result)) {
 
         if ( $xmlglossary['NAME'][0]['#'] ) {
             $glossary = new stdClass();
-            $glossary->modulename = 'glossary';
-            $glossary->module = $cm->module;
             $glossary->name = ($xmlglossary['NAME'][0]['#']);
+            $glossary->course = $course->id;
             $glossary->globalglossary = ($xmlglossary['GLOBALGLOSSARY'][0]['#']);
             $glossary->intro = ($xmlglossary['INTRO'][0]['#']);
             $glossary->introformat = isset($xmlglossary['INTROFORMAT'][0]['#']) ? $xmlglossary['INTROFORMAT'][0]['#'] : FORMAT_MOODLE;
             $glossary->showspecial = ($xmlglossary['SHOWSPECIAL'][0]['#']);
             $glossary->showalphabet = ($xmlglossary['SHOWALPHABET'][0]['#']);
             $glossary->showall = ($xmlglossary['SHOWALL'][0]['#']);
-            $glossary->cmidnumber = null;
+            $glossary->timecreated = time();
+            $glossary->timemodified = time();
+            $glossary->cmidnumber = $cm->idnumber;
 
             // Setting the default values if no values were passed
             if ( isset($xmlglossary['ENTBYPAGE'][0]['#']) ) {
@@ -137,23 +132,51 @@ if ($xml = glossary_read_imported_file($result)) {
                 $glossary->defaultapproval = $CFG->glossary_defaultapproval;
             }
 
-            // These fields were not included in export, assume zero.
-            $glossary->assessed = 0;
-            $glossary->availability = null;
-
-            // New glossary is to be inserted in section 0, it is always visible.
-            $glossary->section = 0;
-            $glossary->visible = 1;
-
             // Include new glossary and return the new ID
-            if ( !($glossary = add_moduleinfo($glossary, $course)) ) {
+            if ( !$glossary->id = glossary_add_instance($glossary) ) {
                 echo $OUTPUT->notification("Error while trying to create the new glossary.");
                 glossary_print_tabbed_table_end();
                 echo $OUTPUT->footer();
                 exit;
             } else {
-                $glossarycontext = context_module::instance($glossary->coursemodule);
-                glossary_xml_import_files($xmlglossary, 'INTROFILES', $glossarycontext->id, 'intro', 0);
+                //The instance has been created, so lets do course_modules
+                //and course_sections
+                $mod->groupmode = $course->groupmode;  /// Default groupmode the same as course
+
+                $mod->instance = $glossary->id;
+                // course_modules and course_sections each contain a reference
+                // to each other, so we have to update one of them twice.
+
+                if (! $currmodule = $DB->get_record("modules", array("name"=>'glossary'))) {
+                    print_error('modulenotexist', 'debug', '', 'Glossary');
+                }
+                $mod->module = $currmodule->id;
+                $mod->course = $course->id;
+                $mod->modulename = 'glossary';
+                $mod->section = 0;
+
+                if (! $mod->coursemodule = add_course_module($mod) ) {
+                    print_error('cannotaddcoursemodule');
+                }
+
+                if (! $sectionid = add_mod_to_section($mod) ) {
+                    print_error('cannotaddcoursemoduletosection');
+                }
+                //We get the section's visible field status
+                $visible = $DB->get_field("course_sections", "visible", array("id"=>$sectionid));
+
+                $DB->set_field("course_modules", "visible", $visible, array("id"=>$mod->coursemodule));
+                $DB->set_field("course_modules", "section", $sectionid, array("id"=>$mod->coursemodule));
+
+                add_to_log($course->id, "course", "add mod",
+                           "../mod/$mod->modulename/view.php?id=$mod->coursemodule",
+                           "$mod->modulename $mod->instance");
+                add_to_log($course->id, $mod->modulename, "add",
+                           "view.php?id=$mod->coursemodule",
+                           "$mod->instance", $mod->coursemodule);
+
+                rebuild_course_cache($course->id);
+
                 echo $OUTPUT->box(get_string("newglossarycreated","glossary"),'generalbox boxaligncenter boxwidthnormal');
             }
         } else {
@@ -190,7 +213,7 @@ if ($xml = glossary_read_imported_file($result)) {
                     $dupentry = $DB->record_exists_select('glossary_entries',
                                     'glossaryid = :glossaryid AND LOWER(concept) = :concept', array(
                                         'glossaryid' => $glossary->id,
-                                        'concept'    => core_text::strtolower($newentry->concept)));
+                                        'concept'    => textlib::strtolower($newentry->concept)));
                 }
                 if ($dupentry) {
                     $permissiongranted = 0;
@@ -266,15 +289,6 @@ if ($xml = glossary_read_imported_file($result)) {
                     }
                 }
             }
-
-            // Import files embedded in the entry text.
-            glossary_xml_import_files($xmlentry['#'], 'ENTRYFILES', $glossarycontext->id, 'entry', $newentry->id);
-
-            // Import files attached to the entry.
-            if (glossary_xml_import_files($xmlentry['#'], 'ATTACHMENTFILES', $glossarycontext->id, 'attachment', $newentry->id)) {
-                $DB->update_record("glossary_entries", array('id' => $newentry->id, 'attachment' => '1'));
-            }
-
         } else {
             $entriesrejected++;
             if ( $newentry->concept and $newentry->definition ) {
@@ -288,10 +302,6 @@ if ($xml = glossary_read_imported_file($result)) {
             }
         }
     }
-
-    // Reset caches.
-    \mod_glossary\local\concept_cache::reset_glossary($glossary);
-
     // processed entries
     echo $OUTPUT->box_start('glossarydisplay generalbox');
     echo '<table class="glossaryimportexport">';

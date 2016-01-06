@@ -17,8 +17,8 @@
 /**
  * Wiki files management
  *
- * @package mod_wiki
- * @copyright 2011 Dongsheng Cai <dongsheng@moodle.com>
+ * @package mod-wiki-2.0
+ * @copyrigth 2011 Dongsheng Cai <dongsheng@moodle.com>
  *
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -73,34 +73,32 @@ if (!$cm = get_coursemodule_from_instance("wiki", $subwiki->wikiid)) {
 // Checking course instance
 $course = $DB->get_record('course', array('id' => $cm->course), '*', MUST_EXIST);
 
-$context = context_module::instance($cm->id);
+$context = get_context_instance(CONTEXT_MODULE, $cm->id);
 
 
 $PAGE->set_url('/mod/wiki/files.php', array('pageid'=>$pageid));
 require_login($course, true, $cm);
-
-if (!wiki_user_can_view($subwiki, $wiki)) {
-    print_error('cannotviewfiles', 'wiki');
-}
-
+$PAGE->set_context($context);
 $PAGE->set_title(get_string('wikifiles', 'wiki'));
-$PAGE->set_heading($course->fullname);
+$PAGE->set_heading(get_string('wikifiles', 'wiki'));
 $PAGE->navbar->add(format_string(get_string('wikifiles', 'wiki')));
 echo $OUTPUT->header();
-echo $OUTPUT->heading(format_string($wiki->name));
-echo $OUTPUT->box(format_module_intro('wiki', $wiki, $PAGE->cm->id), 'generalbox', 'intro');
 
 $renderer = $PAGE->get_renderer('mod_wiki');
 
-$tabitems = array('view' => 'view', 'edit' => 'edit', 'comments' => 'comments', 'history' => 'history', 'map' => 'map', 'files' => 'files', 'admin' => 'admin');
+$tabitems = array('view' => 'view', 'edit' => 'edit', 'comments' => 'comments', 'history' => 'history', 'map' => 'map', 'files' => 'files');
 
 $options = array('activetab'=>'files');
 echo $renderer->tabs($page, $tabitems, $options);
 
 
 echo $OUTPUT->box_start('generalbox');
-echo $renderer->wiki_print_subwiki_selector($PAGE->activityrecord, $subwiki, $page, 'files');
-echo $renderer->wiki_files_tree($context, $subwiki);
+if (has_capability('mod/wiki:viewpage', $context)) {
+    echo $renderer->wiki_print_subwiki_selector($PAGE->activityrecord, $subwiki, $page, 'files');
+    echo $renderer->wiki_files_tree($context, $subwiki);
+} else {
+    echo $OUTPUT->notification(get_string('cannotviewfiles', 'wiki'));
+}
 echo $OUTPUT->box_end();
 
 if (has_capability('mod/wiki:managefiles', $context)) {

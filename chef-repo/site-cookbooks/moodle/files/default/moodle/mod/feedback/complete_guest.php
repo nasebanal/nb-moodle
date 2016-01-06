@@ -19,7 +19,7 @@
  *
  * @author Andreas Grabs
  * @license http://www.gnu.org/copyleft/gpl.html GNU Public License
- * @package mod_feedback
+ * @package feedback
  */
 
 require_once("../../config.php");
@@ -108,7 +108,9 @@ if (! $feedback = $DB->get_record("feedback", array("id"=>$cm->instance))) {
     print_error('invalidcoursemodule');
 }
 
-$context = context_module::instance($cm->id);
+if (!$context = get_context_instance(CONTEXT_MODULE, $cm->id)) {
+        print_error('badcontext');
+}
 
 $feedback_complete_cap = false;
 
@@ -162,8 +164,8 @@ $PAGE->set_pagelayout('incourse');
 $urlparams = array('id'=>$course->id);
 $PAGE->navbar->add($strfeedbacks, new moodle_url('/mod/feedback/index.php', $urlparams));
 $PAGE->navbar->add(format_string($feedback->name));
-$PAGE->set_heading($course->fullname);
-$PAGE->set_title($feedback->name);
+$PAGE->set_heading(format_string($course->fullname));
+$PAGE->set_title(format_string($feedback->name));
 echo $OUTPUT->header();
 
 //ishidden check.
@@ -177,14 +179,16 @@ if ((empty($cm->visible) AND
 //check, if the feedback is open (timeopen, timeclose)
 $checktime = time();
 
-$feedback_is_closed = ($feedback->timeopen > $checktime) ||
-                      ($feedback->timeclose < $checktime &&
+$feedback_is_closed = ($feedback->timeopen > $checktime) OR
+                      ($feedback->timeclose < $checktime AND
                             $feedback->timeclose > 0);
 
 if ($feedback_is_closed) {
     echo $OUTPUT->box_start('generalbox boxaligncenter');
-    echo $OUTPUT->notification(get_string('feedback_is_not_open', 'feedback'));
-    echo $OUTPUT->continue_button($CFG->wwwroot.'/course/view.php?id='.$course->id);
+        echo '<h2><font color="red">';
+        echo get_string('feedback_is_not_open', 'feedback');
+        echo '</font></h2>';
+        echo $OUTPUT->continue_button($CFG->wwwroot.'/course/view.php?id='.$course->id);
     echo $OUTPUT->box_end();
     echo $OUTPUT->footer();
     exit;
@@ -208,6 +212,12 @@ if ($feedback_can_submit) {
         if (feedback_check_values($startitempos, $lastitempos)) {
             $userid = $USER->id; //arb
             if ($completedid = feedback_save_guest_values(sesskey())) {
+                add_to_log($course->id,
+                           'feedback',
+                           'startcomplete',
+                           'view.php?id='.$cm->id,
+                           $feedback->id);
+
                 //now it can be saved
                 if (!$gonextpage AND !$gopreviouspage) {
                     $preservevalues = false;
@@ -363,21 +373,21 @@ if ($feedback_can_submit) {
         echo $OUTPUT->continue_button($url);
     } else {
         if (isset($savereturn) && $savereturn == 'failed') {
-            echo $OUTPUT->box_start('mform');
-            echo '<span class="error">'.get_string('saving_failed', 'feedback').'</span>';
+            echo $OUTPUT->box_start('mform error');
+            echo get_string('saving_failed', 'feedback');
             echo $OUTPUT->box_end();
         }
 
         if (isset($savereturn) && $savereturn == 'missing') {
-            echo $OUTPUT->box_start('mform');
-            echo '<span class="error">'.get_string('saving_failed_because_missing_or_false_values', 'feedback').'</span>';
+            echo $OUTPUT->box_start('mform error');
+            echo get_string('saving_failed_because_missing_or_false_values', 'feedback');
             echo $OUTPUT->box_end();
         }
 
         //print the items
         if (is_array($feedbackitems)) {
             echo $OUTPUT->box_start('feedback_form');
-            echo '<form action="complete_guest.php" class="mform" method="post" onsubmit=" ">';
+            echo '<form action="complete_guest.php" method="post" onsubmit=" ">';
             echo '<fieldset>';
             echo '<input type="hidden" name="anonymous" value="0" />';
             $inputvalue = 'value="'.FEEDBACK_ANONYMOUS_YES.'"';
@@ -387,10 +397,9 @@ if ($feedback_can_submit) {
             $params = array('feedback'=>$feedback->id, 'required'=>1);
             $countreq = $DB->count_records('feedback_item', $params);
             if ($countreq > 0) {
-                echo '<div class="fdescription required">';
-                echo get_string('somefieldsrequired', 'form', '<img alt="'.get_string('requiredelement', 'form').
-                    '" src="'.$OUTPUT->pix_url('req') .'" class="req" />');
-                echo '</div>';
+                echo '<span class="feedback_required_mark">(*)';
+                echo get_string('items_are_required', 'feedback');
+                echo '</span>';
             }
             echo $OUTPUT->box_start('feedback_items');
 
@@ -494,6 +503,7 @@ if ($feedback_can_submit) {
                 echo '<input name="savevalues" type="submit" '.$inputvalue.' />';
             }
 
+            echo '</fieldset>';
             echo '</form>';
             echo $OUTPUT->box_end();
 
@@ -508,9 +518,11 @@ if ($feedback_can_submit) {
                 }
             }
             echo '<form '.$action.' method="post" onsubmit=" ">';
+            echo '<fieldset>';
             echo '<input type="hidden" name="sesskey" value="'.sesskey().'" />';
             echo '<input type="hidden" name="courseid" value="'. $courseid . '" />';
             echo '<button type="submit">'.get_string('cancel').'</button>';
+            echo '</fieldset>';
             echo '</form>';
             echo $OUTPUT->box_end();
             $SESSION->feedback->is_started = true;
@@ -518,8 +530,10 @@ if ($feedback_can_submit) {
     }
 } else {
     echo $OUTPUT->box_start('generalbox boxaligncenter');
-    echo $OUTPUT->notification(get_string('this_feedback_is_already_submitted', 'feedback'));
-    echo $OUTPUT->continue_button($CFG->wwwroot.'/course/view.php?id='.$course->id);
+        echo '<h2><font color="red">';
+        echo get_string('this_feedback_is_already_submitted', 'feedback');
+        echo '</font></h2>';
+        echo $OUTPUT->continue_button($CFG->wwwroot.'/course/view.php?id='.$course->id);
     echo $OUTPUT->box_end();
 }
 /// Finish the page

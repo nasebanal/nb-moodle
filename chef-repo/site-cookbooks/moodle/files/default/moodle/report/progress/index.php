@@ -47,8 +47,8 @@ $csv = $format == 'csv' || $excel;
 
 // Paging
 $start   = optional_param('start', 0, PARAM_INT);
-$sifirst = optional_param('sifirst', 'all', PARAM_NOTAGS);
-$silast  = optional_param('silast', 'all', PARAM_NOTAGS);
+$sifirst = optional_param('sifirst', 'all', PARAM_ALPHA);
+$silast  = optional_param('silast', 'all', PARAM_ALPHA);
 $start   = optional_param('start', 0, PARAM_INT);
 
 // Whether to show extra user identity information
@@ -58,7 +58,7 @@ $leftcols = 1 + count($extrafields);
 function csv_quote($value) {
     global $excel;
     if ($excel) {
-        return core_text::convert('"'.str_replace('"',"'",$value).'"','UTF-8','UTF-16LE');
+        return textlib::convert('"'.str_replace('"',"'",$value).'"','UTF-8','UTF-16LE');
     } else {
         return '"'.str_replace('"',"'",$value).'"';
     }
@@ -133,7 +133,7 @@ if ($csv && $grandtotal && count($activities)>0) { // Only show CSV if there are
 
     $shortname = format_string($course->shortname, true, array('context' => $context));
     header('Content-Disposition: attachment; filename=progress.'.
-        preg_replace('/[^a-z0-9-]/','_',core_text::strtolower(strip_tags($shortname))).'.csv');
+        preg_replace('/[^a-z0-9-]/','_',textlib::strtolower(strip_tags($shortname))).'.csv');
     // Unicode byte-order mark for Excel
     if ($excel) {
         header('Content-Type: text/csv; charset=UTF-16LE');
@@ -146,6 +146,8 @@ if ($csv && $grandtotal && count($activities)>0) { // Only show CSV if there are
         $line="\n";
     }
 } else {
+    // Use SVG to draw sideways text if supported
+    $svgcleverness = can_use_rotated_text();
 
     // Navigation and header
     $strreports = get_string("reports");
@@ -154,8 +156,11 @@ if ($csv && $grandtotal && count($activities)>0) { // Only show CSV if there are
     $PAGE->set_title($strcompletion);
     $PAGE->set_heading($course->fullname);
     echo $OUTPUT->header();
-    $PAGE->requires->js('/report/progress/textrotate.js');
-    $PAGE->requires->js_function_call('textrotate_init', null, true);
+
+    if ($svgcleverness) {
+        $PAGE->requires->yui2_lib('event');
+        $PAGE->requires->js('/report/progress/textrotate.js');
+    }
 
     // Handle groups (if enabled)
     groups_print_course_menu($course,$CFG->wwwroot.'/report/progress/?course='.$course->id);
@@ -275,7 +280,7 @@ if (!$csv) {
     }
 
     print '<div id="completion-progress-wrapper" class="no-overflow">';
-    print '<table id="completion-progress" class="generaltable flexible boxaligncenter" style="text-align:left"><thead><tr style="vertical-align:top">';
+    print '<table id="completion-progress" class="generaltable flexible boxaligncenter" style="text-align:left"><tr style="vertical-align:top">';
 
     // User heading / sort option
     print '<th scope="col" class="completion-sortchoice">';
@@ -305,10 +310,9 @@ if (!$csv) {
 }
 
 // Activities
-$formattedactivities = array();
 foreach($activities as $activity) {
-    $datepassed = $activity->completionexpected && $activity->completionexpected <= time();
-    $datepassedclass = $datepassed ? 'completion-expired' : '';
+    $activity->datepassed = $activity->completionexpected && $activity->completionexpected <= time();
+    $activity->datepassedclass=$activity->datepassed ? 'completion-expired' : '';
 
     if ($activity->completionexpected) {
         $datetext=userdate($activity->completionexpected,get_string('strftimedate','langconfig'));
@@ -317,34 +321,28 @@ foreach($activities as $activity) {
     }
 
     // Some names (labels) come URL-encoded and can be very long, so shorten them
-    $displayname = format_string($activity->name, true, array('context' => $activity->context));
+    $activity->name = shorten_text($activity->name);
 
     if ($csv) {
-        print $sep.csv_quote($displayname).$sep.csv_quote($datetext);
+        print $sep.csv_quote(strip_tags($activity->name)).$sep.csv_quote($datetext);
     } else {
-        $shortenedname = shorten_text($displayname);
-        print '<th scope="col" class="'.$datepassedclass.'">'.
+        print '<th scope="col" class="'.$activity->datepassedclass.'">'.
             '<a href="'.$CFG->wwwroot.'/mod/'.$activity->modname.
-            '/view.php?id='.$activity->id.'" title="' . s($displayname) . '">'.
+            '/view.php?id='.$activity->id.'">'.
             '<img src="'.$OUTPUT->pix_url('icon', $activity->modname).'" alt="'.
-            s(get_string('modulename', $activity->modname)).
-                '" /> <span class="completion-activityname">'.
-            $shortenedname.'</span></a>';
+            get_string('modulename',$activity->modname).'" /> <span class="completion-activityname">'.
+            format_string($activity->name).'</span></a>';
         if ($activity->completionexpected) {
             print '<div class="completion-expected"><span>'.$datetext.'</span></div>';
         }
         print '</th>';
     }
-    $formattedactivities[$activity->id] = (object)array(
-        'datepassedclass' => $datepassedclass,
-        'displayname' => $displayname,
-    );
 }
 
 if ($csv) {
     print $line;
 } else {
-    print '</tr></thead><tbody>';
+    print '</tr>';
 }
 
 // Row for each user
@@ -388,20 +386,21 @@ foreach($progress as $user) {
             ($activity->completion==COMPLETION_TRACKING_AUTOMATIC ? 'auto' : 'manual').
             '-'.$completiontype;
 
+        $modcontext = context_module::instance($activity->id);
         $describe = get_string('completion-' . $completiontype, 'completion');
         $a=new StdClass;
         $a->state=$describe;
         $a->date=$date;
         $a->user=fullname($user);
-        $a->activity = $formattedactivities[$activity->id]->displayname;
+        $a->activity = format_string($activity->name, true, array('context' => $modcontext));
         $fulldescribe=get_string('progress-title','completion',$a);
 
         if ($csv) {
             print $sep.csv_quote($describe).$sep.csv_quote($date);
         } else {
-            print '<td class="completion-progresscell '.$formattedactivities[$activity->id]->datepassedclass.'">'.
+            print '<td class="completion-progresscell '.$activity->datepassedclass.'">'.
                 '<img src="'.$OUTPUT->pix_url('i/'.$completionicon).
-                '" alt="'.s($describe).'" title="'.s($fulldescribe).'" /></td>';
+                '" alt="'.$describe.'" title="'.$fulldescribe.'" /></td>';
         }
     }
 
@@ -415,7 +414,7 @@ foreach($progress as $user) {
 if ($csv) {
     exit;
 }
-print '</tbody></table>';
+print '</table>';
 print '</div>';
 print $pagingbar;
 

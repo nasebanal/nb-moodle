@@ -172,7 +172,7 @@ class qtype_numerical_question extends question_graded_automatically {
 
     /**
      * Get an answer that contains the feedback and fraction that should be
-     * awarded for this response.
+     * awarded for this resonse.
      * @param number $value the numerical value of a response.
      * @param number $multiplier for the unit the student gave, if any. When no
      *      unit was given, or an unrecognised unit was given, $multiplier will be null.
@@ -188,7 +188,7 @@ class qtype_numerical_question extends question_graded_automatically {
         } else {
             $scaledvalue = $value;
         }
-        foreach ($this->answers as $answer) {
+        foreach ($this->answers as $aid => $answer) {
             if ($answer->within_tolerance($scaledvalue)) {
                 $answer->unitisright = !is_null($multiplier);
                 return $answer;
@@ -249,7 +249,7 @@ class qtype_numerical_question extends question_graded_automatically {
     }
 
     public function classify_response(array $response) {
-        if (!$this->is_gradable_response($response)) {
+        if (empty($response['answer'])) {
             return array($this->id => question_classified_response::no_response());
         }
 
@@ -266,11 +266,7 @@ class qtype_numerical_question extends question_graded_automatically {
             $resp = $this->ap->add_unit($resp, $unit);
         }
 
-        if ($value === null) {
-            // Invalid response shown as no response (but show actual response).
-            return array($this->id => new question_classified_response(null, $resp, 0));
-        } else if (!$ans) {
-            // Does not match any answer.
+        if (!$ans) {
             return array($this->id => new question_classified_response(0, $resp, 0));
         }
 
@@ -291,7 +287,7 @@ class qtype_numerical_question extends question_graded_automatically {
             list($value, $unit, $multiplier) = $this->ap->apply_units(
                     $currentanswer, $selectedunit);
             $answer = $this->get_matching_answer($value, $multiplier);
-            $answerid = reset($args); // Itemid is answer id.
+            $answerid = reset($args); // itemid is answer id.
             return $options->feedback && $answer && $answerid == $answer->id;
 
         } else if ($component == 'question' && $filearea == 'hint') {

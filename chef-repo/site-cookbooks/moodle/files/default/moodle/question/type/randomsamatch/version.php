@@ -17,21 +17,14 @@
 /**
  * Version information for the randomsamatch question type.
  *
- * @package    qtype_randomsamatch
+ * @package    qtype
+ * @subpackage randomsamatch
  * @copyright  1999 onwards Martin Dougiamas  {@link http://moodle.com}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version  = 2015111600;
-$plugin->requires = 2015111000;
-
+$plugin->version  = 2012061700;
+$plugin->requires = 2012061700;
 $plugin->component = 'qtype_randomsamatch';
-
-$plugin->dependencies = array(
-    'qtype_match' => 2015111000,
-    'qtype_shortanswer' => 2015111000,
-);
-
-$plugin->maturity  = MATURITY_STABLE;

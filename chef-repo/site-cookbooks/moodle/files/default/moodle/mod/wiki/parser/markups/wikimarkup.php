@@ -6,7 +6,7 @@
  * @author Josep Arús
  *
  * @license http://www.gnu.org/copyleft/gpl.html GNU Public License
- * @package mod_wiki
+ * @package wiki
  */
 
 abstract class wiki_markup_parser extends generic_parser {
@@ -24,7 +24,6 @@ abstract class wiki_markup_parser extends generic_parser {
 
     //header & ToC
     protected $toc = array();
-    protected $maxheaderdepth = 3;
 
     /**
      * function wiki_parser_link_callback($link = "")
@@ -181,12 +180,10 @@ abstract class wiki_markup_parser extends generic_parser {
         $text = trim($text);
 
         if (!$this->pretty_print && $level == 1) {
-            $text .= ' ' . parser_utils::h('a', '['.get_string('editsection', 'wiki').']',
-                array('href' => "edit.php?pageid={$this->wiki_page_id}&section=" . urlencode($text),
-                    'class' => 'wiki_edit_section'));
+            $text .= parser_utils::h('a', '['.get_string('editsection', 'wiki').']', array('href' => "edit.php?pageid={$this->wiki_page_id}&section=" . urlencode($text), 'class' => 'wiki_edit_section'));
         }
 
-        if ($level <= $this->maxheaderdepth) {
+        if ($level < 4) {
             $this->toc[] = array($level, $text);
             $num = count($this->toc);
             $text = parser_utils::h('a', "", array('name' => "toc-$num")) . $text;
@@ -403,8 +400,7 @@ abstract class wiki_markup_parser extends generic_parser {
             $text .= "\n\n";
         }
 
-        $regex = "/(.*?)(=\ *".preg_quote($header, '/')."\ *=*\n.*?)((?:\n=[^=]+.*)|$)/is";
-        preg_match($regex, $text, $match);
+        preg_match("/(.*?)(=\ *\Q$header\E\ *=*\n.*?)((?:\n=[^=]+.*)|$)/is", $text, $match);
 
         if (!empty($match)) {
             return array($match[1], $match[2], $match[3]);

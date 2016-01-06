@@ -21,7 +21,6 @@ if (!confirm_sesskey()) {
     print_error('sesskey');
 }
 
-$usercontext = context_user::instance($USER->id);
 
 switch ($action) {
     case 'addinterest':
@@ -29,7 +28,7 @@ switch ($action) {
             $tag = tag_get_name($id);
         }
 
-        tag_set_add('user', $USER->id, $tag, 'core', $usercontext->id);
+        tag_set_add('user', $USER->id, $tag);
 
         redirect($CFG->wwwroot.'/tag/index.php?tag='. rawurlencode($tag));
         break;
@@ -39,14 +38,16 @@ switch ($action) {
             $tag = tag_get_name($id);
         }
 
-        tag_set_delete('user', $USER->id, $tag, 'core', $usercontext->id);
+        tag_set_delete('user', $USER->id, $tag);
 
         redirect($CFG->wwwroot.'/tag/index.php?tag='. rawurlencode($tag));
         break;
 
     case 'flaginappropriate':
-        require_capability('moodle/tag:flag', context_system::instance());
+
         $tagid = tag_get_id($tag);
+        // Add flaging action to logs
+        add_to_log(SITEID, 'tag', 'flag', 'index.php?id='. $tagid, $tagid, '', $USER->id);
 
         tag_set_flag($tagid);
 

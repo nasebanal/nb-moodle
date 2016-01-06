@@ -17,7 +17,7 @@
 /**
  * Manage files in wiki
  *
- * @package   mod_wiki
+ * @package   mod-wiki-2.0
  * @copyright 2011 Dongsheng Cai <dongsheng@moodle.com>
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -50,21 +50,16 @@ if (!$cm = get_coursemodule_from_instance("wiki", $subwiki->wikiid)) {
 // Checking course instance
 $course = $DB->get_record('course', array('id' => $cm->course), '*', MUST_EXIST);
 
-$context = context_module::instance($cm->id);
+$context = get_context_instance(CONTEXT_MODULE, $cm->id);
 
 require_login($course, true, $cm);
-
-if (!wiki_user_can_view($subwiki, $wiki)) {
-    print_error('cannotviewpage', 'wiki');
-}
 require_capability('mod/wiki:managefiles', $context);
 
 if (empty($returnurl)) {
-    $referer = get_local_referer(false);
-    if (!empty($referer)) {
-        $returnurl = $referer;
+    if (!empty($_SERVER["HTTP_REFERER"])) {
+        $returnurl = $_SERVER["HTTP_REFERER"];
     } else {
-        $returnurl = new moodle_url('/mod/wiki/files.php', array('subwiki' => $subwiki->id, 'pageid' => $pageid));
+        $returnurl = new moodle_url('/mod/wiki/files.php', array('subwiki'=>$subwiki->id));
     }
 }
 
@@ -75,7 +70,7 @@ $url = new moodle_url('/mod/wiki/filesedit.php', array('subwiki'=>$subwiki->id, 
 $PAGE->set_url($url);
 $PAGE->set_context($context);
 $PAGE->set_title($title);
-$PAGE->set_heading($course->fullname);
+$PAGE->set_heading($title);
 $PAGE->navbar->add(format_string(get_string('wikifiles', 'wiki')), $CFG->wwwroot . '/mod/wiki/files.php?pageid=' . $pageid);
 $PAGE->navbar->add(format_string($title));
 
@@ -96,8 +91,6 @@ if ($mform->is_cancelled()) {
 }
 
 echo $OUTPUT->header();
-echo $OUTPUT->heading(format_string($wiki->name));
-echo $OUTPUT->box(format_module_intro('wiki', $wiki, $PAGE->cm->id), 'generalbox', 'intro');
 echo $OUTPUT->box_start('generalbox');
 $mform->display();
 echo $OUTPUT->box_end();

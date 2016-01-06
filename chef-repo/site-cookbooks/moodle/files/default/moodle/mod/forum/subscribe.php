@@ -26,7 +26,8 @@
  * through a confirmation page that redirects the user back with the
  * sesskey.
  *
- * @package   mod_forum
+ * @package    mod
+ * @subpackage forum
  * @copyright  1999 onwards Martin Dougiamas  {@link http://moodle.com}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -34,12 +35,10 @@
 require_once(dirname(dirname(dirname(__FILE__))).'/config.php');
 require_once($CFG->dirroot.'/mod/forum/lib.php');
 
-$id             = required_param('id', PARAM_INT);             // The forum to set subscription on.
-$mode           = optional_param('mode', null, PARAM_INT);     // The forum's subscription mode.
-$user           = optional_param('user', 0, PARAM_INT);        // The userid of the user to subscribe, defaults to $USER.
-$discussionid   = optional_param('d', null, PARAM_INT);        // The discussionid to subscribe.
-$sesskey        = optional_param('sesskey', null, PARAM_RAW);
-$returnurl      = optional_param('returnurl', null, PARAM_RAW);
+$id      = required_param('id', PARAM_INT);             // the forum to subscribe or unsubscribe to
+$mode    = optional_param('mode', null, PARAM_INT);     // the forum's subscription mode
+$user    = optional_param('user', 0, PARAM_INT);        // userid of the user to subscribe, defaults to $USER
+$sesskey = optional_param('sesskey', null, PARAM_RAW);  // sesskey
 
 $url = new moodle_url('/mod/forum/subscribe.php', array('id'=>$id));
 if (!is_null($mode)) {
@@ -51,16 +50,12 @@ if ($user !== 0) {
 if (!is_null($sesskey)) {
     $url->param('sesskey', $sesskey);
 }
-if (!is_null($discussionid)) {
-    $url->param('d', $discussionid);
-    $discussion = $DB->get_record('forum_discussions', array('id' => $discussionid), '*', MUST_EXIST);
-}
 $PAGE->set_url($url);
 
 $forum   = $DB->get_record('forum', array('id' => $id), '*', MUST_EXIST);
 $course  = $DB->get_record('course', array('id' => $forum->course), '*', MUST_EXIST);
 $cm      = get_coursemodule_from_instance('forum', $forum->id, $course->id, false, MUST_EXIST);
-$context = context_module::instance($cm->id);
+$context = get_context_instance(CONTEXT_MODULE, $cm->id);
 
 if ($user) {
     require_sesskey();
@@ -77,11 +72,7 @@ if (isset($cm->groupmode) && empty($course->groupmodeforce)) {
 } else {
     $groupmode = $course->groupmode;
 }
-
-$issubscribed = \mod_forum\subscriptions::is_subscribed($user->id, $forum, $discussionid, $cm);
-
-// For a user to subscribe when a groupmode is set, they must have access to at least one group.
-if ($groupmode && !$issubscribed && !has_capability('moodle/site:accessallgroups', $context)) {
+if ($groupmode && !forum_is_subscribed($user->id, $forum) && !has_capability('moodle/site:accessallgroups', $context)) {
     if (!groups_get_all_groups($course->id, $USER->id)) {
         print_error('cannotsubscribe', 'forum');
     }
@@ -108,33 +99,29 @@ $returnto = optional_param('backtoindex',0,PARAM_INT)
     ? "index.php?id=".$course->id
     : "view.php?f=$id";
 
-if ($returnurl) {
-    $returnto = $returnurl;
-}
-
 if (!is_null($mode) and has_capability('mod/forum:managesubscriptions', $context)) {
     require_sesskey();
     switch ($mode) {
         case FORUM_CHOOSESUBSCRIBE : // 0
-            \mod_forum\subscriptions::set_subscription_mode($forum->id, FORUM_CHOOSESUBSCRIBE);
+            forum_forcesubscribe($forum->id, FORUM_CHOOSESUBSCRIBE);
             redirect($returnto, get_string("everyonecannowchoose", "forum"), 1);
             break;
         case FORUM_FORCESUBSCRIBE : // 1
-            \mod_forum\subscriptions::set_subscription_mode($forum->id, FORUM_FORCESUBSCRIBE);
+            forum_forcesubscribe($forum->id, FORUM_FORCESUBSCRIBE);
             redirect($returnto, get_string("everyoneisnowsubscribed", "forum"), 1);
             break;
         case FORUM_INITIALSUBSCRIBE : // 2
             if ($forum->forcesubscribe <> FORUM_INITIALSUBSCRIBE) {
-                $users = \mod_forum\subscriptions::get_potential_subscribers($context, 0, 'u.id, u.email', '');
+                $users = forum_get_potential_subscribers($context, 0, 'u.id, u.email', '');
                 foreach ($users as $user) {
-                    \mod_forum\subscriptions::subscribe_user($user->id, $forum, $context);
+                    forum_subscribe($user->id, $forum->id);
                 }
             }
-            \mod_forum\subscriptions::set_subscription_mode($forum->id, FORUM_INITIALSUBSCRIBE);
+            forum_forcesubscribe($forum->id, FORUM_INITIALSUBSCRIBE);
             redirect($returnto, get_string("everyoneisnowsubscribed", "forum"), 1);
             break;
         case FORUM_DISALLOWSUBSCRIBE : // 3
-            \mod_forum\subscriptions::set_subscription_mode($forum->id, FORUM_DISALLOWSUBSCRIBE);
+            forum_forcesubscribe($forum->id, FORUM_DISALLOWSUBSCRIBE);
             redirect($returnto, get_string("noonecansubscribenow", "forum"), 1);
             break;
         default:
@@ -142,7 +129,7 @@ if (!is_null($mode) and has_capability('mod/forum:managesubscriptions', $context
     }
 }
 
-if (\mod_forum\subscriptions::is_forcesubscribed($forum)) {
+if (forum_is_forcesubscribed($forum)) {
     redirect($returnto, get_string("everyoneisnowsubscribed", "forum"), 1);
 }
 
@@ -150,77 +137,43 @@ $info = new stdClass();
 $info->name  = fullname($user);
 $info->forum = format_string($forum->name);
 
-if ($issubscribed) {
-    if (is_null($sesskey)) {
-        // We came here via link in email.
+if (forum_is_subscribed($user->id, $forum->id)) {
+    if (is_null($sesskey)) {    // we came here via link in email
         $PAGE->set_title($course->shortname);
         $PAGE->set_heading($course->fullname);
         echo $OUTPUT->header();
-
-        $viewurl = new moodle_url('/mod/forum/view.php', array('f' => $id));
-        if ($discussionid) {
-            $a = new stdClass();
-            $a->forum = format_string($forum->name);
-            $a->discussion = format_string($discussion->name);
-            echo $OUTPUT->confirm(get_string('confirmunsubscribediscussion', 'forum', $a),
-                    $PAGE->url, $viewurl);
-        } else {
-            echo $OUTPUT->confirm(get_string('confirmunsubscribe', 'forum', format_string($forum->name)),
-                    $PAGE->url, $viewurl);
-        }
+        echo $OUTPUT->confirm(get_string('confirmunsubscribe', 'forum', format_string($forum->name)),
+                new moodle_url($PAGE->url, array('sesskey' => sesskey())), new moodle_url('/mod/forum/view.php', array('f' => $id)));
         echo $OUTPUT->footer();
         exit;
     }
     require_sesskey();
-    if ($discussionid === null) {
-        if (\mod_forum\subscriptions::unsubscribe_user($user->id, $forum, $context, true)) {
-            redirect($returnto, get_string("nownotsubscribed", "forum", $info), 1);
-        } else {
-            print_error('cannotunsubscribe', 'forum', get_local_referer(false));
-        }
+    if (forum_unsubscribe($user->id, $forum->id)) {
+        add_to_log($course->id, "forum", "unsubscribe", "view.php?f=$forum->id", $forum->id, $cm->id);
+        redirect($returnto, get_string("nownotsubscribed", "forum", $info), 1);
     } else {
-        if (\mod_forum\subscriptions::unsubscribe_user_from_discussion($user->id, $discussion, $context)) {
-            $info->discussion = $discussion->name;
-            redirect($returnto, get_string("discussionnownotsubscribed", "forum", $info), 1);
-        } else {
-            print_error('cannotunsubscribe', 'forum', get_local_referer(false));
-        }
+        print_error('cannotunsubscribe', 'forum', $_SERVER["HTTP_REFERER"]);
     }
 
 } else {  // subscribe
-    if (\mod_forum\subscriptions::subscription_disabled($forum) && !has_capability('mod/forum:managesubscriptions', $context)) {
-        print_error('disallowsubscribe', 'forum', get_local_referer(false));
+    if ($forum->forcesubscribe == FORUM_DISALLOWSUBSCRIBE &&
+                !has_capability('mod/forum:managesubscriptions', $context)) {
+        print_error('disallowsubscribe', 'forum', $_SERVER["HTTP_REFERER"]);
     }
     if (!has_capability('mod/forum:viewdiscussion', $context)) {
-        print_error('noviewdiscussionspermission', 'forum', get_local_referer(false));
+        print_error('noviewdiscussionspermission', 'forum', $_SERVER["HTTP_REFERER"]);
     }
-    if (is_null($sesskey)) {
-        // We came here via link in email.
+    if (is_null($sesskey)) {    // we came here via link in email
         $PAGE->set_title($course->shortname);
         $PAGE->set_heading($course->fullname);
         echo $OUTPUT->header();
-
-        $viewurl = new moodle_url('/mod/forum/view.php', array('f' => $id));
-        if ($discussionid) {
-            $a = new stdClass();
-            $a->forum = format_string($forum->name);
-            $a->discussion = format_string($discussion->name);
-            echo $OUTPUT->confirm(get_string('confirmsubscribediscussion', 'forum', $a),
-                    $PAGE->url, $viewurl);
-        } else {
-            echo $OUTPUT->confirm(get_string('confirmsubscribe', 'forum', format_string($forum->name)),
-                    $PAGE->url, $viewurl);
-        }
+        echo $OUTPUT->confirm(get_string('confirmsubscribe', 'forum', format_string($forum->name)),
+                new moodle_url($PAGE->url, array('sesskey' => sesskey())), new moodle_url('/mod/forum/view.php', array('f' => $id)));
         echo $OUTPUT->footer();
         exit;
     }
     require_sesskey();
-    if ($discussionid == null) {
-        \mod_forum\subscriptions::subscribe_user($user->id, $forum, $context, true);
-        redirect($returnto, get_string("nowsubscribed", "forum", $info), 1);
-    } else {
-        $info->discussion = $discussion->name;
-        \mod_forum\subscriptions::subscribe_user_to_discussion($user->id, $discussion, $context);
-        redirect($returnto, get_string("discussionnowsubscribed", "forum", $info), 1);
-    }
+    forum_subscribe($user->id, $forum->id);
+    add_to_log($course->id, "forum", "subscribe", "view.php?f=$forum->id", $forum->id, $cm->id);
+    redirect($returnto, get_string("nowsubscribed", "forum", $info), 1);
 }

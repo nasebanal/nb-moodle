@@ -53,11 +53,6 @@ if ($chapterid) {
 
 $PAGE->set_url('/mod/book/print.php', array('id'=>$id, 'chapterid'=>$chapterid));
 
-// Use "embedded" instead of "print" because Bootstrapbase shows top
-// header bar and navbar even on print style - which is inconsistent
-// with extant behaviour.
-$PAGE->set_pagelayout("embedded");
-
 unset($id);
 unset($chapterid);
 
@@ -70,66 +65,71 @@ $strbooks = get_string('modulenameplural', 'mod_book');
 $strbook  = get_string('modulename', 'mod_book');
 $strtop   = get_string('top', 'mod_book');
 
-// Page header.
-$strtitle = format_string($book->name, true, array('context'=>$context));
-$PAGE->set_title($strtitle);
-$PAGE->set_heading($strtitle);
-$PAGE->requires->css('/mod/book/tool/print/print.css');
-
-// Begin page output.
-echo $OUTPUT->header();
+@header('Cache-Control: private, pre-check=0, post-check=0, max-age=0');
+@header('Pragma: no-cache');
+@header('Expires: ');
+@header('Accept-Ranges: none');
+@header('Content-type: text/html; charset=utf-8');
 
 if ($chapter) {
 
     if ($chapter->hidden) {
         require_capability('mod/book:viewhiddenchapters', $context);
     }
-    \booktool_print\event\chapter_printed::create_from_chapter($book, $context, $chapter)->trigger();
 
-    // Print dialog link.
-    $printtext = get_string('printchapter', 'booktool_print');
-    $printicon = $OUTPUT->pix_icon('chapter', $printtext, 'booktool_print', array('class' => 'icon'));
-    $printlinkatt = array('onclick' => 'window.print();return false;', 'class' => 'hidden-print');
-    echo html_writer::link('#', $printicon.$printtext, $printlinkatt);
+    add_to_log($course->id, 'book', 'print', 'tool/print/index.php?id='.$cm->id.'&chapterid='.$chapter->id, $book->id, $cm->id);
+
+    // page header
     ?>
+    <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+    <html>
+    <head>
+      <title><?php echo format_string($book->name, true, array('context'=>$context)) ?></title>
+      <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+      <meta name="description" content="<?php echo s(format_string($book->name, true, array('context'=>$context))) ?>" />
+      <link rel="stylesheet" type="text/css" href="print.css" />
+    </head>
+    <body>
     <a name="top"></a>
-    <?php
-    echo $OUTPUT->heading(format_string($book->name, true, array('context'=>$context)), 1);
-    ?>
+    <h1 class="book_title"><?php echo format_string($book->name, true, array('context'=>$context)) ?></h1>
     <div class="chapter">
     <?php
+
+
     if (!$book->customtitles) {
         if (!$chapter->subchapter) {
             $currtitle = book_get_chapter_title($chapter->id, $chapters, $book, $context);
-            echo $OUTPUT->heading($currtitle);
+            echo '<h2 class="book_chapter_title">'.$currtitle.'</h2>';
         } else {
             $currtitle = book_get_chapter_title($chapters[$chapter->id]->parent, $chapters, $book, $context);
             $currsubtitle = book_get_chapter_title($chapter->id, $chapters, $book, $context);
-            echo $OUTPUT->heading($currtitle);
-            echo $OUTPUT->heading($currsubtitle, 3);
+            echo '<h2 class="book_chapter_title">'.$currtitle.'</h2><h3 class="book_chapter_title">'.$currsubtitle.'</h3>';
         }
     }
 
     $chaptertext = file_rewrite_pluginfile_urls($chapter->content, 'pluginfile.php', $context->id, 'mod_book', 'chapter', $chapter->id);
     echo format_text($chaptertext, $chapter->contentformat, array('noclean'=>true, 'context'=>$context));
     echo '</div>';
+    echo '</body> </html>';
 
 } else {
-    \booktool_print\event\book_printed::create_from_book($book, $context)->trigger();
-
+    add_to_log($course->id, 'book', 'print', 'tool/print/index.php?id='.$cm->id, $book->id, $cm->id);
     $allchapters = $DB->get_records('book_chapters', array('bookid'=>$book->id), 'pagenum');
     $book->intro = file_rewrite_pluginfile_urls($book->intro, 'pluginfile.php', $context->id, 'mod_book', 'intro', null);
 
-    // Print dialog link.
-    $printtext = get_string('printbook', 'booktool_print');
-    $printicon = $OUTPUT->pix_icon('book', $printtext, 'booktool_print', array('class' => 'icon'));
-    $printlinkatt = array('onclick' => 'window.print();return false;', 'class' => 'hidden-print');
-    echo html_writer::link('#', $printicon.$printtext, $printlinkatt);
+    // page header
     ?>
+    <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+    <html>
+    <head>
+      <title><?php echo format_string($book->name, true, array('context'=>$context)) ?></title>
+      <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+      <meta name="description" content="<?php echo s(format_string($book->name, true, array('noclean'=>true, 'context'=>$context))) ?>" />
+      <link rel="stylesheet" type="text/css" href="print.css" />
+    </head>
+    <body>
     <a name="top"></a>
-    <?php
-    echo $OUTPUT->heading(format_string($book->name, true, array('context'=>$context)), 1);
-    ?>
+    <h1 class="book_title"><?php echo format_string($book->name, true, array('context'=>$context)) ?></h1>
     <p class="book_summary"><?php echo format_text($book->intro, $book->introformat, array('noclean'=>true, 'context'=>$context)) ?></p>
     <div class="book_info"><table>
     <tr>
@@ -164,9 +164,9 @@ if ($chapter) {
         echo '<div class="book_chapter"><a name="ch'.$ch->id.'"></a>';
         if (!$book->customtitles) {
             if (!$chapter->subchapter) {
-                echo $OUTPUT->heading($titles[$ch->id]);
+                echo '<h2 class="book_chapter_title">'.$titles[$ch->id].'</h2>';
             } else {
-                echo $OUTPUT->heading($titles[$ch->id], 3);
+                echo '<h3 class="book_chapter_title">'.$titles[$ch->id].'</h3>';
             }
         }
         $content = str_replace($link1, '#ch', $chapter->content);
@@ -176,7 +176,6 @@ if ($chapter) {
         echo '</div>';
         // echo '<a href="#toc">'.$strtop.'</a>';
     }
+    echo '</body> </html>';
 }
 
-// Finish page output.
-echo $OUTPUT->footer();

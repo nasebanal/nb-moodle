@@ -37,14 +37,10 @@ require_once(__DIR__.'/pgsql_native_moodle_temptables.php');
  */
 class pgsql_native_moodle_database extends moodle_database {
 
-    /** @var resource $pgsql database resource */
     protected $pgsql     = null;
     protected $bytea_oid = null;
 
     protected $last_error_reporting; // To handle pgsql driver default verbosity
-
-    /** @var bool savepoint hack for MDL-35506 - workaround for automatic transaction rollback on error */
-    protected $savepointpresent = false;
 
     /**
      * Detects if all needed PHP stuff installed.
@@ -104,6 +100,15 @@ class pgsql_native_moodle_database extends moodle_database {
     }
 
     /**
+     * Returns localised database description
+     * Note: can be used before connect()
+     * @return string
+     */
+    public function get_configuration_hints() {
+        return get_string('databasesettingssub_postgres7', 'install');
+    }
+
+    /**
      * Connect to db
      * Must be called before other methods.
      * @param string $dbhost The database host.
@@ -136,10 +141,6 @@ class pgsql_native_moodle_database extends moodle_database {
             $connection = "user='$this->dbuser' password='$pass' dbname='$this->dbname'";
             if (strpos($this->dboptions['dbsocket'], '/') !== false) {
                 $connection = $connection." host='".$this->dboptions['dbsocket']."'";
-                if (!empty($this->dboptions['dbport'])) {
-                    // Somehow non-standard port is important for sockets - see MDL-44862.
-                    $connection = $connection." port ='".$this->dboptions['dbport']."'";
-                }
             }
         } else {
             $this->dboptions['dbsocket'] = '';
@@ -240,23 +241,7 @@ class pgsql_native_moodle_database extends moodle_database {
     protected function query_end($result) {
         // reset original debug level
         error_reporting($this->last_error_reporting);
-        try {
-            parent::query_end($result);
-            if ($this->savepointpresent and $this->last_type != SQL_QUERY_AUX and $this->last_type != SQL_QUERY_SELECT) {
-                $res = @pg_query($this->pgsql, "RELEASE SAVEPOINT moodle_pg_savepoint; SAVEPOINT moodle_pg_savepoint");
-                if ($res) {
-                    pg_free_result($res);
-                }
-            }
-        } catch (Exception $e) {
-            if ($this->savepointpresent) {
-                $res = @pg_query($this->pgsql, "ROLLBACK TO SAVEPOINT moodle_pg_savepoint; SAVEPOINT moodle_pg_savepoint");
-                if ($res) {
-                    pg_free_result($res);
-                }
-            }
-            throw $e;
-        }
+        parent::query_end($result);
     }
 
     /**
@@ -325,7 +310,7 @@ class pgsql_native_moodle_database extends moodle_database {
         if ($result) {
             while ($row = pg_fetch_row($result)) {
                 $tablename = reset($row);
-                if ($this->prefix !== false && $this->prefix !== '') {
+                if ($this->prefix !== '') {
                     if (strpos($tablename, $this->prefix) !== 0) {
                         continue;
                     }
@@ -366,14 +351,7 @@ class pgsql_native_moodle_database extends moodle_database {
                     continue;
                 }
                 $columns = explode(',', $matches[4]);
-                foreach ($columns as $k=>$column) {
-                    $column = trim($column);
-                    if ($pos = strpos($column, ' ')) {
-                        // index type is separated by space
-                        $column = substr($column, 0, $pos);
-                    }
-                    $columns[$k] = $this->trim_quotes($column);
-                }
+                $columns = array_map(array($this, 'trim_quotes'), $columns);
                 $indexes[$row['indexname']] = array('unique'=>!empty($matches[1]),
                                               'columns'=>$columns);
             }
@@ -386,18 +364,14 @@ class pgsql_native_moodle_database extends moodle_database {
      * Returns detailed information about columns in table. This information is cached internally.
      * @param string $table name
      * @param bool $usecache
-     * @return database_column_info[] array of database_column_info objects indexed with column names
+     * @return array array of database_column_info objects indexed with column names
      */
     public function get_columns($table, $usecache=true) {
-        if ($usecache) {
-            $properties = array('dbfamily' => $this->get_dbfamily(), 'settings' => $this->get_settings_hash());
-            $cache = cache::make('core', 'databasemeta', $properties);
-            if ($data = $cache->get($table)) {
-                return $data;
-            }
+        if ($usecache and isset($this->columns[$table])) {
+            return $this->columns[$table];
         }
 
-        $structure = array();
+        $this->columns[$table] = array();
 
         $tablename = $this->prefix.$table;
 
@@ -463,18 +437,7 @@ class pgsql_native_moodle_database extends moodle_database {
                     $info->auto_increment= false;
                     $info->has_default   = ($rawcolumn->atthasdef === 't');
                 }
-                // Return number of decimals, not bytes here.
-                if ($matches[1] >= 8) {
-                    $info->max_length = 18;
-                } else if ($matches[1] >= 4) {
-                    $info->max_length = 9;
-                } else if ($matches[1] >= 2) {
-                    $info->max_length = 4;
-                } else if ($matches[1] >= 1) {
-                    $info->max_length = 2;
-                } else {
-                    $info->max_length = 0;
-                }
+                $info->max_length    = $matches[1];
                 $info->scale         = null;
                 $info->not_null      = ($rawcolumn->attnotnull === 't');
                 if ($info->has_default) {
@@ -569,16 +532,12 @@ class pgsql_native_moodle_database extends moodle_database {
 
             }
 
-            $structure[$info->name] = new database_column_info($info);
+            $this->columns[$table][$info->name] = new database_column_info($info);
         }
 
         pg_free_result($result);
 
-        if ($usecache) {
-            $cache->set($table, $structure);
-        }
-
-        return $structure;
+        return $this->columns[$table];
     }
 
     /**
@@ -630,35 +589,18 @@ class pgsql_native_moodle_database extends moodle_database {
 
     /**
      * Do NOT use in code, to be used by database_manager only!
-     * @param string|array $sql query
+     * @param string $sql query
      * @return bool true
-     * @throws ddl_change_structure_exception A DDL specific exception is thrown for any errors.
+     * @throws dml_exception A DML specific exception is thrown for any errors.
      */
     public function change_database_structure($sql) {
-        $this->get_manager(); // Includes DDL exceptions classes ;-)
-        if (is_array($sql)) {
-            $sql = implode("\n;\n", $sql);
-        }
-        if (!$this->is_transaction_started()) {
-            // It is better to do all or nothing, this helps with recovery...
-            $sql = "BEGIN ISOLATION LEVEL SERIALIZABLE;\n$sql\n; COMMIT";
-        }
-
-        try {
-            $this->query_start($sql, null, SQL_QUERY_STRUCTURE);
-            $result = pg_query($this->pgsql, $sql);
-            $this->query_end($result);
-            pg_free_result($result);
-        } catch (ddl_change_structure_exception $e) {
-            if (!$this->is_transaction_started()) {
-                $result = @pg_query($this->pgsql, "ROLLBACK");
-                @pg_free_result($result);
-            }
-            $this->reset_caches();
-            throw $e;
-        }
-
         $this->reset_caches();
+
+        $this->query_start($sql, null, SQL_QUERY_STRUCTURE);
+        $result = pg_query($this->pgsql, $sql);
+        $this->query_end($result);
+
+        pg_free_result($result);
         return true;
     }
 
@@ -703,9 +645,10 @@ class pgsql_native_moodle_database extends moodle_database {
      * @throws dml_exception A DML specific exception is thrown for any errors.
      */
     public function get_recordset_sql($sql, array $params=null, $limitfrom=0, $limitnum=0) {
-
-        list($limitfrom, $limitnum) = $this->normalise_limit_from_num($limitfrom, $limitnum);
-
+        $limitfrom = (int)$limitfrom;
+        $limitnum  = (int)$limitnum;
+        $limitfrom = ($limitfrom < 0) ? 0 : $limitfrom;
+        $limitnum  = ($limitnum < 0)  ? 0 : $limitnum;
         if ($limitfrom or $limitnum) {
             if ($limitnum < 1) {
                 $limitnum = "ALL";
@@ -745,9 +688,10 @@ class pgsql_native_moodle_database extends moodle_database {
      * @throws dml_exception A DML specific exception is thrown for any errors.
      */
     public function get_records_sql($sql, array $params=null, $limitfrom=0, $limitnum=0) {
-
-        list($limitfrom, $limitnum) = $this->normalise_limit_from_num($limitfrom, $limitnum);
-
+        $limitfrom = (int)$limitfrom;
+        $limitnum  = (int)$limitnum;
+        $limitfrom = ($limitfrom < 0) ? 0 : $limitfrom;
+        $limitnum  = ($limitnum < 0)  ? 0 : $limitnum;
         if ($limitfrom or $limitnum) {
             if ($limitnum < 1) {
                 $limitnum = "ALL";
@@ -896,10 +840,6 @@ class pgsql_native_moodle_database extends moodle_database {
         $dataobject = (array)$dataobject;
 
         $columns = $this->get_columns($table);
-        if (empty($columns)) {
-            throw new dml_exception('ddltablenotexist', $table);
-        }
-
         $cleaned = array();
         $blobs   = array();
 
@@ -939,108 +879,6 @@ class pgsql_native_moodle_database extends moodle_database {
 
         return ($returnid ? $id : true);
 
-    }
-
-    /**
-     * Insert multiple records into database as fast as possible.
-     *
-     * Order of inserts is maintained, but the operation is not atomic,
-     * use transactions if necessary.
-     *
-     * This method is intended for inserting of large number of small objects,
-     * do not use for huge objects with text or binary fields.
-     *
-     * @since Moodle 2.7
-     *
-     * @param string $table  The database table to be inserted into
-     * @param array|Traversable $dataobjects list of objects to be inserted, must be compatible with foreach
-     * @return void does not return new record ids
-     *
-     * @throws coding_exception if data objects have different structure
-     * @throws dml_exception A DML specific exception is thrown for any errors.
-     */
-    public function insert_records($table, $dataobjects) {
-        if (!is_array($dataobjects) and !($dataobjects instanceof Traversable)) {
-            throw new coding_exception('insert_records() passed non-traversable object');
-        }
-
-        // PostgreSQL does not seem to have problems with huge queries.
-        $chunksize = 500;
-        if (!empty($this->dboptions['bulkinsertsize'])) {
-            $chunksize = (int)$this->dboptions['bulkinsertsize'];
-        }
-
-        $columns = $this->get_columns($table, true);
-
-        // Make sure there are no nasty blobs!
-        foreach ($columns as $column) {
-            if ($column->binary) {
-                parent::insert_records($table, $dataobjects);
-                return;
-            }
-        }
-
-        $fields = null;
-        $count = 0;
-        $chunk = array();
-        foreach ($dataobjects as $dataobject) {
-            if (!is_array($dataobject) and !is_object($dataobject)) {
-                throw new coding_exception('insert_records() passed invalid record object');
-            }
-            $dataobject = (array)$dataobject;
-            if ($fields === null) {
-                $fields = array_keys($dataobject);
-                $columns = array_intersect_key($columns, $dataobject);
-                unset($columns['id']);
-            } else if ($fields !== array_keys($dataobject)) {
-                throw new coding_exception('All dataobjects in insert_records() must have the same structure!');
-            }
-
-            $count++;
-            $chunk[] = $dataobject;
-
-            if ($count === $chunksize) {
-                $this->insert_chunk($table, $chunk, $columns);
-                $chunk = array();
-                $count = 0;
-            }
-        }
-
-        if ($count) {
-            $this->insert_chunk($table, $chunk, $columns);
-        }
-    }
-
-    /**
-     * Insert records in chunks, no binary support, strict param types...
-     *
-     * Note: can be used only from insert_records().
-     *
-     * @param string $table
-     * @param array $chunk
-     * @param database_column_info[] $columns
-     */
-    protected function insert_chunk($table, array $chunk, array $columns) {
-        $i = 1;
-        $params = array();
-        $values = array();
-        foreach ($chunk as $dataobject) {
-            $vals = array();
-            foreach ($columns as $field => $column) {
-                $params[] = $this->normalise_value($column, $dataobject[$field]);
-                $vals[] = "\$".$i++;
-            }
-            $values[] = '('.implode(',', $vals).')';
-        }
-
-        $fieldssql = '('.implode(',', array_keys($columns)).')';
-        $valuessql = implode(',', $values);
-
-        $sql = "INSERT INTO {$this->prefix}$table $fieldssql VALUES $valuessql";
-        $this->query_start($sql, $params, SQL_QUERY_INSERT);
-        $result = pg_query_params($this->pgsql, $sql, $params);
-        $this->query_end($result);
-        pg_free_result($result);
     }
 
     /**
@@ -1342,16 +1180,6 @@ class pgsql_native_moodle_database extends moodle_database {
         return $positivematch ? '~*' : '!~*';
     }
 
-    /**
-     * Does this driver support tool_replace?
-     *
-     * @since Moodle 2.6.1
-     * @return bool
-     */
-    public function replace_all_text_supported() {
-        return true;
-    }
-
     public function session_lock_supported() {
         return true;
     }
@@ -1416,10 +1244,6 @@ class pgsql_native_moodle_database extends moodle_database {
         if (!$this->session_lock_supported()) {
             return;
         }
-        if (!$this->used_for_db_sessions) {
-            return;
-        }
-
         parent::release_session_lock($rowid);
 
         $sql = "SELECT pg_advisory_unlock($rowid)";
@@ -1438,8 +1262,7 @@ class pgsql_native_moodle_database extends moodle_database {
      * @return void
      */
     protected function begin_transaction() {
-        $this->savepointpresent = true;
-        $sql = "BEGIN ISOLATION LEVEL READ COMMITTED; SAVEPOINT moodle_pg_savepoint";
+        $sql = "BEGIN ISOLATION LEVEL READ COMMITTED";
         $this->query_start($sql, NULL, SQL_QUERY_AUX);
         $result = pg_query($this->pgsql, $sql);
         $this->query_end($result);
@@ -1453,8 +1276,7 @@ class pgsql_native_moodle_database extends moodle_database {
      * @return void
      */
     protected function commit_transaction() {
-        $this->savepointpresent = false;
-        $sql = "RELEASE SAVEPOINT moodle_pg_savepoint; COMMIT";
+        $sql = "COMMIT";
         $this->query_start($sql, NULL, SQL_QUERY_AUX);
         $result = pg_query($this->pgsql, $sql);
         $this->query_end($result);
@@ -1468,8 +1290,7 @@ class pgsql_native_moodle_database extends moodle_database {
      * @return void
      */
     protected function rollback_transaction() {
-        $this->savepointpresent = false;
-        $sql = "RELEASE SAVEPOINT moodle_pg_savepoint; ROLLBACK";
+        $sql = "ROLLBACK";
         $this->query_start($sql, NULL, SQL_QUERY_AUX);
         $result = pg_query($this->pgsql, $sql);
         $this->query_end($result);

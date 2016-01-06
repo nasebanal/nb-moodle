@@ -85,7 +85,7 @@ if ($param->delete && ($questionstomove = $DB->count_records("question", array("
     if (!$category = $DB->get_record("question_categories", array("id" => $param->delete))) {  // security
         print_error('nocate', 'question', $thispageurl->out(), $param->delete);
     }
-    $categorycontext = context::instance_by_id($category->contextid);
+    $categorycontext = get_context_instance_by_id($category->contextid);
     $qcobject->moveform = new question_move_form($thispageurl,
                 array('contexts'=>array($categorycontext), 'currentcat'=>$param->delete));
     if ($qcobject->moveform->is_cancelled()){
@@ -104,14 +104,10 @@ if ($param->delete && ($questionstomove = $DB->count_records("question", array("
 if ($qcobject->catform->is_cancelled()) {
     redirect($thispageurl);
 } else if ($catformdata = $qcobject->catform->get_data()) {
-    $catformdata->infoformat = $catformdata->info['format'];
-    $catformdata->info       = $catformdata->info['text'];
     if (!$catformdata->id) {//new category
-        $qcobject->add_category($catformdata->parent, $catformdata->name,
-                $catformdata->info, false, $catformdata->infoformat);
+        $qcobject->add_category($catformdata->parent, $catformdata->name, $catformdata->info);
     } else {
-        $qcobject->update_category($catformdata->id, $catformdata->parent,
-                $catformdata->name, $catformdata->info, $catformdata->infoformat);
+        $qcobject->update_category($catformdata->id, $catformdata->parent, $catformdata->name, $catformdata->info);
     }
     redirect($thispageurl);
 } else if ((!empty($param->delete) and (!$questionstomove) and confirm_sesskey())) {

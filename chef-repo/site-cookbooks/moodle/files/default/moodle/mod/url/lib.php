@@ -18,7 +18,8 @@
 /**
  * Mandatory public API of url module
  *
- * @package    mod_url
+ * @package    mod
+ * @subpackage url
  * @copyright  2009 Petr Skoda  {@link http://skodak.org}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -35,6 +36,7 @@ function url_supports($feature) {
         case FEATURE_MOD_ARCHETYPE:           return MOD_ARCHETYPE_RESOURCE;
         case FEATURE_GROUPS:                  return false;
         case FEATURE_GROUPINGS:               return false;
+        case FEATURE_GROUPMEMBERSONLY:        return true;
         case FEATURE_MOD_INTRO:               return true;
         case FEATURE_COMPLETION_TRACKS_VIEWS: return true;
         case FEATURE_GRADE_HAS_GRADE:         return false;
@@ -64,13 +66,7 @@ function url_reset_userdata($data) {
 }
 
 /**
- * List the actions that correspond to a view of this module.
- * This is used by the participation report.
- *
- * Note: This is not used by new logging system. Event with
- *       crud = 'r' and edulevel = LEVEL_PARTICIPATING will
- *       be considered as view action.
- *
+ * List of view style log actions
  * @return array
  */
 function url_get_view_actions() {
@@ -78,13 +74,7 @@ function url_get_view_actions() {
 }
 
 /**
- * List the actions that correspond to a post of this module.
- * This is used by the participation report.
- *
- * Note: This is not used by new logging system. Event with
- *       crud = ('c' || 'u' || 'd') and edulevel = LEVEL_PARTICIPATING
- *       will be considered as post action.
- *
+ * List of update style log actions
  * @return array
  */
 function url_get_post_actions() {
@@ -119,6 +109,7 @@ function url_add_instance($data, $mform) {
         $displayoptions['popupheight'] = $data->popupheight;
     }
     if (in_array($data->display, array(RESOURCELIB_DISPLAY_AUTO, RESOURCELIB_DISPLAY_EMBED, RESOURCELIB_DISPLAY_FRAME))) {
+        $displayoptions['printheading'] = (int)!empty($data->printheading);
         $displayoptions['printintro']   = (int)!empty($data->printintro);
     }
     $data->displayoptions = serialize($displayoptions);
@@ -159,6 +150,7 @@ function url_update_instance($data, $mform) {
         $displayoptions['popupheight'] = $data->popupheight;
     }
     if (in_array($data->display, array(RESOURCELIB_DISPLAY_AUTO, RESOURCELIB_DISPLAY_EMBED, RESOURCELIB_DISPLAY_FRAME))) {
+        $displayoptions['printheading'] = (int)!empty($data->printheading);
         $displayoptions['printintro']   = (int)!empty($data->printintro);
     }
     $data->displayoptions = serialize($displayoptions);
@@ -193,6 +185,57 @@ function url_delete_instance($id) {
 }
 
 /**
+ * Return use outline
+ * @param object $course
+ * @param object $user
+ * @param object $mod
+ * @param object $url
+ * @return object|null
+ */
+function url_user_outline($course, $user, $mod, $url) {
+    global $DB;
+
+    if ($logs = $DB->get_records('log', array('userid'=>$user->id, 'module'=>'url',
+                                              'action'=>'view', 'info'=>$url->id), 'time ASC')) {
+
+        $numviews = count($logs);
+        $lastlog = array_pop($logs);
+
+        $result = new stdClass();
+        $result->info = get_string('numviews', '', $numviews);
+        $result->time = $lastlog->time;
+
+        return $result;
+    }
+    return NULL;
+}
+
+/**
+ * Return use complete
+ * @param object $course
+ * @param object $user
+ * @param object $mod
+ * @param object $url
+ */
+function url_user_complete($course, $user, $mod, $url) {
+    global $CFG, $DB;
+
+    if ($logs = $DB->get_records('log', array('userid'=>$user->id, 'module'=>'url',
+                                              'action'=>'view', 'info'=>$url->id), 'time ASC')) {
+        $numviews = count($logs);
+        $lastlog = array_pop($logs);
+
+        $strmostrecently = get_string('mostrecently');
+        $strnumviews = get_string('numviews', '', $numviews);
+
+        echo "$strnumviews - $strmostrecently ".userdate($lastlog->time);
+
+    } else {
+        print_string('neverseen', 'url');
+    }
+}
+
+/**
  * Given a course_module object, this function returns any
  * "extra" information that may be needed when printing
  * this activity in a course listing.
@@ -200,7 +243,7 @@ function url_delete_instance($id) {
  * See {@link get_array_of_activities()} in course/lib.php
  *
  * @param object $coursemodule
- * @return cached_cm_info info
+ * @return object info
  */
 function url_get_coursemodule_info($coursemodule) {
     global $CFG, $DB;
@@ -215,7 +258,7 @@ function url_get_coursemodule_info($coursemodule) {
     $info->name = $url->name;
 
     //note: there should be a way to differentiate links from normal resources
-    $info->icon = url_guess_icon($url->externalurl, 24);
+    $info->icon = url_guess_icon($url->externalurl);
 
     $display = url_get_final_display_type($url);
 
@@ -261,12 +304,12 @@ function url_export_contents($cm, $baseurl) {
     global $CFG, $DB;
     require_once("$CFG->dirroot/mod/url/locallib.php");
     $contents = array();
-    $context = context_module::instance($cm->id);
+    $context = get_context_instance(CONTEXT_MODULE, $cm->id);
 
     $course = $DB->get_record('course', array('id'=>$cm->course), '*', MUST_EXIST);
-    $urlrecord = $DB->get_record('url', array('id'=>$cm->instance), '*', MUST_EXIST);
+    $url = $DB->get_record('url', array('id'=>$cm->instance), '*', MUST_EXIST);
 
-    $fullurl = str_replace('&amp;', '&', url_get_full_url($urlrecord, $cm, $course));
+    $fullurl = str_replace('&amp;', '&', url_get_full_url($url, $cm, $course));
     $isurl = clean_param($fullurl, PARAM_URL);
     if (empty($isurl)) {
         return null;
@@ -274,12 +317,12 @@ function url_export_contents($cm, $baseurl) {
 
     $url = array();
     $url['type'] = 'url';
-    $url['filename']     = clean_param(format_string($urlrecord->name), PARAM_FILE);
+    $url['filename']     = $url->name;
     $url['filepath']     = null;
     $url['filesize']     = 0;
     $url['fileurl']      = $fullurl;
     $url['timecreated']  = null;
-    $url['timemodified'] = $urlrecord->timemodified;
+    $url['timemodified'] = $url->timemodified;
     $url['sortorder']    = null;
     $url['userid']       = null;
     $url['author']       = null;
@@ -319,35 +362,8 @@ function url_dndupload_handle($uploadinfo) {
     $data->display = $config->display;
     $data->popupwidth = $config->popupwidth;
     $data->popupheight = $config->popupheight;
+    $data->printheading = $config->printheading;
     $data->printintro = $config->printintro;
 
     return url_add_instance($data, null);
-}
-
-/**
- * Mark the activity completed (if required) and trigger the course_module_viewed event.
- *
- * @param  stdClass $url        url object
- * @param  stdClass $course     course object
- * @param  stdClass $cm         course module object
- * @param  stdClass $context    context object
- * @since Moodle 3.0
- */
-function url_view($url, $course, $cm, $context) {
-
-    // Trigger course_module_viewed event.
-    $params = array(
-        'context' => $context,
-        'objectid' => $url->id
-    );
-
-    $event = \mod_url\event\course_module_viewed::create($params);
-    $event->add_record_snapshot('course_modules', $cm);
-    $event->add_record_snapshot('course', $course);
-    $event->add_record_snapshot('url', $url);
-    $event->trigger();
-
-    // Completion.
-    $completion = new completion_info($course);
-    $completion->set_module_viewed($cm);
 }

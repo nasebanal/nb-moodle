@@ -18,7 +18,7 @@
 /**
  * This file is the landing point for returning to moodle after authenticating at mahara
  *
- * @since Moodle 2.0
+ * @since 2.0
  * @package moodlecore
  * @subpackage portfolio
  * @copyright 2009 Penny Leach

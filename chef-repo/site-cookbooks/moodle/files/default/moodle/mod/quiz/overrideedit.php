@@ -17,9 +17,10 @@
 /**
  * This page handles editing and creation of quiz overrides
  *
- * @package   mod_quiz
- * @copyright 2010 Matt Petro
- * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @package    mod
+ * @subpackage quiz
+ * @copyright  2010 Matt Petro
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 
@@ -43,12 +44,17 @@ if ($overrideid) {
     if (! $quiz = $DB->get_record('quiz', array('id' => $override->quiz))) {
         print_error('invalidcoursemodule');
     }
-    list($course, $cm) = get_course_and_cm_from_instance($quiz, 'quiz');
-
+    if (! $cm = get_coursemodule_from_instance("quiz", $quiz->id, $quiz->course)) {
+        print_error('invalidcoursemodule');
+    }
 } else if ($cmid) {
-    list($course, $cm) = get_course_and_cm_from_cmid($cmid, 'quiz');
-    $quiz = $DB->get_record('quiz', array('id' => $cm->instance), '*', MUST_EXIST);
 
+    if (! $cm = get_coursemodule_from_id('quiz', $cmid)) {
+        print_error('invalidcoursemodule');
+    }
+    if (! $quiz = $DB->get_record('quiz', array('id' => $cm->instance))) {
+        print_error('invalidcoursemodule');
+    }
 } else {
     print_error('invalidcoursemodule');
 }
@@ -68,7 +74,7 @@ $PAGE->set_url($url);
 
 require_login($course, false, $cm);
 
-$context = context_module::instance($cm->id);
+$context = get_context_instance(CONTEXT_MODULE, $cm->id);
 
 // Add or edit an override.
 require_capability('mod/quiz:manageoverrides', $context);
@@ -150,55 +156,24 @@ if ($mform->is_cancelled()) {
                     $fromform->{$key} = $oldoverride->{$key};
                 }
             }
-            // Set the course module id before calling quiz_delete_override().
-            $quiz->cmid = $cm->id;
-            quiz_delete_override($quiz, $oldoverride->id);
+            // Delete the old override.
+            $DB->delete_records('quiz_overrides', array('id' => $oldoverride->id));
         }
     }
 
-    // Set the common parameters for one of the events we may be triggering.
-    $params = array(
-        'context' => $context,
-        'other' => array(
-            'quizid' => $quiz->id
-        )
-    );
     if (!empty($override->id)) {
         $fromform->id = $override->id;
         $DB->update_record('quiz_overrides', $fromform);
-
-        // Determine which override updated event to fire.
-        $params['objectid'] = $override->id;
-        if (!$groupmode) {
-            $params['relateduserid'] = $fromform->userid;
-            $event = \mod_quiz\event\user_override_updated::create($params);
-        } else {
-            $params['other']['groupid'] = $fromform->groupid;
-            $event = \mod_quiz\event\group_override_updated::create($params);
-        }
-
-        // Trigger the override updated event.
-        $event->trigger();
     } else {
         unset($fromform->id);
         $fromform->id = $DB->insert_record('quiz_overrides', $fromform);
-
-        // Determine which override created event to fire.
-        $params['objectid'] = $fromform->id;
-        if (!$groupmode) {
-            $params['relateduserid'] = $fromform->userid;
-            $event = \mod_quiz\event\user_override_created::create($params);
-        } else {
-            $params['other']['groupid'] = $fromform->groupid;
-            $event = \mod_quiz\event\group_override_created::create($params);
-        }
-
-        // Trigger the override created event.
-        $event->trigger();
     }
 
     quiz_update_open_attempts(array('quizid'=>$quiz->id));
     quiz_update_events($quiz, $fromform);
+
+    add_to_log($cm->course, 'quiz', 'edit override',
+            "overrideedit.php?id=$fromform->id", $quiz->id, $cm->id);
 
     if (!empty($fromform->submitbutton)) {
         redirect($overridelisturl);
@@ -219,7 +194,7 @@ $PAGE->set_pagelayout('admin');
 $PAGE->set_title($pagetitle);
 $PAGE->set_heading($course->fullname);
 echo $OUTPUT->header();
-echo $OUTPUT->heading(format_string($quiz->name, true, array('context' => $context)));
+echo $OUTPUT->heading($pagetitle);
 
 $mform->display();
 

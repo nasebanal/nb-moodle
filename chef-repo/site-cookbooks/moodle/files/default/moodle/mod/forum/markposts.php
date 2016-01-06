@@ -18,7 +18,7 @@
 /**
  * Set tracking option for the forum.
  *
- * @package   mod_forum
+ * @package mod-forum
  * @copyright 2005 mchurch
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -57,9 +57,9 @@ $user = $USER;
 require_login($course, false, $cm);
 
 if ($returnpage == 'index.php') {
-    $returnto = forum_go_back_to(new moodle_url("/mod/forum/$returnpage", array('id' => $course->id)));
+    $returnto = forum_go_back_to($returnpage.'?id='.$course->id);
 } else {
-    $returnto = forum_go_back_to(new moodle_url("/mod/forum/$returnpage", array('f' => $forum->id)));
+    $returnto = forum_go_back_to($returnpage.'?f='.$forum->id);
 }
 
 if (isguestuser()) {   // Guests can't change forum
@@ -81,7 +81,9 @@ if ($mark == 'read') {
             print_error('invaliddiscussionid', 'forum');
         }
 
-        forum_tp_mark_discussion_read($user, $d);
+        if (forum_tp_mark_discussion_read($user, $d)) {
+            add_to_log($course->id, "discussion", "mark read", "view.php?f=$forum->id", $d, $cm->id);
+        }
     } else {
         // Mark all messages read in current group
         $currentgroup = groups_get_activity_group($cm);
@@ -90,15 +92,18 @@ if ($mark == 'read') {
             // may return 0
             $currentgroup=false;
         }
-        forum_tp_mark_forum_read($user, $forum->id, $currentgroup);
+        if (forum_tp_mark_forum_read($user, $forum->id,$currentgroup)) {
+            add_to_log($course->id, "forum", "mark read", "view.php?f=$forum->id", $forum->id, $cm->id);
+        }
     }
 
 /// FUTURE - Add ability to mark them as unread.
 //    } else { // subscribe
 //        if (forum_tp_start_tracking($forum->id, $user->id)) {
+//            add_to_log($course->id, "forum", "mark unread", "view.php?f=$forum->id", $forum->id, $cm->id);
 //            redirect($returnto, get_string("nowtracking", "forum", $info), 1);
 //        } else {
-//            print_error("Could not start tracking that forum", get_local_referer());
+//            print_error("Could not start tracking that forum", $_SERVER["HTTP_REFERER"]);
 //        }
 }
 

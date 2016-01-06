@@ -45,12 +45,12 @@ class workshopform_numerrors_strategy_testcase extends advanced_testcase {
      */
     protected function setUp() {
         parent::setUp();
-        $this->resetAfterTest();
-        $this->setAdminUser();
-        $course = $this->getDataGenerator()->create_course();
-        $workshop = $this->getDataGenerator()->create_module('workshop', array('strategy' => 'numerrors', 'course' => $course));
-        $cm = get_fast_modinfo($course)->instances['workshop'][$workshop->id];
-        $this->workshop = new workshop($workshop, $cm, $course);
+
+        $cm             = new stdclass();
+        $course         = new stdclass();
+        $context        = new stdclass();
+        $workshop       = (object)array('id' => 42, 'strategy' => 'numerrors');
+        $this->workshop = new workshop($workshop, $cm, $course, $context);
         $this->strategy = new testable_workshop_numerrors_strategy($this->workshop);
     }
 

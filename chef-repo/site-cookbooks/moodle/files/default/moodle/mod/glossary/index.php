@@ -18,13 +18,10 @@ if (!$course = $DB->get_record('course', array('id'=>$id))) {
 
 require_course_login($course);
 $PAGE->set_pagelayout('incourse');
-$context = context_course::instance($course->id);
+$context = get_context_instance(CONTEXT_COURSE, $course->id);
 
-$event = \mod_glossary\event\course_module_instance_list_viewed::create(array(
-    'context' => $context
-));
-$event->add_record_snapshot('course', $course);
-$event->trigger();
+add_to_log($course->id, "glossary", "view all", "index.php?id=$course->id", "");
+
 
 /// Get all required strings
 
@@ -38,7 +35,6 @@ $PAGE->navbar->add($strglossarys, "index.php?id=$course->id");
 $PAGE->set_title($strglossarys);
 $PAGE->set_heading($course->fullname);
 echo $OUTPUT->header();
-echo $OUTPUT->heading(format_string($strglossarys), 2);
 
 /// Get all the appropriate data
 
@@ -48,35 +44,37 @@ if (! $glossarys = get_all_instances_in_course("glossary", $course)) {
 }
 
 $usesections = course_format_uses_sections($course->format);
+if ($usesections) {
+    $sections = get_all_sections($course->id);
+}
 
 /// Print the list of instances (your module will probably extend this)
 
 $timenow = time();
+$strsectionname  = get_string('sectionname', 'format_'.$course->format);
 $strname  = get_string("name");
 $strentries  = get_string("entries", "glossary");
 
 $table = new html_table();
 
 if ($usesections) {
-    $strsectionname = get_string('sectionname', 'format_'.$course->format);
     $table->head  = array ($strsectionname, $strname, $strentries);
-    $table->align = array ('center', 'left', 'center');
+    $table->align = array ("CENTER", "LEFT", "CENTER");
 } else {
     $table->head  = array ($strname, $strentries);
-    $table->align = array ('left', 'center');
+    $table->align = array ("LEFT", "CENTER");
 }
 
 if ($show_rss = (isset($CFG->enablerssfeeds) && isset($CFG->glossary_enablerssfeeds) &&
                  $CFG->enablerssfeeds && $CFG->glossary_enablerssfeeds)) {
     $table->head[] = $strrss;
-    $table->align[] = 'center';
+    $table->align[] = "CENTER";
 }
 
 $currentsection = "";
 
 foreach ($glossarys as $glossary) {
-    if (!$glossary->visible && has_capability('moodle/course:viewhiddenactivities',
-            context_module::instance($glossary->coursemodule))) {
+    if (!$glossary->visible && has_capability('moodle/course:viewhiddenactivities', $context)) {
         // Show dimmed if the mod is hidden.
         $link = "<a class=\"dimmed\" href=\"view.php?id=$glossary->coursemodule\">".format_string($glossary->name,true)."</a>";
     } else if ($glossary->visible) {
@@ -90,7 +88,7 @@ foreach ($glossarys as $glossary) {
     if ($usesections) {
         if ($glossary->section !== $currentsection) {
             if ($glossary->section) {
-                $printsection = get_section_name($course, $glossary->section);
+                $printsection = get_section_name($course, $sections[$glossary->section]);
             }
             if ($currentsection !== "") {
                 $table->data[] = 'hr';

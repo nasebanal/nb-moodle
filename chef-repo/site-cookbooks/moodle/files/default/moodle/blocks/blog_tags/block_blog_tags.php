@@ -17,7 +17,8 @@
 /**
  * Blog tags block.
  *
- * @package    block_blog_tags
+ * @package    block
+ * @subpackage blog_tags
  * @copyright  2006 Shane Elliott
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -117,7 +118,7 @@ class block_blog_tags extends block_base {
 
         // admins should be able to read all tags
         $type = '';
-        if (!has_capability('moodle/user:readuserblogs', context_system::instance())) {
+        if (!has_capability('moodle/user:readuserblogs', get_context_instance(CONTEXT_SYSTEM))) {
             $type = " AND (p.publishstate = 'site' or p.publishstate='public')";
         }
 

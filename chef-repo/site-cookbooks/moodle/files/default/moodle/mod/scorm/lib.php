@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * @package   mod_scorm
+ * @package   mod-scorm
  * @copyright 1999 onwards Martin Dougiamas  {@link http://moodle.com}
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -26,6 +26,8 @@ define('SCORM_TYPE_LOCAL', 'local');
 define('SCORM_TYPE_LOCALSYNC', 'localsync');
 /** SCORM_TYPE_EXTERNAL = external */
 define('SCORM_TYPE_EXTERNAL', 'external');
+/** SCORM_TYPE_IMSREPOSITORY = imsrepository */
+define('SCORM_TYPE_IMSREPOSITORY', 'imsrepository');
 /** SCORM_TYPE_AICCURL = external AICC url */
 define('SCORM_TYPE_AICCURL', 'aiccurl');
 
@@ -34,21 +36,10 @@ define('SCORM_TOC_HIDDEN', 1);
 define('SCORM_TOC_POPUP', 2);
 define('SCORM_TOC_DISABLED', 3);
 
-// Used to show/hide navigation buttons and set their position.
-define('SCORM_NAV_DISABLED', 0);
-define('SCORM_NAV_UNDER_CONTENT', 1);
-define('SCORM_NAV_FLOATING', 2);
-
-// Used to check what SCORM version is being used.
+//used to check what SCORM version is being used.
 define('SCORM_12', 1);
 define('SCORM_13', 2);
 define('SCORM_AICC', 3);
-
-// List of possible attemptstatusdisplay options.
-define('SCORM_DISPLAY_ATTEMPTSTATUS_NO', 0);
-define('SCORM_DISPLAY_ATTEMPTSTATUS_ALL', 1);
-define('SCORM_DISPLAY_ATTEMPTSTATUS_MY', 2);
-define('SCORM_DISPLAY_ATTEMPTSTATUS_ENTRY', 3);
 
 /**
  * Return an array of status options
@@ -58,14 +49,14 @@ define('SCORM_DISPLAY_ATTEMPTSTATUS_ENTRY', 3);
  * @param   bool    $with_strings   (optional)
  * @return  array
  */
-function scorm_status_options($withstrings = false) {
-    // Id's are important as they are bits.
+function scorm_status_options($with_strings = false) {
+    // Id's are important as they are bits
     $options = array(
         2 => 'passed',
         4 => 'completed'
     );
 
-    if ($withstrings) {
+    if ($with_strings) {
         foreach ($options as $key => $value) {
             $options[$key] = get_string('completionstatus_'.$value, 'scorm');
         }
@@ -87,6 +78,7 @@ function scorm_status_options($withstrings = false) {
  * @uses SCORM_TYPE_LOCAL
  * @uses SCORM_TYPE_LOCALSYNC
  * @uses SCORM_TYPE_EXTERNAL
+ * @uses SCORM_TYPE_IMSREPOSITORY
  * @param object $scorm Form data
  * @param object $mform
  * @return int new instance id
@@ -106,7 +98,7 @@ function scorm_add_instance($scorm, $mform=null) {
     $cmidnumber = $scorm->cmidnumber;
     $courseid   = $scorm->course;
 
-    $context = context_module::instance($cmid);
+    $context = get_context_instance(CONTEXT_MODULE, $cmid);
 
     $scorm = scorm_option2text($scorm);
     $scorm->width  = (int)str_replace('%', '', $scorm->width);
@@ -118,24 +110,20 @@ function scorm_add_instance($scorm, $mform=null) {
 
     $id = $DB->insert_record('scorm', $scorm);
 
-    // Update course module record - from now on this instance properly exists and all function may be used.
-    $DB->set_field('course_modules', 'instance', $id, array('id' => $cmid));
+    /// update course module record - from now on this instance properly exists and all function may be used
+    $DB->set_field('course_modules', 'instance', $id, array('id'=>$cmid));
 
-    // Reload scorm instance.
-    $record = $DB->get_record('scorm', array('id' => $id));
+    /// reload scorm instance
+    $record = $DB->get_record('scorm', array('id'=>$id));
 
-    // Store the package and verify.
+    /// store the package and verify
     if ($record->scormtype === SCORM_TYPE_LOCAL) {
-        if (!empty($scorm->packagefile)) {
-            $fs = get_file_storage();
-            $fs->delete_area_files($context->id, 'mod_scorm', 'package');
-            file_save_draft_area_files($scorm->packagefile, $context->id, 'mod_scorm', 'package',
-                0, array('subdirs' => 0, 'maxfiles' => 1));
-            // Get filename of zip that was uploaded.
-            $files = $fs->get_area_files($context->id, 'mod_scorm', 'package', 0, '', false);
-            $file = reset($files);
-            $filename = $file->get_filename();
+        if ($mform) {
+            $filename = $mform->get_new_filename('packagefile');
             if ($filename !== false) {
+                $fs = get_file_storage();
+                $fs->delete_area_files($context->id, 'mod_scorm', 'package');
+                $mform->save_stored_file('packagefile', $context->id, 'mod_scorm', 'package', 0, '/', $filename);
                 $record->reference = $filename;
             }
         }
@@ -144,17 +132,18 @@ function scorm_add_instance($scorm, $mform=null) {
         $record->reference = $scorm->packageurl;
     } else if ($record->scormtype === SCORM_TYPE_EXTERNAL) {
         $record->reference = $scorm->packageurl;
+    } else if ($record->scormtype === SCORM_TYPE_IMSREPOSITORY) {
+        $record->reference = $scorm->packageurl;
     } else if ($record->scormtype === SCORM_TYPE_AICCURL) {
         $record->reference = $scorm->packageurl;
-        $record->hidetoc = SCORM_TOC_DISABLED; // TOC is useless for direct AICCURL so disable it.
     } else {
         return false;
     }
 
-    // Save reference.
+    // save reference
     $DB->update_record('scorm', $record);
 
-    // Extra fields required in grade related functions.
+    /// extra fields required in grade related functions
     $record->course     = $courseid;
     $record->cmidnumber = $cmidnumber;
     $record->cmid       = $cmid;
@@ -177,6 +166,7 @@ function scorm_add_instance($scorm, $mform=null) {
  * @uses SCORM_TYPE_LOCAL
  * @uses SCORM_TYPE_LOCALSYNC
  * @uses SCORM_TYPE_EXTERNAL
+ * @uses SCORM_TYPE_IMSREPOSITORY
  * @param object $scorm Form data
  * @param object $mform
  * @return bool
@@ -199,30 +189,29 @@ function scorm_update_instance($scorm, $mform=null) {
 
     $scorm->id = $scorm->instance;
 
-    $context = context_module::instance($cmid);
+    $context = get_context_instance(CONTEXT_MODULE, $cmid);
 
     if ($scorm->scormtype === SCORM_TYPE_LOCAL) {
-        if (!empty($scorm->packagefile)) {
-            $fs = get_file_storage();
-            $fs->delete_area_files($context->id, 'mod_scorm', 'package');
-            file_save_draft_area_files($scorm->packagefile, $context->id, 'mod_scorm', 'package',
-                0, array('subdirs' => 0, 'maxfiles' => 1));
-            // Get filename of zip that was uploaded.
-            $files = $fs->get_area_files($context->id, 'mod_scorm', 'package', 0, '', false);
-            $file = reset($files);
-            $filename = $file->get_filename();
+        if ($mform) {
+            $filename = $mform->get_new_filename('packagefile');
             if ($filename !== false) {
                 $scorm->reference = $filename;
+                $fs = get_file_storage();
+                $fs->delete_area_files($context->id, 'mod_scorm', 'package');
+                $mform->save_stored_file('packagefile', $context->id, 'mod_scorm', 'package', 0, '/', $filename);
             }
         }
 
     } else if ($scorm->scormtype === SCORM_TYPE_LOCALSYNC) {
         $scorm->reference = $scorm->packageurl;
+
     } else if ($scorm->scormtype === SCORM_TYPE_EXTERNAL) {
+        $scorm->reference = $scorm->packageurl;
+
+    } else if ($scorm->scormtype === SCORM_TYPE_IMSREPOSITORY) {
         $scorm->reference = $scorm->packageurl;
     } else if ($scorm->scormtype === SCORM_TYPE_AICCURL) {
         $scorm->reference = $scorm->packageurl;
-        $scorm->hidetoc = SCORM_TOC_DISABLED; // TOC is useless for direct AICCURL so disable it.
     } else {
         return false;
     }
@@ -238,9 +227,9 @@ function scorm_update_instance($scorm, $mform=null) {
 
     $DB->update_record('scorm', $scorm);
 
-    $scorm = $DB->get_record('scorm', array('id' => $scorm->id));
+    $scorm = $DB->get_record('scorm', array('id'=>$scorm->id));
 
-    // Extra fields required in grade related functions.
+    /// extra fields required in grade related functions
     $scorm->course   = $courseid;
     $scorm->idnumber = $cmidnumber;
     $scorm->cmid     = $cmid;
@@ -266,25 +255,25 @@ function scorm_update_instance($scorm, $mform=null) {
 function scorm_delete_instance($id) {
     global $CFG, $DB;
 
-    if (! $scorm = $DB->get_record('scorm', array('id' => $id))) {
+    if (! $scorm = $DB->get_record('scorm', array('id'=>$id))) {
         return false;
     }
 
     $result = true;
 
-    // Delete any dependent records.
-    if (! $DB->delete_records('scorm_scoes_track', array('scormid' => $scorm->id))) {
+    // Delete any dependent records
+    if (! $DB->delete_records('scorm_scoes_track', array('scormid'=>$scorm->id))) {
         $result = false;
     }
-    if ($scoes = $DB->get_records('scorm_scoes', array('scorm' => $scorm->id))) {
+    if ($scoes = $DB->get_records('scorm_scoes', array('scorm'=>$scorm->id))) {
         foreach ($scoes as $sco) {
-            if (! $DB->delete_records('scorm_scoes_data', array('scoid' => $sco->id))) {
+            if (! $DB->delete_records('scorm_scoes_data', array('scoid'=>$sco->id))) {
                 $result = false;
             }
         }
-        $DB->delete_records('scorm_scoes', array('scorm' => $scorm->id));
+        $DB->delete_records('scorm_scoes', array('scorm'=>$scorm->id));
     }
-    if (! $DB->delete_records('scorm', array('id' => $scorm->id))) {
+    if (! $DB->delete_records('scorm', array('id'=>$scorm->id))) {
         $result = false;
     }
 
@@ -338,9 +327,9 @@ function scorm_user_outline($course, $user, $mod, $scorm) {
         $result = new stdClass();
         $result->info = get_string('grade') . ': '. $grade->str_long_grade;
 
-        // Datesubmitted == time created. dategraded == time modified or time overridden
-        // if grade was last modified by the user themselves use date graded. Otherwise use date submitted.
-        // TODO: move this copied & pasted code somewhere in the grades API. See MDL-26704.
+        //datesubmitted == time created. dategraded == time modified or time overridden
+        //if grade was last modified by the user themselves use date graded. Otherwise use date submitted
+        //TODO: move this copied & pasted code somewhere in the grades API. See MDL-26704
         if ($grade->usermodified == $user->id || empty($grade->datesubmitted)) {
             $result->time = $grade->dategraded;
         } else {
@@ -375,7 +364,7 @@ function scorm_user_complete($course, $user, $mod, $scorm) {
     $sometoreport = false;
     $report = '';
 
-    // First Access and Last Access dates for SCOs.
+    // First Access and Last Access dates for SCOs
     require_once($CFG->dirroot.'/mod/scorm/locallib.php');
     $timetracks = scorm_get_sco_runtime($scorm->id, false, $user->id);
     $firstmodify = $timetracks->start;
@@ -393,7 +382,7 @@ function scorm_user_complete($course, $user, $mod, $scorm) {
     if ($orgs = $DB->get_records_select('scorm_scoes', 'scorm = ? AND '.
                                          $DB->sql_isempty('scorm_scoes', 'launch', false, true).' AND '.
                                          $DB->sql_isempty('scorm_scoes', 'organization', false, false),
-                                         array($scorm->id), 'sortorder, id', 'id, identifier, title')) {
+                                         array($scorm->id), 'id', 'id,identifier,title')) {
         if (count($orgs) <= 1) {
             unset($orgs);
             $orgs = array();
@@ -401,112 +390,106 @@ function scorm_user_complete($course, $user, $mod, $scorm) {
             $org->identifier = '';
             $orgs[] = $org;
         }
-        $report .= html_writer::start_div('mod-scorm');
+        $report .= '<div class="mod-scorm">'."\n";
         foreach ($orgs as $org) {
             $conditions = array();
             $currentorg = '';
             if (!empty($org->identifier)) {
-                $report .= html_writer::div($org->title, 'orgtitle');
+                $report .= '<div class="orgtitle">'.$org->title.'</div>';
                 $currentorg = $org->identifier;
                 $conditions['organization'] = $currentorg;
             }
-            $report .= html_writer::start_tag('ul', array('id' => '0', 'class' => $liststyle));
+            $report .= "<ul id='0' class='$liststyle'>";
                 $conditions['scorm'] = $scorm->id;
-            if ($scoes = $DB->get_records('scorm_scoes', $conditions, "sortorder, id")) {
-                // Drop keys so that we can access array sequentially.
+            if ($scoes = $DB->get_records('scorm_scoes', $conditions, "id ASC")) {
+                // drop keys so that we can access array sequentially
                 $scoes = array_values($scoes);
-                $level = 0;
-                $sublist = 1;
-                $parents[$level] = '/';
+                $level=0;
+                $sublist=1;
+                $parents[$level]='/';
                 foreach ($scoes as $pos => $sco) {
-                    if ($parents[$level] != $sco->parent) {
-                        if ($level > 0 && $parents[$level - 1] == $sco->parent) {
-                            $report .= html_writer::end_tag('ul').html_writer::end_tag('li');
+                    if ($parents[$level]!=$sco->parent) {
+                        if ($level>0 && $parents[$level-1]==$sco->parent) {
+                            $report .= "\t\t</ul></li>\n";
                             $level--;
                         } else {
                             $i = $level;
                             $closelist = '';
                             while (($i > 0) && ($parents[$level] != $sco->parent)) {
-                                $closelist .= html_writer::end_tag('ul').html_writer::end_tag('li');
+                                $closelist .= "\t\t</ul></li>\n";
                                 $i--;
                             }
                             if (($i == 0) && ($sco->parent != $currentorg)) {
-                                $report .= html_writer::start_tag('li');
-                                $report .= html_writer::start_tag('ul', array('id' => $sublist, 'class' => $liststyle));
+                                $report .= "\t\t<li><ul id='$sublist' class='$liststyle'>\n";
                                 $level++;
                             } else {
                                 $report .= $closelist;
                                 $level = $i;
                             }
-                            $parents[$level] = $sco->parent;
+                            $parents[$level]=$sco->parent;
                         }
                     }
-                    $report .= html_writer::start_tag('li');
-                    if (isset($scoes[$pos + 1])) {
-                        $nextsco = $scoes[$pos + 1];
+                    $report .= "\t\t<li>";
+                    if (isset($scoes[$pos+1])) {
+                        $nextsco = $scoes[$pos+1];
                     } else {
                         $nextsco = false;
                     }
-                    if (($nextsco !== false) && ($sco->parent != $nextsco->parent) &&
-                            (($level == 0) || (($level > 0) && ($nextsco->parent == $sco->identifier)))) {
+                    if (($nextsco !== false) && ($sco->parent != $nextsco->parent) && (($level==0) || (($level>0) && ($nextsco->parent == $sco->identifier)))) {
                         $sublist++;
                     } else {
-                        $report .= $OUTPUT->spacer(array("height" => "12", "width" => "13"));
+                        $report .= '<img src="'.$OUTPUT->pix_url('spacer', 'scorm').'" alt="" />';
                     }
 
                     if ($sco->launch) {
                         $score = '';
                         $totaltime = '';
-                        if ($usertrack = scorm_get_tracks($sco->id, $user->id)) {
+                        if ($usertrack=scorm_get_tracks($sco->id, $user->id)) {
                             if ($usertrack->status == '') {
                                 $usertrack->status = 'notattempted';
                             }
                             $strstatus = get_string($usertrack->status, 'scorm');
-                            $report .= html_writer::img($OUTPUT->pix_url($usertrack->status, 'scorm'),
-                                                        $strstatus, array('title' => $strstatus));
+                            $report .= "<img src='".$OUTPUT->pix_url($usertrack->status, 'scorm')."' alt='$strstatus' title='$strstatus' />";
                         } else {
                             if ($sco->scormtype == 'sco') {
-                                $report .= html_writer::img($OUTPUT->pix_url('notattempted', 'scorm'),
-                                                            get_string('notattempted', 'scorm'),
-                                                            array('title' => get_string('notattempted', 'scorm')));
+                                $report .= '<img src="'.$OUTPUT->pix_url('notattempted', 'scorm').'" alt="'.get_string('notattempted', 'scorm').'" title="'.get_string('notattempted', 'scorm').'" />';
                             } else {
-                                $report .= html_writer::img($OUTPUT->pix_url('asset', 'scorm'), get_string('asset', 'scorm'),
-                                                            array('title' => get_string('asset', 'scorm')));
+                                $report .= '<img src="'.$OUTPUT->pix_url('asset', 'scorm').'" alt="'.get_string('asset', 'scorm').'" title="'.get_string('asset', 'scorm').'" />';
                             }
                         }
-                        $report .= "&nbsp;$sco->title $score$totaltime".html_writer::end_tag('li');
+                        $report .= "&nbsp;$sco->title $score$totaltime</li>\n";
                         if ($usertrack !== false) {
                             $sometoreport = true;
-                            $report .= html_writer::start_tag('li').html_writer::start_tag('ul', array('class' => $liststyle));
+                            $report .= "\t\t\t<li><ul class='$liststyle'>\n";
                             foreach ($usertrack as $element => $value) {
                                 if (substr($element, 0, 3) == 'cmi') {
-                                    $report .= html_writer::tag('li', $element.' => '.s($value));
+                                    $report .= '<li>'.$element.' => '.s($value).'</li>';
                                 }
                             }
-                            $report .= html_writer::end_tag('ul').html_writer::end_tag('li');
+                            $report .= "\t\t\t</ul></li>\n";
                         }
                     } else {
-                        $report .= "&nbsp;$sco->title".html_writer::end_tag('li');
+                        $report .= "&nbsp;$sco->title</li>\n";
                     }
                 }
-                for ($i = 0; $i < $level; $i++) {
-                    $report .= html_writer::end_tag('ul').html_writer::end_tag('li');
+                for ($i=0; $i<$level; $i++) {
+                    $report .= "\t\t</ul></li>\n";
                 }
             }
-            $report .= html_writer::end_tag('ul').html_writer::empty_tag('br');
+            $report .= "\t</ul><br />\n";
         }
-        $report .= html_writer::end_div();
+        $report .= "</div>\n";
     }
     if ($sometoreport) {
         if ($firstmodify < $now) {
             $timeago = format_time($now - $firstmodify);
-            echo get_string('firstaccess', 'scorm').': '.userdate($firstmodify).' ('.$timeago.")".html_writer::empty_tag('br');
+            echo get_string('firstaccess', 'scorm').': '.userdate($firstmodify).' ('.$timeago.")<br />\n";
         }
         if ($lastmodify > 0) {
             $timeago = format_time($now - $lastmodify);
-            echo get_string('lastaccess', 'scorm').': '.userdate($lastmodify).' ('.$timeago.")".html_writer::empty_tag('br');
+            echo get_string('lastaccess', 'scorm').': '.userdate($lastmodify).' ('.$timeago.")<br />\n";
         }
-        echo get_string('report', 'scorm').":".html_writer::empty_tag('br');
+        echo get_string('report', 'scorm').":<br />\n";
         echo $report;
     } else {
         print_string('noactivity', 'scorm');
@@ -529,10 +512,10 @@ function scorm_cron () {
 
     require_once($CFG->dirroot.'/mod/scorm/locallib.php');
 
-    $sitetimezone = core_date::get_server_timezone();
-    // Now see if there are any scorm updates to be done.
+    $sitetimezone = $CFG->timezone;
+    /// Now see if there are any scorm updates to be done
 
-    if (!isset($CFG->scorm_updatetimelast)) {    // To catch the first time.
+    if (!isset($CFG->scorm_updatetimelast)) {    // To catch the first time
         set_config('scorm_updatetimelast', 0);
     }
 
@@ -543,17 +526,17 @@ function scorm_cron () {
 
         set_config('scorm_updatetimelast', $timenow);
 
-        mtrace('Updating scorm packages which require daily update');// We are updating.
+        mtrace('Updating scorm packages which require daily update');//We are updating
 
-        $scormsupdate = $DB->get_records('scorm', array('updatefreq' => SCORM_UPDATE_EVERYDAY));
+        $scormsupdate = $DB->get_records_select('scorm', 'updatefreq = ? AND scormtype <> ?', array(SCORM_UPDATE_EVERYDAY, SCORM_TYPE_LOCAL));
         foreach ($scormsupdate as $scormupdate) {
             scorm_parse($scormupdate, true);
         }
 
-        // Now clear out AICC session table with old session data.
-        $cfgscorm = get_config('scorm');
-        if (!empty($cfgscorm->allowaicchacp)) {
-            $expiretime = time() - ($cfgscorm->aicchacpkeepsessiondata * 24 * 60 * 60);
+        //now clear out AICC session table with old session data
+        $cfg_scorm = get_config('scorm');
+        if (!empty($cfg_scorm->allowaicchacp)) {
+            $expiretime = time() - ($cfg_scorm->aicchacpkeepsessiondata*24*60*60);
             $DB->delete_records_select('scorm_aicc_session', 'timemodified < ?', array($expiretime));
         }
     }
@@ -576,9 +559,7 @@ function scorm_get_user_grades($scorm, $userid=0) {
 
     $grades = array();
     if (empty($userid)) {
-        $scousers = $DB->get_records_select('scorm_scoes_track', "scormid=? GROUP BY userid",
-                                            array($scorm->id), "", "userid,null");
-        if ($scousers) {
+        if ($scousers = $DB->get_records_select('scorm_scoes_track', "scormid=? GROUP BY userid", array($scorm->id), "", "userid,null")) {
             foreach ($scousers as $scouser) {
                 $grades[$scouser->userid] = new stdClass();
                 $grades[$scouser->userid]->id         = $scouser->userid;
@@ -590,10 +571,8 @@ function scorm_get_user_grades($scorm, $userid=0) {
         }
 
     } else {
-        $preattempt = $DB->get_records_select('scorm_scoes_track', "scormid=? AND userid=? GROUP BY userid",
-                                                array($scorm->id, $userid), "", "userid,null");
-        if (!$preattempt) {
-            return false; // No attempt yet.
+        if (!$DB->get_records_select('scorm_scoes_track', "scormid=? AND userid=? GROUP BY userid", array($scorm->id, $userid), "", "userid,null")) {
+            return false; //no attempt yet
         }
         $grades[$userid] = new stdClass();
         $grades[$userid]->id         = $userid;
@@ -619,18 +598,48 @@ function scorm_update_grades($scorm, $userid=0, $nullifnone=true) {
 
     if ($grades = scorm_get_user_grades($scorm, $userid)) {
         scorm_grade_item_update($scorm, $grades);
-        // Set complete.
+        //set complete
         scorm_set_completion($scorm, $userid, COMPLETION_COMPLETE, $grades);
     } else if ($userid and $nullifnone) {
         $grade = new stdClass();
         $grade->userid   = $userid;
         $grade->rawgrade = null;
         scorm_grade_item_update($scorm, $grade);
-        // Set incomplete.
+        //set incomplete.
         scorm_set_completion($scorm, $userid, COMPLETION_INCOMPLETE);
     } else {
         scorm_grade_item_update($scorm);
     }
+}
+
+/**
+ * Update all grades in gradebook.
+ *
+ * @global object
+ */
+function scorm_upgrade_grades() {
+    global $DB;
+
+    $sql = "SELECT COUNT('x')
+              FROM {scorm} s, {course_modules} cm, {modules} m
+             WHERE m.name='scorm' AND m.id=cm.module AND cm.instance=s.id";
+    $count = $DB->count_records_sql($sql);
+
+    $sql = "SELECT s.*, cm.idnumber AS cmidnumber, s.course AS courseid
+              FROM {scorm} s, {course_modules} cm, {modules} m
+             WHERE m.name='scorm' AND m.id=cm.module AND cm.instance=s.id";
+    $rs = $DB->get_recordset_sql($sql);
+    if ($rs->valid()) {
+        $pbar = new progress_bar('scormupgradegrades', 500, true);
+        $i=0;
+        foreach ($rs as $scorm) {
+            $i++;
+            upgrade_set_timeout(60*5); // set up timeout, may also abort execution
+            scorm_update_grades($scorm, 0, false);
+            $pbar->update($i, $count, "Updating Scorm grades ($i/$count).");
+        }
+    }
+    $rs->close();
 }
 
 /**
@@ -646,19 +655,17 @@ function scorm_update_grades($scorm, $userid=0, $nullifnone=true) {
 function scorm_grade_item_update($scorm, $grades=null) {
     global $CFG, $DB;
     require_once($CFG->dirroot.'/mod/scorm/locallib.php');
-    if (!function_exists('grade_update')) { // Workaround for buggy PHP versions.
+    if (!function_exists('grade_update')) { //workaround for buggy PHP versions
         require_once($CFG->libdir.'/gradelib.php');
     }
 
-    $params = array('itemname' => $scorm->name);
+    $params = array('itemname'=>$scorm->name);
     if (isset($scorm->cmidnumber)) {
         $params['idnumber'] = $scorm->cmidnumber;
     }
 
     if ($scorm->grademethod == GRADESCOES) {
-        $maxgrade = $DB->count_records_select('scorm_scoes', 'scorm = ? AND '.
-                                                $DB->sql_isnotempty('scorm_scoes', 'launch', false, true), array($scorm->id));
-        if ($maxgrade) {
+        if ($maxgrade = $DB->count_records_select('scorm_scoes', 'scorm = ? AND '.$DB->sql_isnotempty('scorm_scoes', 'launch', false, true), array($scorm->id))) {
             $params['gradetype'] = GRADE_TYPE_VALUE;
             $params['grademax']  = $maxgrade;
             $params['grademin']  = 0;
@@ -671,7 +678,7 @@ function scorm_grade_item_update($scorm, $grades=null) {
         $params['grademin']  = 0;
     }
 
-    if ($grades === 'reset') {
+    if ($grades  === 'reset') {
         $params['reset'] = true;
         $grades = null;
     }
@@ -690,17 +697,10 @@ function scorm_grade_item_delete($scorm) {
     global $CFG;
     require_once($CFG->libdir.'/gradelib.php');
 
-    return grade_update('mod/scorm', $scorm->course, 'mod', 'scorm', $scorm->id, 0, null, array('deleted' => 1));
+    return grade_update('mod/scorm', $scorm->course, 'mod', 'scorm', $scorm->id, 0, null, array('deleted'=>1));
 }
 
 /**
- * List the actions that correspond to a view of this module.
- * This is used by the participation report.
- *
- * Note: This is not used by new logging system. Event with
- *       crud = 'r' and edulevel = LEVEL_PARTICIPATING will
- *       be considered as view action.
- *
  * @return array
  */
 function scorm_get_view_actions() {
@@ -708,13 +708,6 @@ function scorm_get_view_actions() {
 }
 
 /**
- * List the actions that correspond to a post of this module.
- * This is used by the participation report.
- *
- * Note: This is not used by new logging system. Event with
- *       crud = ('c' || 'u' || 'd') and edulevel = LEVEL_PARTICIPATING
- *       will be considered as post action.
- *
  * @return array
  */
 function scorm_get_post_actions() {
@@ -726,12 +719,12 @@ function scorm_get_post_actions() {
  * @return object $scorm
  */
 function scorm_option2text($scorm) {
-    $scormpopoupoptions = scorm_get_popup_options_array();
+    $scorm_popoup_options = scorm_get_popup_options_array();
 
     if (isset($scorm->popup)) {
         if ($scorm->popup == 1) {
             $optionlist = array();
-            foreach ($scormpopoupoptions as $name => $option) {
+            foreach ($scorm_popoup_options as $name => $option) {
                 if (isset($scorm->$name)) {
                     $optionlist[] = $name.'='.$scorm->$name;
                 } else {
@@ -766,7 +759,7 @@ function scorm_reset_course_form_definition(&$mform) {
  * @return array
  */
 function scorm_reset_course_form_defaults($course) {
-    return array('reset_scorm' => 1);
+    return array('reset_scorm'=>1);
 }
 
 /**
@@ -813,15 +806,15 @@ function scorm_reset_userdata($data) {
 
         $DB->delete_records_select('scorm_scoes_track', "scormid IN ($scormssql)", array($data->courseid));
 
-        // Remove all grades from gradebook.
+        // remove all grades from gradebook
         if (empty($data->reset_gradebook_grades)) {
             scorm_reset_gradebook($data->courseid);
         }
 
-        $status[] = array('component' => $componentstr, 'item' => get_string('deleteallattempts', 'scorm'), 'error' => false);
+        $status[] = array('component'=>$componentstr, 'item'=>get_string('deleteallattempts', 'scorm'), 'error'=>false);
     }
 
-    // No dates to shift here.
+    // no dates to shift here
 
     return $status;
 }
@@ -873,7 +866,7 @@ function scorm_get_file_info($browser, $areas, $course, $cm, $context, $filearea
         return null;
     }
 
-    // No writing for now!
+    // no writing for now!
 
     $fs = get_file_storage();
 
@@ -887,7 +880,7 @@ function scorm_get_file_info($browser, $areas, $course, $cm, $context, $filearea
             if ($filepath === '/' and $filename === '.') {
                 $storedfile = new virtual_root_file($context->id, 'mod_scorm', 'content', 0);
             } else {
-                // Not found.
+                // not found
                 return null;
             }
         }
@@ -903,14 +896,14 @@ function scorm_get_file_info($browser, $areas, $course, $cm, $context, $filearea
             if ($filepath === '/' and $filename === '.') {
                 $storedfile = new virtual_root_file($context->id, 'mod_scorm', 'package', 0);
             } else {
-                // Not found.
+                // not found
                 return null;
             }
         }
         return new file_info_stored($browser, $context, $storedfile, $urlbase, $areas[$filearea], false, true, false, false);
     }
 
-    // Scorm_intro handled in file_browser.
+    // scorm_intro handled in file_browser
 
     return false;
 }
@@ -930,7 +923,7 @@ function scorm_get_file_info($browser, $areas, $course, $cm, $context, $filearea
  * @return bool false if file not found, does not return if found - just send the file
  */
 function scorm_pluginfile($course, $cm, $context, $filearea, $args, $forcedownload, array $options=array()) {
-    global $CFG, $DB;
+    global $CFG;
 
     if ($context->contextlevel != CONTEXT_MODULE) {
         return false;
@@ -938,73 +931,43 @@ function scorm_pluginfile($course, $cm, $context, $filearea, $args, $forcedownlo
 
     require_login($course, true, $cm);
 
-    $canmanageactivity = has_capability('moodle/course:manageactivities', $context);
-    $lifetime = null;
-
-    // Check SCORM availability.
-    if (!$canmanageactivity) {
-        require_once($CFG->dirroot.'/mod/scorm/locallib.php');
-
-        $scorm = $DB->get_record('scorm', array('id' => $cm->instance), 'id, timeopen, timeclose', MUST_EXIST);
-        list($available, $warnings) = scorm_get_availability_status($scorm);
-        if (!$available) {
-            return false;
-        }
-    }
+    $lifetime = isset($CFG->filelifetime) ? $CFG->filelifetime : 86400;
 
     if ($filearea === 'content') {
-        $revision = (int)array_shift($args); // Prevents caching problems - ignored here.
+        $revision = (int)array_shift($args); // prevents caching problems - ignored here
         $relativepath = implode('/', $args);
         $fullpath = "/$context->id/mod_scorm/content/0/$relativepath";
         // TODO: add any other access restrictions here if needed!
 
     } else if ($filearea === 'package') {
-        // Check if the global setting for disabling package downloads is enabled.
-        $protectpackagedownloads = get_config('scorm', 'protectpackagedownloads');
-        if ($protectpackagedownloads and !$canmanageactivity) {
+        if (!has_capability('moodle/course:manageactivities', $context)) {
             return false;
         }
-        $revision = (int)array_shift($args); // Prevents caching problems - ignored here.
         $relativepath = implode('/', $args);
         $fullpath = "/$context->id/mod_scorm/package/0/$relativepath";
-        $lifetime = 0; // No caching here.
+        $lifetime = 0; // no caching here
 
-    } else if ($filearea === 'imsmanifest') { // This isn't a real filearea, it's a url parameter for this type of package.
-        $revision = (int)array_shift($args); // Prevents caching problems - ignored here.
-        $relativepath = implode('/', $args);
-
-        // Get imsmanifest file.
-        $fs = get_file_storage();
-        $files = $fs->get_area_files($context->id, 'mod_scorm', 'package', 0, '', false);
-        $file = reset($files);
-
-        // Check that the package file is an imsmanifest.xml file - if not then this method is not allowed.
-        $packagefilename = $file->get_filename();
-        if (strtolower($packagefilename) !== 'imsmanifest.xml') {
-            return false;
-        }
-
-        $file->send_relative_file($relativepath);
     } else {
         return false;
     }
 
     $fs = get_file_storage();
     if (!$file = $fs->get_file_by_hash(sha1($fullpath)) or $file->is_directory()) {
-        if ($filearea === 'content') { // Return file not found straight away to improve performance.
+        if ($filearea === 'content') { //return file not found straight away to improve performance.
             send_header_404();
             die;
         }
         return false;
     }
 
-    // Finally send the file.
+    // finally send the file
     send_stored_file($file, $lifetime, 0, false, $options);
 }
 
 /**
  * @uses FEATURE_GROUPS
  * @uses FEATURE_GROUPINGS
+ * @uses FEATURE_GROUPMEMBERSONLY
  * @uses FEATURE_MOD_INTRO
  * @uses FEATURE_COMPLETION_TRACKS_VIEWS
  * @uses FEATURE_COMPLETION_HAS_RULES
@@ -1017,6 +980,7 @@ function scorm_supports($feature) {
     switch($feature) {
         case FEATURE_GROUPS:                  return false;
         case FEATURE_GROUPINGS:               return false;
+        case FEATURE_GROUPMEMBERSONLY:        return true;
         case FEATURE_MOD_INTRO:               return true;
         case FEATURE_COMPLETION_TRACKS_VIEWS: return true;
         case FEATURE_COMPLETION_HAS_RULES:    return true;
@@ -1052,7 +1016,6 @@ function scorm_debug_log_filename($type, $scoid) {
  * @param integer $scoid - scoid of object this log entry is for.
  */
 function scorm_debug_log_write($type, $text, $scoid) {
-    global $CFG;
 
     $debugenablelog = get_config('scorm', 'allowapidebug');
     if (!$debugenablelog || empty($text)) {
@@ -1061,7 +1024,6 @@ function scorm_debug_log_write($type, $text, $scoid) {
     if (make_temp_directory('scormlogs/')) {
         $logfile = scorm_debug_log_filename($type, $scoid);
         @file_put_contents($logfile, date('Y/m/d H:i:s O')." DEBUG $text\r\n", FILE_APPEND);
-        @chmod($logfile, $CFG->filepermissions);
     }
 }
 
@@ -1091,7 +1053,7 @@ function scorm_debug_log_remove($type, $scoid) {
  * @return mixed
  */
 function scorm_print_overview($courses, &$htmlarray) {
-    global $USER, $CFG;
+    global $USER, $CFG, $DB;
 
     if (empty($courses) || !is_array($courses) || count($courses) == 0) {
         return array();
@@ -1101,36 +1063,46 @@ function scorm_print_overview($courses, &$htmlarray) {
         return;
     }
 
+    $scormids = array();
+
+    // Do scorm::isopen() here without loading the whole thing for speed
+    foreach ($scorms as $key => $scorm) {
+        $time = time();
+        if ($scorm->timeopen) {
+            $isopen = ($scorm->timeopen <= $time && $time <= $scorm->timeclose);
+        }
+        if (empty($scorm->displayattemptstatus) && (empty($isopen) || empty($scorm->timeclose))) {
+            unset($scorms[$key]);
+        } else {
+            $scormids[] = $scorm->id;
+        }
+    }
+
+    if (empty($scormids)) {
+        // no scorms to look at - we're done
+        return true;
+    }
     $strscorm   = get_string('modulename', 'scorm');
     $strduedate = get_string('duedate', 'scorm');
 
     foreach ($scorms as $scorm) {
-        $time = time();
-        $showattemptstatus = false;
-        if ($scorm->timeopen) {
-            $isopen = ($scorm->timeopen <= $time && $time <= $scorm->timeclose);
+        $str = '<div class="scorm overview"><div class="name">'.$strscorm. ': '.
+               '<a '.($scorm->visible ? '':' class="dimmed"').
+               'title="'.$strscorm.'" href="'.$CFG->wwwroot.
+               '/mod/scorm/view.php?id='.$scorm->coursemodule.'">'.
+               $scorm->name.'</a></div>';
+        if ($scorm->timeclose) {
+            $str .= '<div class="info">'.$strduedate.': '.userdate($scorm->timeclose).'</div>';
         }
-        if ($scorm->displayattemptstatus == SCORM_DISPLAY_ATTEMPTSTATUS_ALL ||
-                $scorm->displayattemptstatus == SCORM_DISPLAY_ATTEMPTSTATUS_MY) {
-            $showattemptstatus = true;
+        if ($scorm->displayattemptstatus == 1) {
+            require_once($CFG->dirroot.'/mod/scorm/locallib.php');
+            $str .= '<div class="details">'.scorm_get_attempt_status($USER, $scorm).'</div>';
         }
-        if ($showattemptstatus || !empty($isopen) || !empty($scorm->timeclose)) {
-            $str = html_writer::start_div('scorm overview').html_writer::div($strscorm. ': '.
-                    html_writer::link($CFG->wwwroot.'/mod/scorm/view.php?id='.$scorm->coursemodule, $scorm->name,
-                                        array('title' => $strscorm, 'class' => $scorm->visible ? '' : 'dimmed')), 'name');
-            if ($scorm->timeclose) {
-                $str .= html_writer::div($strduedate.': '.userdate($scorm->timeclose), 'info');
-            }
-            if ($showattemptstatus) {
-                require_once($CFG->dirroot.'/mod/scorm/locallib.php');
-                $str .= html_writer::div(scorm_get_attempt_status($USER, $scorm), 'details');
-            }
-            $str .= html_writer::end_div();
-            if (empty($htmlarray[$scorm->course]['scorm'])) {
-                $htmlarray[$scorm->course]['scorm'] = $str;
-            } else {
-                $htmlarray[$scorm->course]['scorm'] .= $str;
-            }
+        $str .= '</div>';
+        if (empty($htmlarray[$scorm->course]['scorm'])) {
+            $htmlarray[$scorm->course]['scorm'] = $str;
+        } else {
+            $htmlarray[$scorm->course]['scorm'] .= $str;
         }
     }
 }
@@ -1142,8 +1114,8 @@ function scorm_print_overview($courses, &$htmlarray) {
  * @param stdClass $currentcontext Current context of block
  */
 function scorm_page_type_list($pagetype, $parentcontext, $currentcontext) {
-    $modulepagetype = array('mod-scorm-*' => get_string('page-mod-scorm-x', 'scorm'));
-    return $modulepagetype;
+    $module_pagetype = array('mod-scorm-*'=>get_string('page-mod-scorm-x', 'scorm'));
+    return $module_pagetype;
 }
 
 /**
@@ -1154,7 +1126,7 @@ function scorm_page_type_list($pagetype, $parentcontext, $currentcontext) {
  */
 function scorm_version_check($scormversion, $version='') {
     $scormversion = trim(strtolower($scormversion));
-    if (empty($version) || $version == SCORM_12) {
+    if (empty($version) || $version==SCORM_12) {
         if ($scormversion == 'scorm_12' || $scormversion == 'scorm_1.2') {
             return SCORM_12;
         }
@@ -1197,7 +1169,7 @@ function scorm_get_completion_state($course, $cm, $userid, $type) {
 
     $result = $type;
 
-    // Get scorm.
+    // Get scorm
     if (!$scorm = $DB->get_record('scorm', array('id' => $cm->instance))) {
         print_error('cannotfindscorm');
     }
@@ -1234,10 +1206,10 @@ function scorm_get_completion_state($course, $cm, $userid, $type) {
         }
     }
 
-    // Check for status.
+    // Check for status
     if ($scorm->completionstatusrequired !== null) {
 
-        // Get status.
+        // Get status
         $statuses = array_flip(scorm_status_options());
         $nstatus = 0;
 
@@ -1259,7 +1231,7 @@ function scorm_get_completion_state($course, $cm, $userid, $type) {
 
     }
 
-    // Check for score.
+    // Check for score
     if ($scorm->completionscorerequired !== null) {
         $maxscore = -1;
 
@@ -1307,10 +1279,32 @@ function scorm_dndupload_handle($uploadinfo) {
     $file = reset($files);
 
     // Validate the file, make sure it's a valid SCORM package!
-    $errors = scorm_validate_package($file);
-    if (!empty($errors)) {
+    $packer = get_file_packer('application/zip');
+    $filelist = $file->list_files($packer);
+
+    if (!is_array($filelist)) {
         return false;
+    } else {
+        $manifestpresent = false;
+        $aiccfound = false;
+
+        foreach ($filelist as $info) {
+            if ($info->pathname == 'imsmanifest.xml') {
+                $manifestpresent = true;
+                break;
+            }
+
+            if (preg_match('/\.cst$/', $info->pathname)) {
+                $aiccfound = true;
+                break;
+            }
+        }
+
+        if (!$manifestpresent && !$aiccfound) {
+            return false;
+        }
     }
+
     // Create a default scorm object to pass to scorm_add_instance()!
     $scorm = get_config('scorm');
     $scorm->course = $uploadinfo->course->id;
@@ -1339,7 +1333,7 @@ function scorm_set_completion($scorm, $userid, $completionstate = COMPLETION_COM
     $course->id = $scorm->course;
     $completion = new completion_info($course);
 
-    // Check if completion is enabled site-wide, or for the course.
+    // Check if completion is enabled site-wide, or for the course
     if (!$completion->is_enabled()) {
         return;
     }
@@ -1349,132 +1343,11 @@ function scorm_set_completion($scorm, $userid, $completionstate = COMPLETION_COM
             return;
     }
 
-    if (empty($userid)) { // We need to get all the relevant users from $grades param.
+    if (empty($userid)) { //we need to get all the relevant users from $grades param.
         foreach ($grades as $grade) {
             $completion->update_state($cm, $completionstate, $grade->userid);
         }
     } else {
         $completion->update_state($cm, $completionstate, $userid);
     }
-}
-
-/**
- * Check that a Zip file contains a valid SCORM package
- *
- * @param $file stored_file a Zip file.
- * @return array empty if no issue is found. Array of error message otherwise
- */
-function scorm_validate_package($file) {
-    $packer = get_file_packer('application/zip');
-    $errors = array();
-    if ($file->is_external_file()) { // Get zip file so we can check it is correct.
-        $file->import_external_file_contents();
-    }
-    $filelist = $file->list_files($packer);
-
-    if (!is_array($filelist)) {
-        $errors['packagefile'] = get_string('badarchive', 'scorm');
-    } else {
-        $aiccfound = false;
-        $badmanifestpresent = false;
-        foreach ($filelist as $info) {
-            if ($info->pathname == 'imsmanifest.xml') {
-                return array();
-            } else if (strpos($info->pathname, 'imsmanifest.xml') !== false) {
-                // This package has an imsmanifest file inside a folder of the package.
-                $badmanifestpresent = true;
-            }
-            if (preg_match('/\.cst$/', $info->pathname)) {
-                return array();
-            }
-        }
-        if (!$aiccfound) {
-            if ($badmanifestpresent) {
-                $errors['packagefile'] = get_string('badimsmanifestlocation', 'scorm');
-            } else {
-                $errors['packagefile'] = get_string('nomanifest', 'scorm');
-            }
-        }
-    }
-    return $errors;
-}
-
-/**
- * Check and set the correct mode and attempt when entering a SCORM package.
- *
- * @param object $scorm object
- * @param string $newattempt should a new attempt be generated here.
- * @param int $attempt the attempt number this is for.
- * @param int $userid the userid of the user.
- * @param string $mode the current mode that has been selected.
- */
-function scorm_check_mode($scorm, &$newattempt, &$attempt, $userid, &$mode) {
-    global $DB;
-
-    if (($mode == 'browse')) {
-        if ($scorm->hidebrowse == 1) {
-            // Prevent Browse mode if hidebrowse is set.
-            $mode = 'normal';
-        } else {
-            // We don't need to check attempts as browse mode is set.
-            return;
-        }
-    }
-    // Check if the scorm module is incomplete (used to validate user request to start a new attempt).
-    $incomplete = true;
-    $tracks = $DB->get_recordset('scorm_scoes_track', array('scormid' => $scorm->id, 'userid' => $userid,
-        'attempt' => $attempt, 'element' => 'cmi.core.lesson_status'));
-    foreach ($tracks as $track) {
-        if (($track->value == 'completed') || ($track->value == 'passed') || ($track->value == 'failed')) {
-            $incomplete = false;
-        } else {
-            $incomplete = true;
-            break; // Found an incomplete sco, so the result as a whole is incomplete.
-        }
-    }
-    $tracks->close();
-
-    // Validate user request to start a new attempt.
-    if ($incomplete === true) {
-        // The option to start a new attempt should never have been presented. Force false.
-        $newattempt = 'off';
-    } else if (!empty($scorm->forcenewattempt)) {
-        // A new attempt should be forced for already completed attempts.
-        $newattempt = 'on';
-    }
-
-    if (($newattempt == 'on') && (($attempt < $scorm->maxattempt) || ($scorm->maxattempt == 0))) {
-        $attempt++;
-        $mode = 'normal';
-    } else { // Check if review mode should be set.
-        if ($incomplete === true) {
-            $mode = 'normal';
-        } else {
-            $mode = 'review';
-        }
-    }
-}
-
-/**
- * Trigger the course_module_viewed event.
- *
- * @param  stdClass $scorm        scorm object
- * @param  stdClass $course     course object
- * @param  stdClass $cm         course module object
- * @param  stdClass $context    context object
- * @since Moodle 3.0
- */
-function scorm_view($scorm, $course, $cm, $context) {
-
-    // Trigger course_module_viewed event.
-    $params = array(
-        'context' => $context,
-        'objectid' => $scorm->id
-    );
-
-    $event = \mod_scorm\event\course_module_viewed::create($params);
-    $event->add_record_snapshot('course_modules', $cm);
-    $event->add_record_snapshot('course', $course);
-    $event->add_record_snapshot('scorm', $scorm);
-    $event->trigger();
 }

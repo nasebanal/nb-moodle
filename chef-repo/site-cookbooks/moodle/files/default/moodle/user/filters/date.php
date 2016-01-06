@@ -1,41 +1,15 @@
 <?php
-// This file is part of Moodle - http://moodle.org/
-//
-// Moodle is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// Moodle is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
-
-/**
- * Date filter
- *
- * @package   core_user
- * @category  user
- * @copyright 1999 Martin Dougiamas  http://dougiamas.com
- * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
 
 require_once($CFG->dirroot.'/user/filters/lib.php');
 
 /**
  * Generic filter based on a date.
- * @copyright 1999 Martin Dougiamas  http://dougiamas.com
- * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class user_filter_date extends user_filter_type {
     /**
      * the fields available for comparisson
-     * @var string
      */
-    public $_field;
+    var $_field;
 
     /**
      * Constructor
@@ -44,7 +18,7 @@ class user_filter_date extends user_filter_type {
      * @param boolean $advanced advanced form element flag
      * @param string $field user table filed name
      */
-    public function user_filter_date($name, $label, $advanced, $field) {
+    function user_filter_date($name, $label, $advanced, $field) {
         parent::user_filter_type($name, $label, $advanced);
         $this->_field = $field;
     }
@@ -53,20 +27,27 @@ class user_filter_date extends user_filter_type {
      * Adds controls specific to this filter in the form.
      * @param object $mform a MoodleForm object to setup
      */
-    public function setupForm(&$mform) {
+    function setupForm(&$mform) {
         $objs = array();
 
-        $objs[] = $mform->createElement('static', $this->_name.'_sck', null, get_string('isafter', 'filters'));
-        $objs[] = $mform->createElement('date_selector', $this->_name.'_sdt', null, array('optional' => true));
-        $objs[] = $mform->createElement('static', $this->_name.'_break', null, '<br/>');
-        $objs[] = $mform->createElement('static', $this->_name.'_edk', null, get_string('isbefore', 'filters'));
-        $objs[] = $mform->createElement('date_selector', $this->_name.'_edt', null, array('optional' => true));
+        $objs[] =& $mform->createElement('checkbox', $this->_name.'_sck', null, get_string('isafter', 'filters'));
+        $objs[] =& $mform->createElement('date_selector', $this->_name.'_sdt', null);
+        $objs[] =& $mform->createElement('static', $this->_name.'_break', null, '<br/>');
+        $objs[] =& $mform->createElement('checkbox', $this->_name.'_eck', null, get_string('isbefore', 'filters'));
+        $objs[] =& $mform->createElement('date_selector', $this->_name.'_edt', null);
 
         $grp =& $mform->addElement('group', $this->_name.'_grp', $this->_label, $objs, '', false);
 
         if ($this->_advanced) {
             $mform->setAdvanced($this->_name.'_grp');
         }
+
+        $mform->disabledIf($this->_name.'_sdt[day]', $this->_name.'_sck', 'notchecked');
+        $mform->disabledIf($this->_name.'_sdt[month]', $this->_name.'_sck', 'notchecked');
+        $mform->disabledIf($this->_name.'_sdt[year]', $this->_name.'_sck', 'notchecked');
+        $mform->disabledIf($this->_name.'_edt[day]', $this->_name.'_eck', 'notchecked');
+        $mform->disabledIf($this->_name.'_edt[month]', $this->_name.'_eck', 'notchecked');
+        $mform->disabledIf($this->_name.'_edt[year]', $this->_name.'_eck', 'notchecked');
     }
 
     /**
@@ -74,17 +55,27 @@ class user_filter_date extends user_filter_type {
      * @param object $formdata data submited with the form
      * @return mixed array filter data or false when filter not set
      */
-    public function check_data($formdata) {
+    function check_data($formdata) {
+        $sck = $this->_name.'_sck';
         $sdt = $this->_name.'_sdt';
+        $eck = $this->_name.'_eck';
         $edt = $this->_name.'_edt';
 
-        if (!$formdata->$sdt and !$formdata->$edt) {
+        if (!array_key_exists($sck, $formdata) and !array_key_exists($eck, $formdata)) {
             return false;
         }
 
         $data = array();
-        $data['after'] = $formdata->$sdt;
-        $data['before'] = $formdata->$edt;
+        if (array_key_exists($sck, $formdata)) {
+            $data['after'] = $formdata->$sdt;
+        } else {
+            $data['after'] = 0;
+        }
+        if (array_key_exists($eck, $formdata)) {
+            $data['before'] = $formdata->$edt;
+        } else {
+            $data['before'] = 0;
+        }
 
         return $data;
     }
@@ -94,7 +85,7 @@ class user_filter_date extends user_filter_type {
      * @param array $data filter settings
      * @return array sql string and $params
      */
-    public function get_sql_filter($data) {
+    function get_sql_filter($data) {
         $after  = (int)$data['after'];
         $before = (int)$data['before'];
 
@@ -104,7 +95,7 @@ class user_filter_date extends user_filter_type {
             return array('', array());
         }
 
-        $res = " $field >= 0 ";
+        $res = " $field >= 0 " ;
 
         if ($after) {
             $res .= " AND $field >= $after";
@@ -121,7 +112,7 @@ class user_filter_date extends user_filter_type {
      * @param array $data filter settings
      * @return string active filter label
      */
-    public function get_label($data) {
+    function get_label($data) {
         $after  = $data['after'];
         $before = $data['before'];
         $field  = $this->_field;

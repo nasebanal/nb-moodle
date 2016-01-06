@@ -38,30 +38,14 @@ class enrol_category_plugin extends enrol_plugin {
      * @param stdClass $instance
      * @return bool
      */
-    public function can_delete_instance($instance) {
+    public function instance_deleteable($instance) {
         global $DB;
-
-        $context = context_course::instance($instance->courseid);
-        if (!has_capability('enrol/category:config', $context)) {
-            return false;
-        }
 
         if (!enrol_is_enabled('category')) {
             return true;
         }
         // Allow delete only when no synced users here.
         return !$DB->record_exists('user_enrolments', array('enrolid'=>$instance->id));
-    }
-
-    /**
-     * Is it possible to hide/show enrol instance via standard UI?
-     *
-     * @param stdClass $instance
-     * @return bool
-     */
-    public function can_hide_show_instance($instance) {
-        $context = context_course::instance($instance->courseid);
-        return has_capability('enrol/category:config', $context);
     }
 
     /**
@@ -86,8 +70,7 @@ class enrol_category_plugin extends enrol_plugin {
         }
 
         require_once("$CFG->dirroot/enrol/category/locallib.php");
-        $trace = new null_progress_trace();
-        enrol_category_sync_full($trace);
+        enrol_category_sync_full();
     }
 
     /**
@@ -106,17 +89,6 @@ class enrol_category_plugin extends enrol_plugin {
         }
 
         // Sync category enrols.
-        require_once("$CFG->dirroot/enrol/category/locallib.php");
-        enrol_category_sync_course($course);
-    }
-
-    /**
-     * Automatic enrol sync executed during restore.
-     * Useful for automatic sync by course->idnumber or course category.
-     * @param stdClass $course course record
-     */
-    public function restore_sync_course($course) {
-        global $CFG;
         require_once("$CFG->dirroot/enrol/category/locallib.php");
         enrol_category_sync_course($course);
     }

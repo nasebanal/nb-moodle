@@ -73,7 +73,7 @@ class file_browser {
      */
     public function get_file_info($context = NULL, $component = NULL, $filearea = NULL, $itemid = NULL, $filepath = NULL, $filename = NULL) {
         if (!$context) {
-            $context = context_system::instance();
+            $context = get_context_instance(CONTEXT_SYSTEM);
         }
         switch ($context->contextlevel) {
             case CONTEXT_SYSTEM:

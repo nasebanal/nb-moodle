@@ -18,9 +18,10 @@
 /**
  * Define all the backup steps that will be used by the backup_folder_activity_task
  *
- * @package   mod_folder
- * @copyright 2010 onwards Eloy Lafuente (stronk7) {@link http://stronk7.com}
- * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @package    mod
+ * @subpackage folder
+ * @copyright  2010 onwards Eloy Lafuente (stronk7) {@link http://stronk7.com}
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
@@ -38,7 +39,7 @@ class backup_folder_activity_structure_step extends backup_activity_structure_st
         // Define each element separated
         $folder = new backup_nested_element('folder', array('id'), array(
             'name', 'intro', 'introformat', 'revision',
-            'timemodified', 'display', 'showexpanded'));
+            'timemodified'));
 
         // Build the tree
         // (nice mono-tree, lol)

@@ -41,7 +41,7 @@ $edit        = optional_param('edit', -1, PARAM_BOOL);
 $userpage    = optional_param('userpage', 0, PARAM_INT); // which page to show
 $perpage     = optional_param('perpage', 24, PARAM_INT);
 
-$systemcontext   = context_system::instance();
+$systemcontext   = get_context_instance(CONTEXT_SYSTEM);
 
 if ($tagname) {
     $tag = tag_get('name', $tagname, '*');
@@ -56,8 +56,6 @@ if (empty($tag)) {
 $PAGE->set_url('/tag/index.php', array('id' => $tag->id));
 $PAGE->set_subpage($tag->id);
 $PAGE->set_context($systemcontext);
-$tagnode = $PAGE->navigation->find('tags', null);
-$tagnode->make_active();
 $PAGE->set_pagelayout('standard');
 $PAGE->set_blocks_editing_capability('moodle/tag:editblocks');
 
@@ -73,11 +71,11 @@ if ($PAGE->user_allowed_editing() ) {
     $button = $OUTPUT->edit_button(new moodle_url("$CFG->wwwroot/tag/index.php", array('id' => $tag->id)));
 }
 
+$PAGE->navbar->add(get_string('tags', 'tag'), new moodle_url('/tag/search.php'));
 $PAGE->navbar->add($tagname);
 $PAGE->set_title($title);
 $PAGE->set_heading($COURSE->fullname);
 $PAGE->set_button($button);
-$courserenderer = $PAGE->get_renderer('core', 'course');
 echo $OUTPUT->header();
 
 // Manage all tags links
@@ -91,13 +89,14 @@ if ($tag->flag > 0 && has_capability('moodle/tag:manage', $systemcontext)) {
     $tagname =  '<span class="flagged-tag">' . $tagname . '</span>';
 }
 
-echo $OUTPUT->heading($tagname, 2);
+echo $OUTPUT->heading($tagname, 2, 'headingblock header tag-heading');
 tag_print_management_box($tag);
 tag_print_description_box($tag);
 // Check what type of results are avaialable
-$courses = $courserenderer->tagged_courses($tag->id);
+require_once($CFG->dirroot.'/tag/coursetagslib.php');
+$courses = coursetag_get_tagged_courses($tag->id);
 
-if (!empty($CFG->enableblogs) && has_capability('moodle/blog:view', $systemcontext)) {
+if (!empty($CFG->bloglevel) && has_capability('moodle/blog:view', $systemcontext)) {
     require_once($CFG->dirroot.'/blog/lib.php');
     require_once($CFG->dirroot.'/blog/locallib.php');
 
@@ -139,10 +138,16 @@ if ($countanchors == 0) {
 // Display courses tagged with the tag
 if (!empty($courses)) {
 
+    $totalcount = count( $courses );
     echo $OUTPUT->box_start('generalbox', 'tag-blogs'); //could use an id separate from tag-blogs, but would have to copy the css style to make it look the same
 
+    $heading = get_string('courses') . ' ' . get_string('taggedwith', 'tag', $tagname) .': '. $totalcount;
     echo "<a name='course'></a>";
-    echo $courses;
+    echo $OUTPUT->heading($heading, 3);
+
+    foreach ($courses as $course) {
+        print_course($course);
+    }
 
     echo $OUTPUT->box_end();
 }

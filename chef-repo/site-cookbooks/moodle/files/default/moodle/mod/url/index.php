@@ -18,7 +18,8 @@
 /**
  * List of urls in course
  *
- * @package    mod_url
+ * @package    mod
+ * @subpackage url
  * @copyright  2009 onwards Martin Dougiamas (http://dougiamas.com)
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -32,15 +33,11 @@ $course = $DB->get_record('course', array('id'=>$id), '*', MUST_EXIST);
 require_course_login($course, true);
 $PAGE->set_pagelayout('incourse');
 
-$params = array(
-    'context' => context_course::instance($course->id)
-);
-$event = \mod_url\event\course_module_instance_list_viewed::create($params);
-$event->add_record_snapshot('course', $course);
-$event->trigger();
+add_to_log($course->id, 'url', 'view all', "index.php?id=$course->id", '');
 
 $strurl       = get_string('modulename', 'url');
 $strurls      = get_string('modulenameplural', 'url');
+$strsectionname  = get_string('sectionname', 'format_'.$course->format);
 $strname         = get_string('name');
 $strintro        = get_string('moduleintro');
 $strlastmodified = get_string('lastmodified');
@@ -50,7 +47,6 @@ $PAGE->set_title($course->shortname.': '.$strurls);
 $PAGE->set_heading($course->fullname);
 $PAGE->navbar->add($strurls);
 echo $OUTPUT->header();
-echo $OUTPUT->heading($strurls);
 
 if (!$urls = get_all_instances_in_course('url', $course)) {
     notice(get_string('thereareno', 'moodle', $strurls), "$CFG->wwwroot/course/view.php?id=$course->id");
@@ -58,12 +54,14 @@ if (!$urls = get_all_instances_in_course('url', $course)) {
 }
 
 $usesections = course_format_uses_sections($course->format);
+if ($usesections) {
+    $sections = get_all_sections($course->id);
+}
 
 $table = new html_table();
 $table->attributes['class'] = 'generaltable mod_index';
 
 if ($usesections) {
-    $strsectionname = get_string('sectionname', 'format_'.$course->format);
     $table->head  = array ($strsectionname, $strname, $strintro);
     $table->align = array ('center', 'left', 'left');
 } else {
@@ -79,7 +77,7 @@ foreach ($urls as $url) {
         $printsection = '';
         if ($url->section !== $currentsection) {
             if ($url->section) {
-                $printsection = get_section_name($course, $url->section);
+                $printsection = get_section_name($course, $sections[$url->section]);
             }
             if ($currentsection !== '') {
                 $table->data[] = 'hr';

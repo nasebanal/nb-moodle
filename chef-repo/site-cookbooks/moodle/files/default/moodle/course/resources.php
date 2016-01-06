@@ -29,12 +29,12 @@ require_once("$CFG->libdir/resourcelib.php");
 $id = required_param('id', PARAM_INT); // course id
 
 $course = $DB->get_record('course', array('id'=>$id), '*', MUST_EXIST);
-$PAGE->set_pagelayout('incourse');
+$PAGE->set_pagelayout('course');
 require_course_login($course, true);
 
 // get list of all resource-like modules
 $allmodules = $DB->get_records('modules', array('visible'=>1));
-$availableresources = array();
+$modules = array();
 foreach ($allmodules as $key=>$module) {
     $modname = $module->name;
     $libfile = "$CFG->dirroot/mod/$modname/lib.php";
@@ -46,16 +46,13 @@ foreach ($allmodules as $key=>$module) {
         continue;
     }
 
-    $availableresources[] = $modname;
+    $modules[$modname] = get_string('modulename', $modname);
+    //some hacky nasic logging
+    add_to_log($course->id, $modname, 'view all', "index.php?id=$course->id", '');
 }
 
-// Triger view event.
-$event = \core\event\course_resources_list_viewed::create(array('context' => context_course::instance($course->id)));
-$event->set_legacy_logdata($availableresources);
-$event->add_record_snapshot('course', $course);
-$event->trigger();
-
 $strresources    = get_string('resources');
+$strsectionname  = get_string('sectionname', 'format_'.$course->format);
 $strname         = get_string('name');
 $strintro        = get_string('moduleintro');
 $strlastmodified = get_string('lastmodified');
@@ -68,13 +65,16 @@ echo $OUTPUT->header();
 
 $modinfo = get_fast_modinfo($course);
 $usesections = course_format_uses_sections($course->format);
+if ($usesections) {
+    $sections = get_all_sections($course->id);
+}
 $cms = array();
 $resources = array();
 foreach ($modinfo->cms as $cm) {
-    if (!in_array($cm->modname, $availableresources)) {
+    if (!$cm->uservisible) {
         continue;
     }
-    if (!$cm->uservisible) {
+    if (!array_key_exists($cm->modname, $modules)) {
         continue;
     }
     if (!$cm->has_view()) {
@@ -103,7 +103,6 @@ $table = new html_table();
 $table->attributes['class'] = 'generaltable mod_index';
 
 if ($usesections) {
-    $strsectionname = get_string('sectionname', 'format_'.$course->format);
     $table->head  = array ($strsectionname, $strname, $strintro);
     $table->align = array ('center', 'left', 'left');
 } else {
@@ -121,7 +120,7 @@ foreach ($cms as $cm) {
     if ($usesections) {
         if ($cm->sectionnum !== $currentsection) {
             if ($cm->sectionnum) {
-                $printsection = get_section_name($course, $cm->sectionnum);
+                $printsection = get_section_name($course, $sections[$cm->sectionnum]);
             }
             if ($currentsection !== '') {
                 $table->data[] = 'hr';
@@ -131,10 +130,14 @@ foreach ($cms as $cm) {
     }
 
     $extra = empty($cm->extra) ? '' : $cm->extra;
-    $icon = '<img src="'.$cm->get_icon_url().'" class="activityicon" alt="'.$cm->get_module_type_name().'" /> ';
+    if (!empty($cm->icon)) {
+        $icon = '<img src="'.$OUTPUT->pix_url($cm->icon).'" class="activityicon" alt="'.get_string('modulename', $cm->modname).'" /> ';
+    } else {
+        $icon = '<img src="'.$OUTPUT->pix_url('icon', $cm->modname).'" class="activityicon" alt="'.get_string('modulename', $cm->modname).'" /> ';
+    }
 
     if (isset($resource->intro) && isset($resource->introformat)) {
-        $intro = format_module_intro($cm->modname, $resource, $cm->id);
+        $intro = format_module_intro('resource', $resource, $cm->id);
     } else {
         $intro = '';
     }
@@ -142,7 +145,7 @@ foreach ($cms as $cm) {
     $class = $cm->visible ? '' : 'class="dimmed"'; // hidden modules are dimmed
     $table->data[] = array (
         $printsection,
-        "<a $class $extra href=\"".$cm->url."\">".$icon.$cm->get_formatted_name()."</a>",
+        "<a $class $extra href=\"$CFG->wwwroot/mod/$cm->modname/view.php?id=$cm->id\">".$icon.format_string($resource->name)."</a>",
         $intro);
 }
 

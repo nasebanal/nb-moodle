@@ -1,4 +1,5 @@
 <?php
+
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -17,12 +18,12 @@
 /**
  * Strings for component 'mathslib', language 'en', branch 'MOODLE_19_STABLE'
  *
- * @package   core
+ * @package   mathslib
  * @copyright 1999 onwards Martin Dougiamas  {@link http://moodle.com}
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-$string['anunexpectederroroccured'] = 'an unexpected error occurred';
+$string['anunexpectederroroccured'] = 'an unexpected error occured';
 $string['cannotassigntoconstant'] = 'cannot assign to constant \'{$a}\'';
 $string['cannotredefinebuiltinfunction'] = 'cannot redefine built-in function \'{$a}()\'';
 $string['divisionbyzero'] = 'division by zero';

@@ -115,6 +115,19 @@ function question_save_qtype_order($neworder, $config = null) {
 /// FUNCTIONS //////////////////////////////////////////////////////
 
 /**
+ * Returns an array of names of activity modules that use this question
+ *
+ * @deprecated since Moodle 2.1. Use {@link questions_in_use} instead.
+ *
+ * @param object $questionid
+ * @return array of strings
+ */
+function question_list_instances($questionid) {
+    throw new coding_exception('question_list_instances has been deprectated. ' .
+            'Please use questions_in_use instead.');
+}
+
+/**
  * @param array $questionids of question ids.
  * @return boolean whether any of these questions are being used by any part of Moodle.
  */
@@ -125,7 +138,7 @@ function questions_in_use($questionids) {
         return true;
     }
 
-    foreach (core_component::get_plugin_list('mod') as $module => $path) {
+    foreach (get_plugin_list('mod') as $module => $path) {
         $lib = $path . '/lib.php';
         if (is_readable($lib)) {
             include_once($lib);
@@ -179,6 +192,23 @@ function question_context_has_any_questions($context) {
 }
 
 /**
+ * Returns list of 'allowed' grades for grade selection
+ * formatted suitably for dropdown box function
+ *
+ * @deprecated since 2.1. Use {@link question_bank::fraction_options()} or
+ * {@link question_bank::fraction_options_full()} instead.
+ *
+ * @return object ->gradeoptionsfull full array ->gradeoptions +ve only
+ */
+function get_grade_options() {
+    $grades = new stdClass();
+    $grades->gradeoptions = question_bank::fraction_options();
+    $grades->gradeoptionsfull = question_bank::fraction_options_full();
+
+    return $grades;
+}
+
+/**
  * Check whether a given grade is one of a list of allowed options. If not,
  * depending on $matchgrades, either return the nearest match, or return false
  * to signal an error.
@@ -221,49 +251,14 @@ function match_grade_options($gradeoptionsfull, $grade, $matchgrades = 'error') 
 }
 
 /**
- * Category is about to be deleted,
- * 1/ All questions are deleted for this question category.
- * 2/ Any questions that can't be deleted are moved to a new category
- * NOTE: this function is called from lib/db/upgrade.php
- *
- * @param object|coursecat $category course category object
+ * @deprecated Since Moodle 2.1. Use {@link question_category_in_use} instead.
+ * @param integer $categoryid a question category id.
+ * @param boolean $recursive whether to check child categories too.
+ * @return boolean whether any question in this category is in use.
  */
-function question_category_delete_safe($category) {
-    global $DB;
-    $criteria = array('category' => $category->id);
-    $context = context::instance_by_id($category->contextid, IGNORE_MISSING);
-    $rescue = null; // See the code around the call to question_save_from_deletion.
-
-    // Deal with any questions in the category.
-    if ($questions = $DB->get_records('question', $criteria, '', 'id,qtype')) {
-
-        // Try to delete each question.
-        foreach ($questions as $question) {
-            question_delete_question($question->id);
-        }
-
-        // Check to see if there were any questions that were kept because
-        // they are still in use somehow, even though quizzes in courses
-        // in this category will already have been deleted. This could
-        // happen, for example, if questions are added to a course,
-        // and then that course is moved to another category (MDL-14802).
-        $questionids = $DB->get_records_menu('question', $criteria, '', 'id, 1');
-        if (!empty($questionids)) {
-            $parentcontextid = SYSCONTEXTID;
-            $name = get_string('unknown', 'question');
-            if ($context !== false) {
-                $name = $context->get_context_name();
-                $parentcontext = $context->get_parent_context();
-                if ($parentcontext) {
-                    $parentcontextid = $parentcontext->id;
-                }
-            }
-            question_save_from_deletion(array_keys($questionids), $parentcontextid, $name, $rescue);
-        }
-    }
-
-    // Now delete the category.
-    $DB->delete_records('question_categories', array('id' => $category->id));
+function question_category_isused($categoryid, $recursive = false) {
+    throw new coding_exception('question_category_isused has been deprectated. ' .
+            'Please use question_category_in_use instead.');
 }
 
 /**
@@ -326,15 +321,15 @@ function question_delete_question($questionid) {
         return;
     }
 
+    // Check permissions.
+    question_require_capability_on($question, 'edit');
+
     $dm = new question_engine_data_mapper();
     $dm->delete_previews($questionid);
 
     // delete questiontype-specific data
     question_bank::get_qtype($question->qtype, false)->delete_question(
             $questionid, $question->contextid);
-
-    // Delete all tag instances.
-    $DB->delete_records('tag_instance', array('component' => 'core_question', 'itemid' => $question->id));
 
     // Now recursively delete all child questions
     if ($children = $DB->get_records('question',
@@ -348,37 +343,6 @@ function question_delete_question($questionid) {
 
     // Finally delete the question record itself
     $DB->delete_records('question', array('id' => $questionid));
-    question_bank::notify_question_edited($questionid);
-}
-
-/**
- * All question categories and their questions are deleted for this context id.
- *
- * @param object $contextid The contextid to delete question categories from
- * @return array Feedback from deletes (if any)
- */
-function question_delete_context($contextid) {
-    global $DB;
-
-    //To store feedback to be showed at the end of the process
-    $feedbackdata   = array();
-
-    //Cache some strings
-    $strcatdeleted = get_string('unusedcategorydeleted', 'question');
-    $fields = 'id, parent, name, contextid';
-    if ($categories = $DB->get_records('question_categories', array('contextid' => $contextid), 'parent', $fields)) {
-        //Sort categories following their tree (parent-child) relationships
-        //this will make the feedback more readable
-        $categories = sort_categories_by_tree($categories);
-
-        foreach ($categories as $category) {
-            question_category_delete_safe($category);
-
-            //Fill feedback
-            $feedbackdata[] = array($category->name, $strcatdeleted);
-        }
-    }
-    return $feedbackdata;
 }
 
 /**
@@ -389,15 +353,47 @@ function question_delete_context($contextid) {
  * @return boolean
  */
 function question_delete_course($course, $feedback=true) {
-    $coursecontext = context_course::instance($course->id);
-    $feedbackdata = question_delete_context($coursecontext->id, $feedback);
+    global $DB, $OUTPUT;
 
-    // Inform about changes performed if feedback is enabled.
-    if ($feedback && $feedbackdata) {
-        $table = new html_table();
-        $table->head = array(get_string('category', 'question'), get_string('action'));
-        $table->data = $feedbackdata;
-        echo html_writer::table($table);
+    //To store feedback to be showed at the end of the process
+    $feedbackdata   = array();
+
+    //Cache some strings
+    $strcatdeleted = get_string('unusedcategorydeleted', 'quiz');
+    $coursecontext = get_context_instance(CONTEXT_COURSE, $course->id);
+    $categoriescourse = $DB->get_records('question_categories',
+            array('contextid' => $coursecontext->id), 'parent', 'id, parent, name, contextid');
+
+    if ($categoriescourse) {
+
+        //Sort categories following their tree (parent-child) relationships
+        //this will make the feedback more readable
+        $categoriescourse = sort_categories_by_tree($categoriescourse);
+
+        foreach ($categoriescourse as $category) {
+
+            //Delete it completely (questions and category itself)
+            //deleting questions
+            if ($questions = $DB->get_records('question',
+                    array('category' => $category->id), '', 'id,qtype')) {
+                foreach ($questions as $question) {
+                    question_delete_question($question->id);
+                }
+                $DB->delete_records("question", array("category" => $category->id));
+            }
+            //delete the category
+            $DB->delete_records('question_categories', array('id' => $category->id));
+
+            //Fill feedback
+            $feedbackdata[] = array($category->name, $strcatdeleted);
+        }
+        //Inform about changes performed if feedback is enabled
+        if ($feedback) {
+            $table = new html_table();
+            $table->head = array(get_string('category', 'quiz'), get_string('action'));
+            $table->data = $feedbackdata;
+            echo html_writer::table($table);
+        }
     }
     return true;
 }
@@ -407,8 +403,8 @@ function question_delete_course($course, $feedback=true) {
  * 1/ All question categories and their questions are deleted for this course category.
  * 2/ All questions are moved to new category
  *
- * @param object|coursecat $category course category object
- * @param object|coursecat $newcategory empty means everything deleted, otherwise id of
+ * @param object $category course category object
+ * @param object $newcategory empty means everything deleted, otherwise id of
  *      category where content moved
  * @param boolean $feedback to specify if the process must output a summary of its work
  * @return boolean
@@ -416,12 +412,55 @@ function question_delete_course($course, $feedback=true) {
 function question_delete_course_category($category, $newcategory, $feedback=true) {
     global $DB, $OUTPUT;
 
-    $context = context_coursecat::instance($category->id);
+    $context = get_context_instance(CONTEXT_COURSECAT, $category->id);
     if (empty($newcategory)) {
-        $feedbackdata = question_delete_context($context->id, $feedback);
+        $feedbackdata   = array(); // To store feedback to be showed at the end of the process
+        $rescueqcategory = null; // See the code around the call to question_save_from_deletion.
+        $strcatdeleted = get_string('unusedcategorydeleted', 'quiz');
+
+        // Loop over question categories.
+        if ($categories = $DB->get_records('question_categories',
+                array('contextid'=>$context->id), 'parent', 'id, parent, name')) {
+            foreach ($categories as $category) {
+
+                // Deal with any questions in the category.
+                if ($questions = $DB->get_records('question',
+                        array('category' => $category->id), '', 'id,qtype')) {
+
+                    // Try to delete each question.
+                    foreach ($questions as $question) {
+                        question_delete_question($question->id);
+                    }
+
+                    // Check to see if there were any questions that were kept because
+                    // they are still in use somehow, even though quizzes in courses
+                    // in this category will already have been deteted. This could
+                    // happen, for example, if questions are added to a course,
+                    // and then that course is moved to another category (MDL-14802).
+                    $questionids = $DB->get_records_menu('question',
+                            array('category'=>$category->id), '', 'id, 1');
+                    if (!empty($questionids)) {
+                        if (!$rescueqcategory = question_save_from_deletion(
+                                array_keys($questionids), get_parent_contextid($context),
+                                print_context_name($context), $rescueqcategory)) {
+                            return false;
+                        }
+                        $feedbackdata[] = array($category->name,
+                            get_string('questionsmovedto', 'question', $rescueqcategory->name));
+                    }
+                }
+
+                // Now delete the category.
+                if (!$DB->delete_records('question_categories', array('id'=>$category->id))) {
+                    return false;
+                }
+                $feedbackdata[] = array($category->name, $strcatdeleted);
+
+            } // End loop over categories.
+        }
 
         // Output feedback if requested.
-        if ($feedback && $feedbackdata) {
+        if ($feedback and $feedbackdata) {
             $table = new html_table();
             $table->head = array(get_string('questioncategory', 'question'), get_string('action'));
             $table->data = $feedbackdata;
@@ -429,21 +468,16 @@ function question_delete_course_category($category, $newcategory, $feedback=true
         }
 
     } else {
-        // Move question categories to the new context.
-        if (!$newcontext = context_coursecat::instance($newcategory->id)) {
+        // Move question categories ot the new context.
+        if (!$newcontext = get_context_instance(CONTEXT_COURSECAT, $newcategory->id)) {
             return false;
         }
-
-        // Update the contextid for any tag instances for questions in the old context.
-        $DB->set_field('tag_instance', 'contextid', $newcontext->id, array('component' => 'core_question',
-            'contextid' => $context->id));
-
-        $DB->set_field('question_categories', 'contextid', $newcontext->id, array('contextid' => $context->id));
-
+        $DB->set_field('question_categories', 'contextid', $newcontext->id,
+                array('contextid'=>$context->id));
         if ($feedback) {
             $a = new stdClass();
-            $a->oldplace = $context->get_context_name();
-            $a->newplace = $newcontext->get_context_name();
+            $a->oldplace = print_context_name($context);
+            $a->newplace = print_context_name($newcontext);
             echo $OUTPUT->notification(
                     get_string('movedquestionsandcategories', 'question', $a), 'notifysuccess');
         }
@@ -456,7 +490,7 @@ function question_delete_course_category($category, $newcategory, $feedback=true
  * Enter description here...
  *
  * @param array $questionids of question ids
- * @param object $newcontextid the context to create the saved category in.
+ * @param object $newcontext the context to create the saved category in.
  * @param string $oldplace a textual description of the think being deleted,
  *      e.g. from get_context_name
  * @param object $newcategory
@@ -493,16 +527,44 @@ function question_save_from_deletion($questionids, $newcontextid, $oldplace,
  * @return boolean
  */
 function question_delete_activity($cm, $feedback=true) {
-    global $DB;
+    global $DB, $OUTPUT;
 
-    $modcontext = context_module::instance($cm->id);
-    $feedbackdata = question_delete_context($modcontext->id, $feedback);
-    // Inform about changes performed if feedback is enabled.
-    if ($feedback && $feedbackdata) {
-        $table = new html_table();
-        $table->head = array(get_string('category', 'question'), get_string('action'));
-        $table->data = $feedbackdata;
-        echo html_writer::table($table);
+    //To store feedback to be showed at the end of the process
+    $feedbackdata   = array();
+
+    //Cache some strings
+    $strcatdeleted = get_string('unusedcategorydeleted', 'quiz');
+    $modcontext = get_context_instance(CONTEXT_MODULE, $cm->id);
+    if ($categoriesmods = $DB->get_records('question_categories',
+            array('contextid' => $modcontext->id), 'parent', 'id, parent, name, contextid')) {
+        //Sort categories following their tree (parent-child) relationships
+        //this will make the feedback more readable
+        $categoriesmods = sort_categories_by_tree($categoriesmods);
+
+        foreach ($categoriesmods as $category) {
+
+            //Delete it completely (questions and category itself)
+            //deleting questions
+            if ($questions = $DB->get_records('question',
+                    array('category' => $category->id), '', 'id,qtype')) {
+                foreach ($questions as $question) {
+                    question_delete_question($question->id);
+                }
+                $DB->delete_records("question", array("category"=>$category->id));
+            }
+            //delete the category
+            $DB->delete_records('question_categories', array('id'=>$category->id));
+
+            //Fill feedback
+            $feedbackdata[] = array($category->name, $strcatdeleted);
+        }
+        //Inform about changes performed if feedback is enabled
+        if ($feedback) {
+            $table = new html_table();
+            $table->head = array(get_string('category', 'quiz'), get_string('action'));
+            $table->data = $feedbackdata;
+            echo html_writer::table($table);
+        }
     }
     return true;
 }
@@ -543,16 +605,7 @@ function question_move_questions_to_category($questionids, $newcategoryid) {
     $DB->set_field_select('question', 'category', $newcategoryid,
             "parent $questionidcondition", $params);
 
-    // Update the contextid for any tag instances that may exist for these questions.
-    $DB->set_field_select('tag_instance', 'contextid', $newcontextid,
-        "component = 'core_question' AND itemid $questionidcondition", $params);
-
     // TODO Deal with datasets.
-
-    // Purge these questions from the cache.
-    foreach ($questions as $question) {
-        question_bank::notify_question_edited($question->id);
-    }
 
     return true;
 }
@@ -573,15 +626,6 @@ function question_move_category_to_context($categoryid, $oldcontextid, $newconte
     foreach ($questionids as $questionid => $qtype) {
         question_bank::get_qtype($qtype)->move_files(
                 $questionid, $oldcontextid, $newcontextid);
-        // Purge this question from the cache.
-        question_bank::notify_question_edited($questionid);
-    }
-
-    if ($questionids) {
-        // Update the contextid for any tag instances that may exist for these questions.
-        list($questionids, $params) = $DB->get_in_or_equal(array_keys($questionids));
-        $DB->set_field_select('tag_instance', 'contextid', $newcontextid,
-            "component = 'core_question' AND itemid $questionids", $params);
     }
 
     $subcatids = $DB->get_records_menu('question_categories',
@@ -603,7 +647,7 @@ function question_move_category_to_context($categoryid, $oldcontextid, $newconte
  *      be picked randomly.
  * @param object $context context to run the preview in (affects things like
  *      filter settings, theme, lang, etc.) Defaults to $PAGE->context.
- * @return moodle_url the URL.
+ * @return string the URL.
  */
 function question_preview_url($questionid, $preferredbehaviour = null,
         $maxmark = null, $displayoptions = null, $variant = null, $context = null) {
@@ -661,58 +705,50 @@ function question_preview_popup_params() {
  * to pull in extra data. See, for example, the usage in mod/quiz/attemptlib.php, and
  * read the code below to see how the SQL is assembled. Throws exceptions on error.
  *
- * @param array $questionids array of question ids to load. If null, then all
- * questions matched by $join will be loaded.
+ * @global object
+ * @global object
+ * @param array $questionids array of question ids.
  * @param string $extrafields extra SQL code to be added to the query.
  * @param string $join extra SQL code to be added to the query.
  * @param array $extraparams values for any placeholders in $join.
- * You must use named placeholders.
- * @param string $orderby what to order the results by. Optional, default is unspecified order.
+ * You are strongly recommended to use named placeholder.
  *
  * @return array partially complete question objects. You need to call get_question_options
  * on them before they can be properly used.
  */
-function question_preload_questions($questionids = null, $extrafields = '', $join = '',
-        $extraparams = array(), $orderby = '') {
+function question_preload_questions($questionids, $extrafields = '', $join = '',
+        $extraparams = array()) {
     global $DB;
-
-    if ($questionids === null) {
-        $where = '';
-        $params = array();
-    } else {
-        if (empty($questionids)) {
-            return array();
-        }
-
-        list($questionidcondition, $params) = $DB->get_in_or_equal(
-                $questionids, SQL_PARAMS_NAMED, 'qid0000');
-        $where = 'WHERE q.id ' . $questionidcondition;
+    if (empty($questionids)) {
+        return array();
     }
-
     if ($join) {
-        $join = 'JOIN ' . $join;
+        $join = ' JOIN '.$join;
     }
-
     if ($extrafields) {
         $extrafields = ', ' . $extrafields;
     }
+    list($questionidcondition, $params) = $DB->get_in_or_equal(
+            $questionids, SQL_PARAMS_NAMED, 'qid0000');
+    $sql = 'SELECT q.*, qc.contextid' . $extrafields . ' FROM {question} q
+            JOIN {question_categories} qc ON q.category = qc.id' .
+            $join .
+          ' WHERE q.id ' . $questionidcondition;
 
-    if ($orderby) {
-        $orderby = 'ORDER BY ' . $orderby;
+    // Load the questions
+    if (!$questions = $DB->get_records_sql($sql, $extraparams + $params)) {
+        return array();
     }
 
-    $sql = "SELECT q.*, qc.contextid{$extrafields}
-              FROM {question} q
-              JOIN {question_categories} qc ON q.category = qc.id
-              {$join}
-             {$where}
-          {$orderby}";
-
-    // Load the questions.
-    $questions = $DB->get_records_sql($sql, $extraparams + $params);
     foreach ($questions as $question) {
         $question->_partiallyloaded = true;
     }
+
+    // Note, a possible optimisation here would be to not load the TEXT fields
+    // (that is, questiontext and generalfeedback) here, and instead load them in
+    // question_load_questions. That would add one DB query, but reduce the amount
+    // of data transferred most of the time. I am not going to do this optimisation
+    // until it is shown to be worthwhile.
 
     return $questions;
 }
@@ -817,6 +853,16 @@ function print_question_icon($question) {
  */
 function question_hash($question) {
     return make_unique_id_code();
+}
+
+/// FUNCTIONS THAT SIMPLY WRAP QUESTIONTYPE METHODS //////////////////////////////////
+/**
+ * Saves question options
+ *
+ * Simply calls the question type specific save_question_options() method.
+ */
+function save_question_options($question) {
+    question_bank::get_qtype($question->qtype)->save_question_options($question);
 }
 
 /// CATEGORY FUNCTIONS /////////////////////////////////////////////////////////////////
@@ -959,8 +1005,8 @@ function question_category_select_menu($contexts, $top = false, $currentcat = 0,
     foreach ($categoriesarray as $group => $opts) {
         $options[] = array($group => $opts);
     }
-    echo html_writer::label(get_string('questioncategory', 'core_question'), 'id_movetocategory', false, array('class' => 'accesshide'));
-    echo html_writer::select($options, 'category', $selected, $choose, array('id' => 'id_movetocategory'));
+    echo html_writer::label($selected, 'menucategory', false, array('class' => 'accesshide'));
+    echo html_writer::select($options, 'category', $selected, $choose);
 }
 
 /**
@@ -1002,7 +1048,7 @@ function question_make_default_categories($contexts) {
                 array('contextid' => $context->id))) {
             // Otherwise, we need to make one
             $category = new stdClass();
-            $contextname = $context->get_context_name(false, true);
+            $contextname = print_context_name($context, false, true);
             $category->name = get_string('defaultfor', 'question', $contextname);
             $category->info = get_string('defaultinfofor', 'question', $contextname);
             $category->contextid = $context->id;
@@ -1170,7 +1216,7 @@ function get_import_export_formats($type) {
     global $CFG;
     require_once($CFG->dirroot . '/question/format.php');
 
-    $formatclasses = core_component::get_plugin_list_with_class('qformat', '', 'format.php');
+    $formatclasses = get_plugin_list_with_class('qformat', '', 'format.php');
 
     $fileformatname = array();
     foreach ($formatclasses as $component => $formatclass) {
@@ -1188,7 +1234,7 @@ function get_import_export_formats($type) {
         }
     }
 
-    core_collator::asort($fileformatnames);
+    collatorlib::asort($fileformatnames);
     return $fileformatnames;
 }
 
@@ -1311,11 +1357,11 @@ function question_has_capability_on($question, $cap, $cachecat = -1) {
     if (!isset($categories[$question->category])) {
         if (!$categories[$question->category] = $DB->get_record('question_categories',
                 array('id'=>$question->category))) {
-            print_error('invalidcategory', 'question');
+            print_error('invalidcategory', 'quiz');
         }
     }
     $category = $categories[$question->category];
-    $context = context::instance_by_id($category->contextid);
+    $context = get_context_instance_by_id($category->contextid);
 
     if (array_search($cap, $question_questioncaps)!== false) {
         if (!has_capability('moodle/question:' . $cap . 'all', $context)) {
@@ -1341,6 +1387,27 @@ function question_require_capability_on($question, $cap) {
         print_error('nopermissions', '', '', $cap);
     }
     return true;
+}
+
+/**
+ * Get the real state - the correct question id and answer - for a random
+ * question.
+ * @param object $state with property answer.
+ * @return mixed return integer real question id or false if there was an
+ * error..
+ */
+function question_get_real_state($state) {
+    global $OUTPUT;
+    $realstate = clone($state);
+    $matches = array();
+    if (!preg_match('|^random([0-9]+)-(.*)|', $state->answer, $matches)) {
+        echo $OUTPUT->notification(get_string('errorrandom', 'quiz_statistics'));
+        return false;
+    } else {
+        $realstate->question = $matches[1];
+        $realstate->answer = $matches[2];
+        return $realstate;
+    }
 }
 
 /**
@@ -1399,19 +1466,19 @@ function question_extend_settings_navigation(navigation_node $navigationnode, $c
 
     $contexts = new question_edit_contexts($context);
     if ($contexts->have_one_edit_tab_cap('questions')) {
-        $questionnode->add(get_string('questions', 'question'), new moodle_url(
+        $questionnode->add(get_string('questions', 'quiz'), new moodle_url(
                 '/question/edit.php', $params), navigation_node::TYPE_SETTING);
     }
     if ($contexts->have_one_edit_tab_cap('categories')) {
-        $questionnode->add(get_string('categories', 'question'), new moodle_url(
+        $questionnode->add(get_string('categories', 'quiz'), new moodle_url(
                 '/question/category.php', $params), navigation_node::TYPE_SETTING);
     }
     if ($contexts->have_one_edit_tab_cap('import')) {
-        $questionnode->add(get_string('import', 'question'), new moodle_url(
+        $questionnode->add(get_string('import', 'quiz'), new moodle_url(
                 '/question/import.php', $params), navigation_node::TYPE_SETTING);
     }
     if ($contexts->have_one_edit_tab_cap('export')) {
-        $questionnode->add(get_string('export', 'question'), new moodle_url(
+        $questionnode->add(get_string('export', 'quiz'), new moodle_url(
                 '/question/export.php', $params), navigation_node::TYPE_SETTING);
     }
 
@@ -1657,32 +1724,47 @@ function question_rewrite_question_urls($text, $file, $contextid, $component,
 }
 
 /**
- * Rewrite the PLUGINFILE urls in part of the content of a question, for use when
- * viewing the question outside an attempt (for example, in the question bank
- * listing or in the quiz statistics report).
+ * Rewrite the PLUGINFILE urls in the questiontext, when viewing the question
+ * text outside and attempt (for example, in the question bank listing or in the
+ * quiz statistics report).
  *
- * @param string $text the question text.
- * @param int $questionid the question id.
- * @param int $filecontextid the context id of the question being displayed.
- * @param string $filecomponent the component that owns the file area.
- * @param string $filearea the file area name.
- * @param int|null $itemid the file's itemid
- * @param int $previewcontextid the context id where the preview is being displayed.
- * @param string $previewcomponent component responsible for displaying the preview.
- * @param array $options text and file options ('forcehttps'=>false)
+ * @param string $questiontext the question text.
+ * @param int $contextid the context the text is being displayed in.
+ * @param string $component component
+ * @param array $ids other IDs will be used to check file permission
+ * @param array $options
  * @return string $questiontext with URLs rewritten.
  */
-function question_rewrite_question_preview_urls($text, $questionid,
-        $filecontextid, $filecomponent, $filearea, $itemid,
-        $previewcontextid, $previewcomponent, $options = null) {
+function question_rewrite_questiontext_preview_urls($questiontext, $contextid,
+        $component, $questionid, $options=null) {
 
-    $path = "preview/$previewcontextid/$previewcomponent/$questionid";
-    if ($itemid) {
-        $path .= '/' . $itemid;
+    return file_rewrite_pluginfile_urls($questiontext, 'pluginfile.php', $contextid,
+            'question', 'questiontext_preview', "$component/$questionid", $options);
+}
+
+/**
+ * Send a file from the question text of a question.
+ * @param int $questionid the question id
+ * @param array $args the remaining file arguments (file path).
+ * @param bool $forcedownload whether the user must be forced to download the file.
+ * @param array $options additional options affecting the file serving
+ */
+function question_send_questiontext_file($questionid, $args, $forcedownload, $options) {
+    global $DB;
+
+    $question = $DB->get_record_sql('
+            SELECT q.id, qc.contextid
+              FROM {question} q
+              JOIN {question_categories} qc ON qc.id = q.category
+             WHERE q.id = :id', array('id' => $questionid), MUST_EXIST);
+
+    $fs = get_file_storage();
+    $fullpath = "/$question->contextid/question/questiontext/$question->id/" . implode('/', $args);
+    if (!$file = $fs->get_file_by_hash(sha1($fullpath)) or $file->is_directory()) {
+        send_file_not_found();
     }
 
-    return file_rewrite_pluginfile_urls($text, 'pluginfile.php', $filecontextid,
-            $filecomponent, $filearea, $path, $options);
+    send_stored_file($file, 0, 0, $forcedownload, $options);
 }
 
 /**
@@ -1711,7 +1793,16 @@ function question_rewrite_question_preview_urls($text, $questionid,
 function question_pluginfile($course, $context, $component, $filearea, $args, $forcedownload, array $options=array()) {
     global $DB, $CFG;
 
-    // Special case, sending a question bank export.
+    if ($filearea === 'questiontext_preview') {
+        $component = array_shift($args);
+        $questionid = array_shift($args);
+
+        component_callback($component, 'questiontext_preview_pluginfile', array(
+                $context, $questionid, $args, $forcedownload, $options));
+
+        send_file_not_found();
+    }
+
     if ($filearea === 'export') {
         list($context, $course, $cm) = get_context_info_array($context->id);
         require_login($course, false, $cm);
@@ -1771,39 +1862,11 @@ function question_pluginfile($course, $context, $component, $filearea, $args, $f
         send_file($content, $filename, 0, 0, true, true, $qformat->mime_type());
     }
 
-    // Normal case, a file belonging to a question.
-    $qubaidorpreview = array_shift($args);
-
-    // Two sub-cases: 1. A question being previewed outside an attempt/usage.
-    if ($qubaidorpreview === 'preview') {
-        $previewcontextid = (int)array_shift($args);
-        $previewcomponent = array_shift($args);
-        $questionid = (int) array_shift($args);
-        $previewcontext = context_helper::instance_by_id($previewcontextid);
-
-        $result = component_callback($previewcomponent, 'question_preview_pluginfile', array(
-                $previewcontext, $questionid,
-                $context, $component, $filearea, $args,
-                $forcedownload, $options), 'callbackmissing');
-
-        if ($result === 'callbackmissing') {
-            throw new coding_exception("Component {$previewcomponent} does not define the callback " .
-                    "{$previewcomponent}_question_preview_pluginfile callback. " .
-                    "Which is required if you are using question_rewrite_question_preview_urls.", DEBUG_DEVELOPER);
-        }
-
-        send_file_not_found();
-    }
-
-    // 2. A question being attempted in the normal way.
-    $qubaid = (int)$qubaidorpreview;
+    $qubaid = (int)array_shift($args);
     $slot = (int)array_shift($args);
 
     $module = $DB->get_field('question_usages', 'component',
             array('id' => $qubaid));
-    if (!$module) {
-        send_file_not_found();
-    }
 
     if ($module === 'core_question_preview') {
         require_once($CFG->dirroot . '/question/previewlib.php');
@@ -1811,7 +1874,7 @@ function question_pluginfile($course, $context, $component, $filearea, $args, $f
                 $component, $filearea, $qubaid, $slot, $args, $forcedownload, $options);
 
     } else {
-        $dir = core_component::get_component_directory($module);
+        $dir = get_component_directory($module);
         if (!file_exists("$dir/lib.php")) {
             send_file_not_found();
         }
@@ -1841,17 +1904,13 @@ function question_pluginfile($course, $context, $component, $filearea, $args, $f
  *
  * @package  core_files
  * @category files
- * @param context $previewcontext the context in which the preview is happening.
- * @param int $questionid the question id.
- * @param context $filecontext the file (question) context.
- * @param string $filecomponent the component the file belongs to.
- * @param string $filearea the file area.
- * @param array $args remaining file args.
- * @param bool $forcedownload.
- * @param array $options additional options affecting the file serving.
+ * @param stdClass $context the context
+ * @param int $questionid the question id
+ * @param array $args remaining file args
+ * @param bool $forcedownload
+ * @param array $options additional options affecting the file serving
  */
-function core_question_question_preview_pluginfile($previewcontext, $questionid,
-        $filecontext, $filecomponent, $filearea, $args, $forcedownload, $options = array()) {
+function core_question_questiontext_preview_pluginfile($context, $questionid, $args, $forcedownload, array $options=array()) {
     global $DB;
 
     // Verify that contextid matches the question.
@@ -1860,22 +1919,15 @@ function core_question_question_preview_pluginfile($previewcontext, $questionid,
               FROM {question} q
               JOIN {question_categories} qc ON qc.id = q.category
              WHERE q.id = :id AND qc.contextid = :contextid',
-            array('id' => $questionid, 'contextid' => $filecontext->id), MUST_EXIST);
+            array('id' => $questionid, 'contextid' => $context->id), MUST_EXIST);
 
     // Check the capability.
-    list($context, $course, $cm) = get_context_info_array($previewcontext->id);
+    list($context, $course, $cm) = get_context_info_array($context->id);
     require_login($course, false, $cm);
 
     question_require_capability_on($question, 'use');
 
-    $fs = get_file_storage();
-    $relativepath = implode('/', $args);
-    $fullpath = "/{$filecontext->id}/{$filecomponent}/{$filearea}/{$relativepath}";
-    if (!$file = $fs->get_file_by_hash(sha1($fullpath)) or $file->is_directory()) {
-        send_file_not_found();
-    }
-
-    send_stored_file($file, 0, 0, $forcedownload, $options);
+    question_send_questiontext_file($questionid, $args, $forcedownload, $options);
 }
 
 /**
@@ -1918,24 +1970,4 @@ function question_page_type_list($pagetype, $parentcontext, $currentcontext) {
     } else {
         return $types;
     }
-}
-
-/**
- * Does an activity module use the question bank?
- *
- * @param string $modname The name of the module (without mod_ prefix).
- * @return bool true if the module uses questions.
- */
-function question_module_uses_questions($modname) {
-    if (plugin_supports('mod', $modname, FEATURE_USES_QUESTIONS)) {
-        return true;
-    }
-
-    $component = 'mod_'.$modname;
-    if (component_callback_exists($component, 'question_pluginfile')) {
-        debugging("{$component} uses questions but doesn't declare FEATURE_USES_QUESTIONS", DEBUG_DEVELOPER);
-        return true;
-    }
-
-    return false;
 }

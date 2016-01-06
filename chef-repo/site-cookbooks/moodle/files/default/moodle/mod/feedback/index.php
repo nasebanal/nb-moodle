@@ -19,7 +19,7 @@
  *
  * @author Andreas Grabs
  * @license http://www.gnu.org/copyleft/gpl.html GNU Public License
- * @package mod_feedback
+ * @package feedback
  */
 
 require_once("../../config.php");
@@ -35,25 +35,24 @@ if (!$course = $DB->get_record('course', array('id'=>$id))) {
     print_error('invalidcourseid');
 }
 
-$context = context_course::instance($course->id);
+if (!$context = get_context_instance(CONTEXT_COURSE, $course->id)) {
+        print_error('badcontext');
+}
 
 require_login($course);
 $PAGE->set_pagelayout('incourse');
 
-// Trigger instances list viewed event.
-$event = \mod_feedback\event\course_module_instance_list_viewed::create(array('context' => $context));
-$event->add_record_snapshot('course', $course);
-$event->trigger();
+add_to_log($course->id, 'feedback', 'view all', $url->out(false), $course->id);
+
 
 /// Print the page header
 $strfeedbacks = get_string("modulenameplural", "feedback");
 $strfeedback  = get_string("modulename", "feedback");
 
 $PAGE->navbar->add($strfeedbacks);
-$PAGE->set_heading($course->fullname);
+$PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_title(get_string('modulename', 'feedback').' '.get_string('activities'));
 echo $OUTPUT->header();
-echo $OUTPUT->heading($strfeedbacks);
 
 /// Get all the appropriate data
 
@@ -64,17 +63,20 @@ if (! $feedbacks = get_all_instances_in_course("feedback", $course)) {
 }
 
 $usesections = course_format_uses_sections($course->format);
+if ($usesections) {
+    $sections = get_all_sections($course->id);
+}
 
 /// Print the list of instances (your module will probably extend this)
 
 $timenow = time();
 $strname  = get_string("name");
+$strsectionname = get_string('sectionname', 'format_'.$course->format);
 $strresponses = get_string('responses', 'feedback');
 
 $table = new html_table();
 
 if ($usesections) {
-    $strsectionname = get_string('sectionname', 'format_'.$course->format);
     if (has_capability('mod/feedback:viewreports', $context)) {
         $table->head  = array ($strsectionname, $strname, $strresponses);
         $table->align = array ("center", "left", 'center');
@@ -105,7 +107,7 @@ foreach ($feedbacks as $feedback) {
     $link = '<a '.$dimmedclass.' href="'.$viewurl->out().'">'.$feedback->name.'</a>';
 
     if ($usesections) {
-        $tabledata = array (get_section_name($course, $feedback->section), $link);
+        $tabledata = array (get_section_name($course, $sections[$feedback->section]), $link);
     } else {
         $tabledata = array ($link);
     }

@@ -23,7 +23,7 @@ require_once($CFG->dirroot . '/mod/forum/lib.php');
 require_once($CFG->libdir . '/portfolio/caller.php');
 
 /**
- * @package   mod_forum
+ * @package   mod-forum
  * @copyright 1999 onwards Martin Dougiamas  {@link http://moodle.com}
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -91,7 +91,7 @@ class forum_portfolio_caller extends portfolio_module_caller_base {
             throw new portfolio_caller_exception('invalidcoursemodule');
         }
 
-        $this->modcontext = context_module::instance($this->cm->id);
+        $this->modcontext = get_context_instance(CONTEXT_MODULE, $this->cm->id);
         $fs = get_file_storage();
         if ($this->post) {
             if ($this->attachment) {
@@ -313,7 +313,7 @@ class forum_portfolio_caller extends portfolio_module_caller_base {
         $fullname = fullname($users[$post->userid], $viewfullnames);
         $by = new stdClass();
         $by->name = $fullname;
-        $by->date = userdate($post->modified, '', core_date::get_user_timezone($this->user));
+        $by->date = userdate($post->modified, '', $this->user->timezone);
         $output .= '<div class="author">'.get_string('bynameondate', 'forum', $by).'</div>';
 
         $output .= '</td></tr>';
@@ -372,7 +372,7 @@ class forum_portfolio_caller extends portfolio_module_caller_base {
      * @return bool
      */
     function check_permissions() {
-        $context = context_module::instance($this->cm->id);
+        $context = get_context_instance(CONTEXT_MODULE, $this->cm->id);
         if ($this->post) {
             return (has_capability('mod/forum:exportpost', $context)
                 || ($this->post->userid == $this->user->id

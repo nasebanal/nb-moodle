@@ -20,7 +20,7 @@
  *
  * @copyright 2005 Martin Dougiamas  http://dougiamas.com
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @package mod_data
+ * @package mod-data
  */
 
 define('NO_MOODLE_COOKIES', true); // session not used here

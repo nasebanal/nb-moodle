@@ -47,14 +47,14 @@ $hubname = optional_param('hubname', '', PARAM_TEXT);
 //some permissions and parameters checking
 $course = $DB->get_record('course', array('id'=>$id), '*', MUST_EXIST);
 require_login($course);
-if (!has_capability('moodle/course:publish', context_course::instance($id))
+if (!has_capability('moodle/course:publish', get_context_instance(CONTEXT_COURSE, $id))
         or !confirm_sesskey()) {
     throw new moodle_exception('nopermission');
 }
 
 //page settings
 $PAGE->set_url('/course/publish/backup.php');
-$PAGE->set_pagelayout('incourse');
+$PAGE->set_pagelayout('course');
 $PAGE->set_title(get_string('course') . ': ' . $course->fullname);
 $PAGE->set_heading($course->fullname);
 

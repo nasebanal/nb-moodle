@@ -106,7 +106,7 @@ class feedback_item_info extends feedback_item_base {
     public function get_analysed($item, $groupid = false, $courseid = false) {
 
         $presentation = $item->presentation;
-        $analysed_val = new stdClass();
+        $analysed_val = new stdClass();;
         $analysed_val->data = null;
         $analysed_val->name = $item->name;
         $values = feedback_get_group_values($item, $groupid, $courseid);
@@ -194,8 +194,7 @@ class feedback_item_info extends feedback_item_base {
 
         $align = right_to_left() ? 'right' : 'left';
         $presentation = $item->presentation;
-        $requiredmark = ($item->required == 1)?'<img class="req" title="'.get_string('requiredelement', 'form').'" alt="'.
-            get_string('requiredelement', 'form').'" src="'.$OUTPUT->pix_url('req') .'" />':'';
+        $requiredmark =  ($item->required == 1)?'<span class="feedback_required_mark">*</span>':'';
 
         if ($item->feedback) {
             $courseid = $DB->get_field('feedback', 'course', array('id'=>$item->feedback));
@@ -217,7 +216,7 @@ class feedback_item_info extends feedback_item_base {
                 $itemshowvalue = userdate($itemvalue);
                 break;
             case 2:
-                $coursecontext = context_course::instance($course->id);
+                $coursecontext = get_context_instance(CONTEXT_COURSE, $course->id);
                 $itemvalue = format_string($course->shortname,
                                            true,
                                            array('context' => $coursecontext));
@@ -226,7 +225,7 @@ class feedback_item_info extends feedback_item_base {
                 break;
             case 3:
                 if ($coursecategory) {
-                    $category_context = context_coursecat::instance($coursecategory->id);
+                    $category_context = get_context_instance(CONTEXT_COURSECAT, $coursecategory->id);
                     $itemvalue = format_string($coursecategory->name,
                                                true,
                                                array('context' => $category_context));
@@ -273,12 +272,11 @@ class feedback_item_info extends feedback_item_base {
 
         $presentation = $item->presentation;
         if ($highlightrequire AND $item->required AND strval($value) == '') {
-            $highlight = 'error';
+            $highlight = ' missingrequire';
         } else {
             $highlight = '';
         }
-        $requiredmark = ($item->required == 1)?'<img class="req" title="'.get_string('requiredelement', 'form').'" alt="'.
-            get_string('requiredelement', 'form').'" src="'.$OUTPUT->pix_url('req') .'" />':'';
+        $requiredmark =  ($item->required == 1)?'<span class="feedback_required_mark">*</span>':'';
 
         $feedback = $DB->get_record('feedback', array('id'=>$item->feedback));
 
@@ -305,7 +303,7 @@ class feedback_item_info extends feedback_item_base {
                 }
                 break;
             case 2:
-                $coursecontext = context_course::instance($course->id);
+                $coursecontext = get_context_instance(CONTEXT_COURSE, $course->id);
                 $itemvalue = format_string($course->shortname,
                                            true,
                                            array('context' => $coursecontext));
@@ -314,7 +312,7 @@ class feedback_item_info extends feedback_item_base {
                 break;
             case 3:
                 if ($coursecategory) {
-                    $category_context = context_coursecat::instance($coursecategory->id);
+                    $category_context = get_context_instance(CONTEXT_COURSECAT, $coursecategory->id);
                     $itemvalue = format_string($coursecategory->name,
                                                true,
                                                array('context' => $category_context));
@@ -328,10 +326,8 @@ class feedback_item_info extends feedback_item_base {
         }
 
         //print the question and label
-        echo '<div class="feedback_item_label_'.$align.'">';
-        echo '<span class="'.$highlight.'">';
+        echo '<div class="feedback_item_label_'.$align.$highlight.'">';
             echo format_text($item->name.$requiredmark, true, false, false);
-        echo '</span>';
         echo '</div>';
 
         //print the presentation
@@ -354,8 +350,7 @@ class feedback_item_info extends feedback_item_base {
         $align = right_to_left() ? 'right' : 'left';
 
         $presentation = $item->presentation;
-        $requiredmark = ($item->required == 1)?'<img class="req" title="'.get_string('requiredelement', 'form').'" alt="'.
-            get_string('requiredelement', 'form').'" src="'.$OUTPUT->pix_url('req') .'" />':'';
+        $requiredmark =  ($item->required == 1)?'<span class="feedback_required_mark">*</span>':'';
 
         if ($presentation == 1) {
             $value = $value ? userdate($value) : '&nbsp;';

@@ -25,7 +25,7 @@
 /**
  * This file is used to manage draft files in non-javascript browsers
  *
- * @since Moodle 2.0
+ * @since 2.0
  * @package    core
  * @subpackage repository
  * @copyright  2010 Dongsheng Cai <dongsheng@moodle.com>
@@ -55,7 +55,6 @@ $targetpath  = optional_param('targetpath', '',    PARAM_PATH);
 $maxfiles    = optional_param('maxfiles', -1, PARAM_INT);    // maxfiles
 $maxbytes    = optional_param('maxbytes',  0, PARAM_INT);    // maxbytes
 $subdirs     = optional_param('subdirs',  0, PARAM_INT);    // maxbytes
-$areamaxbytes = optional_param('areamaxbytes', FILE_AREA_MAX_BYTES_UNLIMITED, PARAM_INT);    // Area maxbytes.
 
 // draft area
 $newdirname  = optional_param('newdirname', '',    PARAM_FILE);
@@ -64,14 +63,14 @@ $newfilename = optional_param('newfilename', '',   PARAM_FILE);
 $draftpath   = optional_param('draftpath', '/',    PARAM_PATH);
 
 // user context
-$user_context = context_user::instance($USER->id);
+$user_context = get_context_instance(CONTEXT_USER, $USER->id);
 
 
 $PAGE->set_context($user_context);
 
 $fs = get_file_storage();
 
-$params = array('ctx_id' => $contextid, 'itemid' => $itemid, 'env' => $env, 'course'=>$courseid, 'maxbytes'=>$maxbytes, 'areamaxbytes'=>$areamaxbytes, 'maxfiles'=>$maxfiles, 'subdirs'=>$subdirs, 'sesskey'=>sesskey());
+$params = array('ctx_id' => $contextid, 'itemid' => $itemid, 'env' => $env, 'course'=>$courseid, 'maxbytes'=>$maxbytes, 'maxfiles'=>$maxfiles, 'subdirs'=>$subdirs, 'sesskey'=>sesskey());
 $PAGE->set_url('/repository/draftfiles_manager.php', $params);
 $filepicker_url = new moodle_url($CFG->httpswwwroot."/repository/filepicker.php", $params);
 
@@ -112,8 +111,7 @@ case 'renameform':
     $home_url->param('draftpath', $draftpath);
     $home_url->param('action', 'rename');
     echo ' <form method="post" action="'.$home_url->out().'">';
-    echo html_writer::label(get_string('enternewname', 'repository'), 'newfilename', array('class' => 'accesshide'));
-    echo '  <input id="newfilename" name="newfilename" type="text" value="'.s($filename).'" />';
+    echo '  <input name="newfilename" type="text" value="'.s($filename).'" />';
     echo '  <input name="filename" type="hidden" value="'.s($filename).'" />';
     echo '  <input name="draftpath" type="hidden" value="'.s($draftpath).'" />';
     echo '  <input type="submit" value="'.s(get_string('rename', 'moodle')).'" />';
@@ -217,8 +215,7 @@ case 'mkdirform':
     $home_url->param('draftpath', $draftpath);
     $home_url->param('action', 'mkdir');
     echo ' <form method="post" action="'.$home_url->out().'">';
-    echo html_writer::label(get_string('entername', 'repository'), 'newdirname', array('class' => 'accesshide'));
-    echo '  <input name="newdirname" id="newdirname" type="text" />';
+    echo '  <input name="newdirname" type="text" />';
     echo '  <input name="draftpath" type="hidden" value="'.s($draftpath).'" />';
     echo '  <input type="submit" value="'.s(get_string('makeafolder', 'moodle')).'" />';
     echo ' </form>';

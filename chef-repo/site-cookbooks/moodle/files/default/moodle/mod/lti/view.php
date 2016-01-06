@@ -30,12 +30,13 @@
 //
 // BasicLTI4Moodle is copyright 2009 by Marc Alier Forment, Jordi Piguillem and Nikolas Galanis
 // of the Universitat Politecnica de Catalunya http://www.upc.edu
-// Contact info: Marc Alier Forment granludo @ gmail.com or marc.alier @ upc.edu.
+// Contact info: Marc Alier Forment granludo @ gmail.com or marc.alier @ upc.edu
 
 /**
  * This file contains all necessary code to view a lti activity instance
  *
- * @package mod_lti
+ * @package    mod
+ * @subpackage lti
  * @copyright  2009 Marc Alier, Jordi Piguillem, Nikolas Galanis
  *  marc.alier@upc.edu
  * @copyright  2009 Universitat Politecnica de Catalunya http://www.upc.edu
@@ -47,14 +48,13 @@
  */
 
 require_once('../../config.php');
-require_once($CFG->libdir.'/completionlib.php');
 require_once($CFG->dirroot.'/mod/lti/lib.php');
 require_once($CFG->dirroot.'/mod/lti/locallib.php');
 
 $id = optional_param('id', 0, PARAM_INT); // Course Module ID, or
-$l  = optional_param('l', 0, PARAM_INT);  // lti ID.
+$l  = optional_param('l', 0, PARAM_INT);  // lti ID
 
-if ($l) {  // Two ways to specify the module.
+if ($l) {  // Two ways to specify the module
     $lti = $DB->get_record('lti', array('id' => $l), '*', MUST_EXIST);
     $cm = get_coursemodule_from_instance('lti', $lti->id, $lti->course, false, MUST_EXIST);
 
@@ -65,49 +65,49 @@ if ($l) {  // Two ways to specify the module.
 
 $course = $DB->get_record('course', array('id' => $cm->course), '*', MUST_EXIST);
 
-if (!empty($lti->typeid)) {
-    $toolconfig = lti_get_type_config($lti->typeid);
-} else if ($tool = lti_get_tool_by_url_match($lti->toolurl)) {
+$tool = lti_get_tool_by_url_match($lti->toolurl);
+if ($tool) {
     $toolconfig = lti_get_type_config($tool->id);
 } else {
     $toolconfig = array();
 }
 
-$PAGE->set_cm($cm, $course); // Set's up global $COURSE.
-$context = context_module::instance($cm->id);
+$PAGE->set_cm($cm, $course); // set's up global $COURSE
+$context = get_context_instance(CONTEXT_MODULE, $cm->id);
 $PAGE->set_context($context);
 
-require_login($course, true, $cm);
-require_capability('mod/lti:view', $context);
-
-$url = new moodle_url('/mod/lti/view.php', array('id' => $cm->id));
+$url = new moodle_url('/mod/lti/view.php', array('id'=>$cm->id));
 $PAGE->set_url($url);
 
 $launchcontainer = lti_get_launch_container($lti, $toolconfig);
 
 if ($launchcontainer == LTI_LAUNCH_CONTAINER_EMBED_NO_BLOCKS) {
-    $PAGE->set_pagelayout('frametop'); // Most frametops don't include footer, and pre-post blocks.
-    $PAGE->blocks->show_only_fake_blocks(); // Disable blocks for layouts which do include pre-post blocks.
+    $PAGE->set_pagelayout('frametop'); //Most frametops don't include footer, and pre-post blocks
+    $PAGE->blocks->show_only_fake_blocks(); //Disable blocks for layouts which do include pre-post blocks
 } else if ($launchcontainer == LTI_LAUNCH_CONTAINER_REPLACE_MOODLE_WINDOW) {
     redirect('launch.php?id=' . $cm->id);
 } else {
     $PAGE->set_pagelayout('incourse');
 }
 
+require_login($course);
+
+add_to_log($course->id, "lti", "view", "view.php?id=$cm->id", "$lti->id");
+
 $pagetitle = strip_tags($course->shortname.': '.format_string($lti->name));
 $PAGE->set_title($pagetitle);
 $PAGE->set_heading($course->fullname);
 
-// Print the page header.
+// Print the page header
 echo $OUTPUT->header();
 
 if ($lti->showtitlelaunch) {
-    // Print the main part of the page.
-    echo $OUTPUT->heading(format_string($lti->name, true, array('context' => $context)));
+    // Print the main part of the page
+    echo $OUTPUT->heading(format_string($lti->name));
 }
 
 if ($lti->showdescriptionlaunch && $lti->intro) {
-    echo $OUTPUT->box(format_module_intro('lti', $lti, $cm->id), 'generalbox description', 'intro');
+    echo $OUTPUT->box($lti->intro, 'generalbox description', 'intro');
 }
 
 if ( $launchcontainer == LTI_LAUNCH_CONTAINER_WINDOW ) {
@@ -117,33 +117,39 @@ if ( $launchcontainer == LTI_LAUNCH_CONTAINER_WINDOW ) {
     echo "</script>\n";
     echo "<p>".get_string("basiclti_in_new_window", "lti")."</p>\n";
 } else {
-    // Request the launch content with an iframe tag.
-    echo '<iframe id="contentframe" height="600px" width="100%" src="launch.php?id='.$cm->id.'"></iframe>';
+    // Request the launch content with an object tag
+    echo '<object id="contentframe" height="600px" width="100%" type="text/html" data="launch.php?id='.$cm->id.'"></object>';
 
-    // Output script to make the iframe tag be as large as possible.
+    //Output script to make the object tag be as large as possible
     $resize = '
         <script type="text/javascript">
         //<![CDATA[
-            YUI().use("node", "event", function(Y) {
+            (function(){
                 //Take scrollbars off the outer document to prevent double scroll bar effect
-                var doc = Y.one("body");
-                doc.setStyle("overflow", "hidden");
+                document.body.style.overflow = "hidden";
 
-                var frame = Y.one("#contentframe");
+                var dom = YAHOO.util.Dom;
+                var frame = document.getElementById("contentframe");
+
                 var padding = 15; //The bottom of the iframe wasn\'t visible on some themes. Probably because of border widths, etc.
+
                 var lastHeight;
-                var resize = function(e) {
-                    var viewportHeight = doc.get("winHeight");
-                    if(lastHeight !== Math.min(doc.get("docHeight"), viewportHeight)){
-                        frame.setStyle("height", viewportHeight - frame.getY() - padding + "px");
-                        lastHeight = Math.min(doc.get("docHeight"), doc.get("winHeight"));
+
+                var resize = function(){
+                    var viewportHeight = dom.getViewportHeight();
+
+                    if(lastHeight !== Math.min(dom.getDocumentHeight(), viewportHeight)){
+
+                        frame.style.height = viewportHeight - dom.getY(frame) - padding + "px";
+
+                        lastHeight = Math.min(dom.getDocumentHeight(), dom.getViewportHeight());
                     }
                 };
 
                 resize();
 
-                Y.on("windowresize", resize);
-            });
+                setInterval(resize, 250);
+            })();
         //]]
         </script>
 ';
@@ -151,5 +157,5 @@ if ( $launchcontainer == LTI_LAUNCH_CONTAINER_WINDOW ) {
     echo $resize;
 }
 
-// Finish the page.
+// Finish the page
 echo $OUTPUT->footer();

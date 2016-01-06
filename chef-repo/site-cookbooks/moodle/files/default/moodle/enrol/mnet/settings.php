@@ -1,4 +1,5 @@
 <?php
+
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -17,7 +18,8 @@
 /**
  * Cohort enrolment plugin settings and default values
  *
- * @package    enrol_mnet
+ * @package    enrol
+ * @subpackage mnet
  * @copyright  2010 David Mudrak <david@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -31,7 +33,7 @@ if ($ADMIN->fulltree) {
 
     //--- enrol instance defaults ----------------------------------------------------------------------------
     if (!during_initial_install()) {
-        $options = get_default_enrol_roles(context_system::instance());
+        $options = get_default_enrol_roles(get_context_instance(CONTEXT_SYSTEM));
         $student = get_archetype_roles('student');
         $student = reset($student);
         $settings->add(new admin_setting_configselect_with_advanced('enrol_mnet/roleid',

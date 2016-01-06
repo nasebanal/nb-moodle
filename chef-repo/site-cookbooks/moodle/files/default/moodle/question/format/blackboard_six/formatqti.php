@@ -37,7 +37,8 @@ class qformat_blackboard_six_qti extends qformat_blackboard_six_base {
      * Parse the xml document into an array of questions
      * this *could* burn memory - but it won't happen that much
      * so fingers crossed!
-     * @param array $text array of lines from the input file.
+     * @param array of lines from the input file.
+     * @param stdClass $context
      * @return array (of objects) questions objects.
      */
     protected function readquestions($text) {
@@ -52,10 +53,6 @@ class qformat_blackboard_six_qti extends qformat_blackboard_six_base {
         }
 
         $questions = array();
-
-        // Treat the assessment title as a category title.
-        $this->process_category($xml, $questions);
-
         // First step : we are only interested in the <item> tags.
         $rawquestions = $this->getpath($xml,
                 array('questestinterop', '#', 'assessment', 0, '#', 'section', 0, '#', 'item'),
@@ -140,25 +137,26 @@ class qformat_blackboard_six_qti extends qformat_blackboard_six_base {
                             $bbsubquestions = $this->getpath($pblock,
                                     array('#', 'flow'),
                                     array(), false);
+                            $sub_questions = array();
                             foreach ($bbsubquestions as $bbsubquestion) {
-                                $subquestion = new stdClass();
-                                $subquestion->ident = $this->getpath($bbsubquestion,
+                                $sub_question = new stdClass();
+                                $sub_question->ident = $this->getpath($bbsubquestion,
                                         array('#', 'response_lid', 0, '@', 'ident'),
                                         '', true);
                                 $this->process_block($this->getpath($bbsubquestion,
                                         array('#', 'flow', 0),
-                                        false, false), $subquestion);
+                                        false, false), $sub_question);
                                 $bbchoices = $this->getpath($bbsubquestion,
                                         array('#', 'response_lid', 0, '#', 'render_choice', 0,
                                         '#', 'flow_label', 0, '#', 'response_label'),
                                         array(), false);
                                 $choices = array();
                                 $this->process_choices($bbchoices, $choices);
-                                $subquestion->choices = $choices;
+                                $sub_question->choices = $choices;
                                 if (!isset($block->subquestions)) {
                                     $block->subquestions = array();
                                 }
-                                $block->subquestions[] = $subquestion;
+                                $block->subquestions[] = $sub_question;
                             }
                             break;
                         case 'Multiple Answer':
@@ -206,7 +204,7 @@ class qformat_blackboard_six_qti extends qformat_blackboard_six_base {
                     $answerset = array();
                     foreach ($matchinganswerset as $answer) {
                         $bbanswer = new stdClass;
-                        $bbanswer->text = $this->getpath($answer,
+                        $bbanswer->text =  $this->getpath($answer,
                                 array('#', 'flow', 0, '#', 'material', 0, '#', 'mat_extension',
                                 0, '#', 'mat_formattedtext', 0, '#'),
                                 false, false);
@@ -251,7 +249,6 @@ class qformat_blackboard_six_qti extends qformat_blackboard_six_base {
      * Helper function to process an XML block into an object.
      * Can call himself recursively if necessary to parse this branch of the XML tree.
      * @param array $curblock XML block to parse
-     * @param object $block block already parsed so far
      * @return object $block parsed
      */
     public function process_block($curblock, $block) {
@@ -482,18 +479,18 @@ class qformat_blackboard_six_qti extends qformat_blackboard_six_base {
      * @param array $feedbacks array of feedbacks suitable for a rawquestion.
      */
     public function process_feedback($feedbackset, &$feedbacks) {
-        foreach ($feedbackset as $bbfeedback) {
+        foreach ($feedbackset as $bb_feedback) {
             $feedback = new stdClass();
-            $feedback->ident = $this->getpath($bbfeedback,
+            $feedback->ident = $this->getpath($bb_feedback,
                     array('@', 'ident'), '', true);
             $feedback->text = '';
-            if ($this->getpath($bbfeedback,
+            if ($this->getpath($bb_feedback,
                     array('#', 'flow_mat', 0), false, false)) {
-                $this->process_block($this->getpath($bbfeedback,
+                $this->process_block($this->getpath($bb_feedback,
                         array('#', 'flow_mat', 0), false, false), $feedback);
-            } else if ($this->getpath($bbfeedback,
+            } else if ($this->getpath($bb_feedback,
                     array('#', 'solution', 0, '#', 'solutionmaterial', 0, '#', 'flow_mat', 0), false, false)) {
-                $this->process_block($this->getpath($bbfeedback,
+                $this->process_block($this->getpath($bb_feedback,
                         array('#', 'solution', 0, '#', 'solutionmaterial', 0, '#', 'flow_mat', 0), false, false), $feedback);
             }
 
@@ -529,7 +526,7 @@ class qformat_blackboard_six_qti extends qformat_blackboard_six_base {
      * Parse a truefalse rawquestion and add the result
      * to the array of questions already parsed.
      * @param object $quest rawquestion
-     * @param array $questions array of Moodle questions already done
+     * @param $questions array of Moodle questions already done.
      */
     protected function process_tf($quest, &$questions) {
         $question = $this->process_common($quest);
@@ -570,7 +567,7 @@ class qformat_blackboard_six_qti extends qformat_blackboard_six_base {
      * Parse a fillintheblank rawquestion and add the result
      * to the array of questions already parsed.
      * @param object $quest rawquestion
-     * @param array $questions array of Moodle questions already done.
+     * @param $questions array of Moodle questions already done.
      */
     protected function process_fblank($quest, &$questions) {
         $question = $this->process_common($quest);
@@ -636,7 +633,7 @@ class qformat_blackboard_six_qti extends qformat_blackboard_six_base {
      * Parse a multichoice single answer rawquestion and add the result
      * to the array of questions already parsed.
      * @param object $quest rawquestion
-     * @param array $questions array of Moodle questions already done.
+     * @param $questions array of Moodle questions already done.
      */
     protected function process_mc($quest, &$questions) {
         $question = $this->process_common($quest);
@@ -707,7 +704,7 @@ class qformat_blackboard_six_qti extends qformat_blackboard_six_base {
      * Parse a multichoice multianswer rawquestion and add the result
      * to the array of questions already parsed.
      * @param object $quest rawquestion
-     * @param array $questions array of Moodle questions already done.
+     * @param $questions array of Moodle questions already done.
      */
     public function process_ma($quest, &$questions) {
         $question = $this->process_common($quest);
@@ -732,7 +729,7 @@ class qformat_blackboard_six_qti extends qformat_blackboard_six_base {
         }
 
         $correctanswercount = count($correctanswers);
-        $fraction = 1 / $correctanswercount;
+        $fraction = 1/$correctanswercount;
         $choiceset = $quest->RESPONSE_BLOCK->choices;
         $i = 0;
         foreach ($choiceset as $choice) {
@@ -757,7 +754,7 @@ class qformat_blackboard_six_qti extends qformat_blackboard_six_base {
      * Parse an essay rawquestion and add the result
      * to the array of questions already parsed.
      * @param object $quest rawquestion
-     * @param array $questions array of Moodle questions already done.
+     * @param $questions array of Moodle questions already done.
      */
     public function process_essay($quest, &$questions) {
 
@@ -778,13 +775,10 @@ class qformat_blackboard_six_qti extends qformat_blackboard_six_base {
         $question->fraction[] = 1;
         $question->defaultmark = 1;
         $question->responseformat = 'editor';
-        $question->responserequired = 1;
         $question->responsefieldlines = 15;
         $question->attachments = 0;
-        $question->attachmentsrequired = 0;
-        $question->responsetemplate = $this->text_field('');
 
-        $questions[] = $question;
+        $questions[]=$question;
     }
 
     /**
@@ -792,7 +786,7 @@ class qformat_blackboard_six_qti extends qformat_blackboard_six_base {
      * Parse a matching rawquestion and add the result
      * to the array of questions already parsed.
      * @param object $quest rawquestion
-     * @param array $questions array of Moodle questions already done.
+     * @param $questions array of Moodle questions already done.
      */
     public function process_matching($quest, &$questions) {
 
@@ -875,21 +869,6 @@ class qformat_blackboard_six_qti extends qformat_blackboard_six_base {
         } else {
             $questions[] = $question;
         }
-    }
-
-    /**
-     * Add a category question entry based on the assessment title
-     * @param array $xml the xml tree
-     * @param array $questions the questions already parsed
-     */
-    public function process_category($xml, &$questions) {
-        $title = $this->getpath($xml, array('questestinterop', '#', 'assessment', 0, '@', 'title'), '', true);
-
-        $dummyquestion = new stdClass();
-        $dummyquestion->qtype = 'category';
-        $dummyquestion->category = $this->cleaninput($this->clean_question_name($title));
-
-        $questions[] = $dummyquestion;
     }
 
     /**

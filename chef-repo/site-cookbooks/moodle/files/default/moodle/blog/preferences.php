@@ -1,4 +1,5 @@
 <?php
+
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -52,21 +53,24 @@ if ($groupid !== null) {
 }
 
 $PAGE->set_url($url);
-$PAGE->set_pagelayout('admin');
+$PAGE->set_pagelayout('standard');
 
-$sitecontext = context_system::instance();
-$usercontext = context_user::instance($USER->id);
-$PAGE->set_context($usercontext);
-require_login($courseid);
+if ($courseid == SITEID) {
+    require_login();
+    $context = get_context_instance(CONTEXT_SYSTEM);
+    $PAGE->set_context($context);
+} else {
+    require_login($courseid);
+    $context = get_context_instance(CONTEXT_COURSE, $courseid);
+}
 
-if (empty($CFG->enableblogs)) {
+if (empty($CFG->bloglevel)) {
     print_error('blogdisable', 'blog');
 }
 
-// The preference is site wide not blog specific. Hence user should have permissions in site level.
-require_capability('moodle/blog:view', $sitecontext);
+require_capability('moodle/blog:view', $context);
 
-// If data submitted, then process and store.
+/// If data submitted, then process and store.
 
 $mform = new blog_preferences_form('preferences.php');
 $mform->set_data(array('pagesize' => get_user_preferences('blogpagesize')));
@@ -80,8 +84,8 @@ if (!$mform->is_cancelled() && $data = $mform->get_data()) {
     set_user_preference('blogpagesize', $pagesize);
 }
 
-if ($mform->is_cancelled()) {
-    redirect($CFG->wwwroot . '/user/preferences.php');
+if ($mform->is_cancelled()){
+    redirect($CFG->wwwroot . '/blog/index.php');
 }
 
 $site = get_site();
@@ -91,7 +95,7 @@ $strblogs       = get_string('blogs', 'blog');
 
 $title = "$site->shortname: $strblogs : $strpreferences";
 $PAGE->set_title($title);
-$PAGE->set_heading(fullname($USER));
+$PAGE->set_heading($title);
 
 echo $OUTPUT->header();
 

@@ -32,21 +32,20 @@ $sort = optional_param('sort', 'fullname', PARAM_ALPHA);
 $dir  = optional_param('dir', 'asc', PARAM_ALPHA);
 
 admin_externalpage_setup('userbulk');
-require_capability('moodle/cohort:assign', context_system::instance());
+require_capability('moodle/cohort:assign', get_context_instance(CONTEXT_SYSTEM));
 
 $users = $SESSION->bulk_users;
 
 $strnever = get_string('never');
 
 $cohorts = array(''=>get_string('choosedots'));
-$allcohorts = $DB->get_records('cohort', null, 'name');
-
+$allcohorts = $DB->get_records('cohort');
 foreach ($allcohorts as $c) {
     if (!empty($c->component)) {
         // external cohorts can not be modified
         continue;
     }
-    $context = context::instance_by_id($c->contextid);
+    $context = get_context_instance_by_id($c->contextid);
     if (!has_capability('moodle/cohort:assign', $context)) {
         continue;
     }
@@ -69,10 +68,8 @@ if (count($cohorts) < 2) {
 }
 
 $countries = get_string_manager()->get_list_of_countries(true);
-$namefields = get_all_user_name_fields(true);
 foreach ($users as $key => $id) {
-    $user = $DB->get_record('user', array('id'=>$id, 'deleted'=>0), 'id, ' . $namefields . ', username,
-            email, country, lastaccess, city');
+    $user = $DB->get_record('user', array('id'=>$id, 'deleted'=>0), 'id, firstname, lastname, username, email, country, lastaccess, city');
     $user->fullname = fullname($user, true);
     $user->country = @$countries[$user->country];
     unset($user->firstname);

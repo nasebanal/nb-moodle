@@ -93,19 +93,13 @@ class confirm_action extends component_action {
      *
      * @param string $message The message to display to the user when they are shown
      *    the confirm dialogue.
-     * @param string $callback Deprecated since 2.7
+     * @param string $callback The method to call when the user confirms the action.
      * @param string $continuelabel The string to use for he continue button
      * @param string $cancellabel The string to use for the cancel button
      */
     public function __construct($message, $callback = null, $continuelabel = null, $cancellabel = null) {
-        if ($callback !== null) {
-            debugging('The callback argument to new confirm_action() has been deprecated.' .
-                    ' If you need to use a callback, please write Javascript to use moodle-core-notification-confirmation ' .
-                    'and attach to the provided events.',
-                    DEBUG_DEVELOPER);
-        }
         parent::__construct('click', 'M.util.show_confirm_dialog', array(
-                'message' => $message,
+                'message' => $message, 'callback' => $callback,
                 'continuelabel' => $continuelabel, 'cancellabel' => $cancellabel));
     }
 }

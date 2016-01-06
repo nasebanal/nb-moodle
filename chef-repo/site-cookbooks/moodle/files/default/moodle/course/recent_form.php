@@ -34,8 +34,9 @@ class recent_form extends moodleform {
         global $CFG, $COURSE, $USER;
 
         $mform =& $this->_form;
-        $context = context_course::instance($COURSE->id);
+        $context = get_context_instance(CONTEXT_COURSE, $COURSE->id);
         $modinfo = get_fast_modinfo($COURSE);
+        $sections = get_all_sections($COURSE->id);
 
         $mform->addElement('header', 'filters', get_string('managefilters')); //TODO: add better string
 
@@ -64,13 +65,13 @@ class recent_form extends moodleform {
         }
 
         if ($COURSE->id == SITEID) {
-            $viewparticipants = has_capability('moodle/site:viewparticipants', context_system::instance());
+            $viewparticipants = has_capability('moodle/site:viewparticipants', get_context_instance(CONTEXT_SYSTEM));
         } else {
             $viewparticipants = has_capability('moodle/course:viewparticipants', $context);
         }
 
         if ($viewparticipants) {
-            $viewfullnames = has_capability('moodle/site:viewfullnames', context_course::instance($COURSE->id));
+            $viewfullnames = has_capability('moodle/site:viewfullnames', get_context_instance(CONTEXT_COURSE, $COURSE->id));
 
             $options = array();
             $options[0] = get_string('allparticipants');
@@ -101,8 +102,6 @@ class recent_form extends moodleform {
         } else {
             // Default to no user.
             $mform->addElement('hidden', 'user', 0);
-            $mform->setType('user', PARAM_INT);
-            $mform->setConstant('user', 0);
         }
 
         $options = array(''=>get_string('allactivities'));
@@ -131,7 +130,7 @@ class recent_form extends moodleform {
         }
 
         foreach ($modinfo->sections as $section=>$cmids) {
-            $options["section/$section"] = "-- ".get_section_name($COURSE, $section)." --";
+            $options["section/$section"] = "-- ".get_section_name($COURSE, $sections[$section])." --";
             foreach ($cmids as $cmid) {
                 $cm = $modinfo->cms[$cmid];
                 if (empty($modsused[$cm->modname]) or !$cm->uservisible) {

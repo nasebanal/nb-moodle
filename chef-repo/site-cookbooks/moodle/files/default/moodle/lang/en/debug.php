@@ -1,4 +1,5 @@
 <?php
+
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -17,7 +18,7 @@
 /**
  * Strings for component 'debug', language 'en', branch 'MOODLE_20_STABLE'
  *
- * @package   core
+ * @package   debug
  * @copyright 1999 onwards Martin Dougiamas  {@link http://moodle.com}
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -40,6 +41,7 @@ $string['missingconfigversion'] = 'Config table does not contain version, can no
 $string['modulenotexist'] = '{$a} module doesn\'t exist';
 $string['morethanonerecordinfetch'] = 'Found more than one record in fetch() !';
 $string['mustbeoveride'] = 'Abstract {$a} method must be overridden.';
+$string['noactivityname'] = 'Page object derived from page_generic_activity but did not define $this->activityname';
 $string['noadminrole'] = 'No admin role could be found';
 $string['noblocks'] = 'No blocks installed!';
 $string['nocate'] = 'No categories!';

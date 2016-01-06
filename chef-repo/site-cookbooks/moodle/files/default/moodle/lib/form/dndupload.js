@@ -30,7 +30,7 @@ M.form_dndupload.init = function(Y, options) {
         Y: null,
         // URL for upload requests
         url: M.cfg.wwwroot + '/repository/repository_ajax.php?action=upload',
-        // options may include: itemid, acceptedtypes, maxfiles, maxbytes, clientid, repositoryid, author, contextid
+        // options may include: itemid, acceptedtypes, maxfiles, maxbytes, clientid, repositoryid, author
         options: {},
         // itemid used for repository upload
         itemid: null,
@@ -38,8 +38,6 @@ M.form_dndupload.init = function(Y, options) {
         acceptedtypes: [],
         // maximum size of files allowed in this form
         maxbytes: 0,
-        // Maximum combined size of files allowed in this form. {@link FILE_AREA_MAX_BYTES_UNLIMITED}
-        areamaxbytes: -1,
         // unqiue id of this form field used for html elements
         clientid: '',
         // upload repository id, used for upload
@@ -54,8 +52,6 @@ M.form_dndupload.init = function(Y, options) {
         // dragenter+dragleave(moving between child elements) and dragleave (leaving element)
         entercount: 0,
         pageentercount: 0,
-        // Holds the progress bar elements for each file.
-        progressbars: {},
 
         /**
          * Initalise the drag and drop upload interface
@@ -67,9 +63,7 @@ M.form_dndupload.init = function(Y, options) {
          *            acceptdtypes: accepted filetypes by this form
          *            maxfiles: maximum number of files this form allows
          *            maxbytes: maximum size of files allowed in this form
-         *            areamaxbytes: maximum combined size of files allowed in this form
          *            clientid: unqiue id of this form field used for html elements
-         *            contextid: id of the current cotnext
          *            containerid: htmlid of container
          *            repositories: array of repository objects passed from filepicker
          *            filemanager: filemanager element we are working with
@@ -83,22 +77,19 @@ M.form_dndupload.init = function(Y, options) {
                 Y.one('body').addClass('dndnotsupported');
                 return; // Browser does not support the required functionality
             }
+            Y.one('body').addClass('dndsupported');
 
             // try and retrieve enabled upload repository
             this.repositoryid = this.get_upload_repositoryid(options.repositories);
 
             if (!this.repositoryid) {
-                Y.one('body').addClass('dndnotsupported');
                 return; // no upload repository is enabled to upload to
             }
-
-            Y.one('body').addClass('dndsupported');
 
             this.options = options;
             this.acceptedtypes = options.acceptedtypes;
             this.clientid = options.clientid;
             this.maxbytes = options.maxbytes;
-            this.areamaxbytes = options.areamaxbytes;
             this.itemid = options.itemid;
             this.author = options.author;
             this.container = this.Y.one('#'+options.containerid);
@@ -321,12 +312,8 @@ M.form_dndupload.init = function(Y, options) {
                     repositoryid: this.repositoryid,
                     currentfilecount: this.filemanager.filecount, // All files uploaded.
                     currentfiles: this.filemanager.options.list, // Only the current folder.
-                    callback: Y.bind('update_filemanager', this),
-                    callbackprogress: Y.bind('update_progress', this),
-                    callbackcancel:Y.bind('hide_progress', this)
+                    callback: Y.bind('update_filemanager', this)
                 };
-                this.clear_progress();
-                this.show_progress();
                 var uploader = new dnduploader(options);
                 uploader.start_upload();
             } else {
@@ -337,12 +324,8 @@ M.form_dndupload.init = function(Y, options) {
                         repositoryid: this.repositoryid,
                         currentfilecount: 0,
                         currentfiles: [],
-                        callback: Y.bind('update_filemanager', this),
-                        callbackprogress: Y.bind('update_progress', this),
-                        callbackcancel:Y.bind('hide_progress', this)
+                        callback: Y.bind('callback', this)
                     };
-                    this.clear_progress();
-                    this.show_progress();
                     uploader = new dnduploader(options);
                     uploader.start_upload();
                 }
@@ -358,10 +341,7 @@ M.form_dndupload.init = function(Y, options) {
          * @return boolean true if event has files
          */
         has_files: function(e) {
-            // In some browsers, dataTransfer.types may be null for a
-            // 'dragover' event, so ensure a valid Array is always
-            // inspected.
-            var types = e._event.dataTransfer.types || [];
+            var types = e._event.dataTransfer.types;
             for (var i=0; i<types.length; i++) {
                 if (types[i] == 'Files') {
                     return true;
@@ -396,67 +376,14 @@ M.form_dndupload.init = function(Y, options) {
         },
 
         /**
-         * Show the element showing the upload in progress
-         */
-        show_progress: function() {
-            this.container.addClass('dndupload-inprogress');
-        },
-
-        /**
-         * Hide the element showing upload in progress
-         */
-        hide_progress: function() {
-            this.container.removeClass('dndupload-inprogress');
-        },
-
-        /**
          * Tell the attached filemanager element (if any) to refresh on file
          * upload
          */
-        update_filemanager: function(params) {
-            this.hide_progress();
+        update_filemanager: function() {
             if (this.filemanager) {
                 // update the filemanager that we've uploaded the files
                 this.filemanager.filepicker_callback();
-            } else if (this.callback) {
-                this.callback(params);
             }
-        },
-
-        /**
-         * Clear the current progress bars
-         */
-        clear_progress: function() {
-            var filename;
-            for (filename in this.progressbars) {
-                if (this.progressbars.hasOwnProperty(filename)) {
-                    this.progressbars[filename].progressouter.remove(true);
-                    delete this.progressbars[filename];
-                }
-            }
-        },
-
-        /**
-         * Show the current progress of the uploaded file
-         */
-        update_progress: function(filename, percent) {
-            if (this.progressbars[filename] === undefined) {
-                var dispfilename = filename;
-                if (dispfilename.length > 50) {
-                    dispfilename = dispfilename.substr(0, 49)+'&hellip;';
-                }
-                var progressouter = this.container.create('<span>'+dispfilename+': <span class="dndupload-progress-outer"><span class="dndupload-progress-inner">&nbsp;</span></span><br /></span>');
-                var progressinner = progressouter.one('.dndupload-progress-inner');
-                var progresscontainer = this.container.one('.dndupload-progressbars');
-                progresscontainer.appendChild(progressouter);
-
-                this.progressbars[filename] = {
-                    progressouter: progressouter,
-                    progressinner: progressinner
-                };
-            }
-
-            this.progressbars[filename].progressinner.setStyle('width', percent + '%');
         }
     };
 
@@ -471,10 +398,6 @@ M.form_dndupload.init = function(Y, options) {
         options: {},
         // The function to call when all uploads complete.
         callback: null,
-        // The function to call as the upload progresses
-        callbackprogress: null,
-        // The function to call if the upload is cancelled
-        callbackcancel: null,
         // The list of files dropped onto the element.
         files: null,
         // The ID of the 'upload' repository.
@@ -483,14 +406,10 @@ M.form_dndupload.init = function(Y, options) {
         currentfiles: null,
         // Total number of files already uploaded (to check for exceeding limits).
         currentfilecount: 0,
-        // Total size of the files present in the area.
-        currentareasize: 0,
         // The list of files to upload.
         uploadqueue: [],
         // This list of files with name clashes.
         renamequeue: [],
-        // Size of the current queue.
-        queuesize: 0,
         // Set to true if the user has clicked on 'overwrite all'.
         overwriteall: false,
         // Set to true if the user has clicked on 'rename all'.
@@ -511,22 +430,10 @@ M.form_dndupload.init = function(Y, options) {
             this.options = params.options;
             this.repositoryid = params.repositoryid;
             this.callback = params.callback;
-            this.callbackprogress = params.callbackprogress;
-            this.callbackcancel = params.callbackcancel;
             this.currentfiles = params.currentfiles;
             this.currentfilecount = params.currentfilecount;
-            this.currentareasize = 0;
 
-            // Retrieve the current size of the area.
-            for (var i = 0; i < this.currentfiles.length; i++) {
-                this.currentareasize += this.currentfiles[i].size;
-            };
-
-            if (!this.initialise_queue(params.files)) {
-                if (this.callbackcancel) {
-                    this.callbackcancel();
-                }
-            }
+            this.initialise_queue(params.files);
         },
 
         /**
@@ -543,10 +450,10 @@ M.form_dndupload.init = function(Y, options) {
          * @param string type - 'error' or 'info'
          */
         print_msg: function(msg, type) {
-            var header = M.util.get_string('error', 'moodle');
+            var header = M.str.moodle.error;
             if (type != 'error') {
                 type = 'info'; // one of only two types excepted
-                header = M.util.get_string('info', 'moodle');
+                header = M.str.moodle.info;
             }
             if (!this.msg_dlg) {
                 this.msg_dlg_node = Y.Node.createWithFilesSkin(M.core_filepicker.templates.message);
@@ -554,7 +461,7 @@ M.form_dndupload.init = function(Y, options) {
 
                 this.msg_dlg = new Y.Panel({
                     srcNode      : this.msg_dlg_node,
-                    zIndex       : 8000,
+                    zIndex       : 800000,
                     centered     : true,
                     modal        : true,
                     visible      : false,
@@ -582,14 +489,13 @@ M.form_dndupload.init = function(Y, options) {
         initialise_queue: function(files) {
             this.uploadqueue = [];
             this.renamequeue = [];
-            this.queuesize = 0;
 
-            // Loop through the files and find any name clashes with existing files.
+            // Loop through the files and find any name clashes with existing files
             var i;
             for (i=0; i<files.length; i++) {
                 if (this.options.maxbytes > 0 && files[i].size > this.options.maxbytes) {
-                    // Check filesize before attempting to upload.
-                    this.print_msg(M.util.get_string('maxbytesforfile', 'moodle', files[i].name), 'error');
+                    // Check filesize before attempting to upload
+                    this.print_msg(M.util.get_string('uploadformlimit', 'moodle', files[i].name), 'error');
                     this.uploadqueue = []; // No uploads if one file is too big.
                     return;
                 }
@@ -598,12 +504,10 @@ M.form_dndupload.init = function(Y, options) {
                     this.renamequeue.push(files[i]);
                 } else {
                     if (!this.add_to_upload_queue(files[i], files[i].name, false)) {
-                        return false;
+                        return;
                     }
                 }
-                this.queuesize += files[i].size;
             }
-            return true;
         },
 
         /**
@@ -624,17 +528,6 @@ M.form_dndupload.init = function(Y, options) {
                 this.renamequeue = [];
                 this.print_msg(M.util.get_string('maxfilesreached', 'moodle', this.options.maxfiles), 'error');
                 return false;
-            }
-            // The new file will cause the area to reach its limit, we cancel the upload of all files.
-            // -1 is the value defined by FILE_AREA_MAX_BYTES_UNLIMITED.
-            if (this.options.areamaxbytes > -1) {
-                var sizereached = this.currentareasize + this.queuesize + file.size;
-                if (sizereached > this.options.areamaxbytes) {
-                    this.uploadqueue = [];
-                    this.renamequeue = [];
-                    this.print_msg(M.util.get_string('maxareabytesreached', 'moodle'), 'error');
-                    return false;
-                }
             }
             this.uploadqueue.push({file:file, filename:filename, overwrite:overwrite});
             return true;
@@ -684,8 +577,8 @@ M.form_dndupload.init = function(Y, options) {
             node.generateID();
             var process_dlg = new Y.Panel({
                 srcNode      : node,
-                headerContent: M.util.get_string('fileexistsdialogheader', 'repository'),
-                zIndex       : 8000,
+                headerContent: M.str.repository.fileexistsdialogheader,
+                zIndex       : 800000,
                 centered     : true,
                 modal        : true,
                 visible      : false,
@@ -714,9 +607,6 @@ M.form_dndupload.init = function(Y, options) {
             node.one('.fp-dlg-butcancel').on('click', function(e) {
                 e.preventDefault();
                 process_dlg.hide();
-                if (self.callbackcancel) {
-                    self.callbackcancel();
-                }
             }, this);
 
             // When we are at the file limit, only allow 'overwrite', not rename.
@@ -784,17 +674,41 @@ M.form_dndupload.init = function(Y, options) {
         },
 
         /**
-         * Gets a unique file name
-         *
+         * Adds _NUMBER to the end of the filename and increments this number until
+         * a unique name is found
          * @param string filename
          * @return string the unique filename generated
          */
         generate_unique_name: function(filename) {
-            // Loop through increating numbers until a unique name is found.
-            while (this.has_name_clash(filename)) {
-                filename = increment_filename(filename);
+            // Split the filename into the basename + extension.
+            var extension;
+            var basename;
+            var dotpos = filename.lastIndexOf('.');
+            if (dotpos == -1) {
+                basename = filename;
+                extension = '';
+            } else {
+                basename = filename.substr(0, dotpos);
+                extension = filename.substr(dotpos, filename.length);
             }
-            return filename;
+
+            // Look to see if the name already has _NN at the end of it.
+            var number = 0;
+            var hasnumber = basename.match(/^(.*)_(\d+)$/);
+            if (hasnumber != null) {
+                // Note the current number & remove it from the basename.
+                number = parseInt(hasnumber[2]);
+                basename = hasnumber[1];
+            }
+
+            // Loop through increating numbers until a unique name is found.
+            var newname;
+            do {
+                number++;
+                newname = basename + '_' + number + extension;
+            } while (this.has_name_clash(newname));
+
+            return newname;
         },
 
         /**
@@ -835,15 +749,6 @@ M.form_dndupload.init = function(Y, options) {
             // http://yuilibrary.com/projects/yui3/ticket/2531274
             var xhr = new XMLHttpRequest();
             var self = this;
-
-            // Update the progress bar
-            xhr.upload.addEventListener('progress', function(e) {
-                if (e.lengthComputable && self.callbackprogress) {
-                    var percentage = Math.round((e.loaded * 100) / e.total);
-                    self.callbackprogress(filename, percentage);
-                }
-            }, false);
-
             xhr.onreadystatechange = function() { // Process the server response
                 if (xhr.readyState == 4) {
                     if (xhr.status == 200) {
@@ -861,9 +766,6 @@ M.form_dndupload.init = function(Y, options) {
                                     result.url = result.newfile.url;
                                 }
                                 result.client_id = self.options.clientid;
-                                if (self.callbackprogress) {
-                                    self.callbackprogress(filename, 100);
-                                }
                             }
                         }
                         self.do_upload(result); // continue uploading
@@ -890,9 +792,6 @@ M.form_dndupload.init = function(Y, options) {
             formdata.append('title', filename);
             if (overwrite) {
                 formdata.append('overwrite', 1);
-            }
-            if (this.options.contextid) {
-                formdata.append('ctx_id', this.options.contextid);
             }
 
             // Accepted types can be either a string or an array, but an array is

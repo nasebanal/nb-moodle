@@ -39,11 +39,11 @@ $PAGE->set_url($url);
 $context = null;
 if ($course = $DB->get_record('course', array('id'=>$id))) {
     require_login($course);
-    $context = context_course::instance($course->id);
+    $context = get_context_instance(CONTEXT_COURSE, $course->id);
 } else {
     //$id will be 0 for site level scales
     require_login();
-    $context = context_system::instance();
+    $context = get_context_instance(CONTEXT_SYSTEM);
 }
 
 $PAGE->set_context($context);
@@ -82,7 +82,7 @@ if ($scaleid) {
     }
 }
 
-$systemcontext = context_system::instance();
+$systemcontext = get_context_instance(CONTEXT_SYSTEM);
 
 if ($scales = $DB->get_records("scale", array("courseid"=>$course->id), "name ASC")) {
     echo $OUTPUT->heading($strcustomscales);

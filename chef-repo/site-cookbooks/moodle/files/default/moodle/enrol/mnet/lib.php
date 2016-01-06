@@ -1,4 +1,5 @@
 <?php
+
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -17,7 +18,8 @@
 /**
  * MNet enrolment plugin
  *
- * @package    enrol_mnet
+ * @package    enrol
+ * @subpackage mnet
  * @copyright  2010 David Mudrak <david@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -45,7 +47,7 @@ class enrol_mnet_plugin extends enrol_plugin {
         } else if (empty($instance->name)) {
             $enrol = $this->get_name();
             if ($role = $DB->get_record('role', array('id'=>$instance->roleid))) {
-                $role = role_get_name($role, context_course::instance($instance->courseid, IGNORE_MISSING));
+                $role = role_get_name($role, get_context_instance(CONTEXT_COURSE, $instance->courseid));
             } else {
                 $role = get_string('error');
             }
@@ -77,7 +79,7 @@ class enrol_mnet_plugin extends enrol_plugin {
         if (!$service->is_available()) {
             return null;
         }
-        $coursecontext = context_course::instance($courseid);
+        $coursecontext = get_context_instance(CONTEXT_COURSE, $courseid);
         if (!has_capability('moodle/course:enrolconfig', $coursecontext)) {
             return null;
         }
@@ -87,27 +89,5 @@ class enrol_mnet_plugin extends enrol_plugin {
         }
 
         return new moodle_url('/enrol/mnet/addinstance.php', array('id'=>$courseid));
-    }
-
-    /**
-     * Is it possible to delete enrol instance via standard UI?
-     *
-     * @param stdClass $instance
-     * @return bool
-     */
-    public function can_delete_instance($instance) {
-        $context = context_course::instance($instance->courseid);
-        return has_capability('enrol/mnet:config', $context);
-    }
-
-    /**
-     * Is it possible to hide/show enrol instance via standard UI?
-     *
-     * @param stdClass $instance
-     * @return bool
-     */
-    public function can_hide_show_instance($instance) {
-        $context = context_course::instance($instance->courseid);
-        return has_capability('enrol/mnet:config', $context);
     }
 }

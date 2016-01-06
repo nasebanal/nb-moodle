@@ -43,6 +43,7 @@ class quizaccess_openclosedate_testcase extends basic_testcase {
         $quiz->timeopen = 0;
         $quiz->timeclose = 0;
         $quiz->overduehandling = 'autosubmit';
+        $quiz->questions = '';
         $cm = new stdClass();
         $cm->id = 0;
         $quizobj = new quiz($quiz, $cm, null);
@@ -72,6 +73,7 @@ class quizaccess_openclosedate_testcase extends basic_testcase {
         $quiz->timeopen = 10000;
         $quiz->timeclose = 0;
         $quiz->overduehandling = 'autosubmit';
+        $quiz->questions = '';
         $cm = new stdClass();
         $cm->id = 0;
         $quizobj = new quiz($quiz, $cm, null);
@@ -103,6 +105,7 @@ class quizaccess_openclosedate_testcase extends basic_testcase {
         $quiz->timeopen = 0;
         $quiz->timeclose = 20000;
         $quiz->overduehandling = 'autosubmit';
+        $quiz->questions = '';
         $cm = new stdClass();
         $cm->id = 0;
         $quizobj = new quiz($quiz, $cm, null);
@@ -141,6 +144,7 @@ class quizaccess_openclosedate_testcase extends basic_testcase {
         $quiz->timeopen = 10000;
         $quiz->timeclose = 20000;
         $quiz->overduehandling = 'autosubmit';
+        $quiz->questions = '';
         $cm = new stdClass();
         $cm->id = 0;
         $quizobj = new quiz($quiz, $cm, null);
@@ -193,6 +197,7 @@ class quizaccess_openclosedate_testcase extends basic_testcase {
         $quiz->timeclose = 20000;
         $quiz->overduehandling = 'graceperiod';
         $quiz->graceperiod = 1000;
+        $quiz->questions = '';
         $cm = new stdClass();
         $cm->id = 0;
         $quizobj = new quiz($quiz, $cm, null);

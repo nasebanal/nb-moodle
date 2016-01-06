@@ -54,17 +54,14 @@ if ($entries) {
         }
         // make sure the entry is approved (or approvable by current user)
         if (!$entry->approved and ($USER->id != $entry->userid)) {
-            $context = context_module::instance($entry->cmid);
+            $context = get_context_instance(CONTEXT_MODULE, $entry->cmid);
             if (!has_capability('mod/glossary:approve', $context)) {
                 unset($entries[$key]);
                 continue;
             }
         }
 
-        // Make sure entry is not autolinking itself.
-        $GLOSSARY_EXCLUDEENTRY = $entry->id;
-
-        $context = context_module::instance($entry->cmid);
+        $context = get_context_instance(CONTEXT_MODULE, $entry->cmid);
         $definition = file_rewrite_pluginfile_urls($entry->definition, 'pluginfile.php', $context->id, 'mod_glossary', 'entry', $entry->id);
 
         $options = new stdClass();
@@ -80,12 +77,7 @@ if ($entries) {
         }
 
         $entries[$key]->footer = "<p style=\"text-align:right\">&raquo;&nbsp;<a href=\"$CFG->wwwroot/mod/glossary/view.php?g=$entry->glossaryid\">".format_string($entry->glossaryname,true)."</a></p>";
-        $event = \mod_glossary\event\entry_viewed::create(array(
-            'objectid' => $entry->id,
-            'context' => $modinfo->cms[$entry->cmid]->context
-        ));
-        $event->add_record_snapshot('glossary_entries', $entry);
-        $event->trigger();
+        add_to_log($entry->courseid, 'glossary', 'view entry', "showentry.php?eid=$entry->id", $entry->id, $entry->cmid);
     }
 }
 

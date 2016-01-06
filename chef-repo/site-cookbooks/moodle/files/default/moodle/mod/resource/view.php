@@ -18,13 +18,13 @@
 /**
  * Resource module version information
  *
- * @package    mod_resource
+ * @package    mod
+ * @subpackage resource
  * @copyright  2009 Petr Skoda  {@link http://skodak.org}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 require('../../config.php');
-require_once($CFG->dirroot.'/mod/resource/lib.php');
 require_once($CFG->dirroot.'/mod/resource/locallib.php');
 require_once($CFG->libdir.'/completionlib.php');
 
@@ -50,11 +50,14 @@ if ($r) {
 $course = $DB->get_record('course', array('id'=>$cm->course), '*', MUST_EXIST);
 
 require_course_login($course, true, $cm);
-$context = context_module::instance($cm->id);
+$context = get_context_instance(CONTEXT_MODULE, $cm->id);
 require_capability('mod/resource:view', $context);
 
-// Completion and trigger events.
-resource_view($resource, $course, $cm, $context);
+add_to_log($course->id, 'resource', 'view', 'view.php?id='.$cm->id, $resource->id, $cm->id);
+
+// Update 'viewed' state if required by completion system
+$completion = new completion_info($course);
+$completion->set_module_viewed($cm);
 
 $PAGE->set_url('/mod/resource/view.php', array('id' => $cm->id));
 
@@ -79,16 +82,9 @@ if ($displaytype == RESOURCELIB_DISPLAY_OPEN || $displaytype == RESOURCELIB_DISP
     // For 'open' and 'download' links, we always redirect to the content - except
     // if the user just chose 'save and display' from the form then that would be
     // confusing
-    if (strpos(get_local_referer(false), 'modedit.php') === false) {
+    if (!isset($_SERVER['HTTP_REFERER']) || strpos($_SERVER['HTTP_REFERER'], 'modedit.php') === false) {
         $redirect = true;
     }
-}
-
-// Don't redirect teachers, otherwise they can not access course or module settings.
-if ($redirect && !course_get_format($course)->has_view_page() &&
-        (has_capability('moodle/course:manageactivities', $context) ||
-        has_capability('moodle/course:update', context_course::instance($course->id)))) {
-    $redirect = false;
 }
 
 if ($redirect) {

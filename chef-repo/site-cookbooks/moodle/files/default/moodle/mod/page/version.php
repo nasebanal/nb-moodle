@@ -17,14 +17,15 @@
 /**
  * Page module version information
  *
- * @package mod_page
+ * @package    mod
+ * @subpackage page
  * @copyright  2009 Petr Skoda (http://skodak.org)
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2015111600;       // The current module version (Date: YYYYMMDDXX)
-$plugin->requires  = 2015111000;    // Requires this Moodle version
-$plugin->component = 'mod_page';       // Full name of the plugin (used for diagnostics)
-$plugin->cron      = 0;
+$module->version   = 2012061700;       // The current module version (Date: YYYYMMDDXX)
+$module->requires  = 2012061700;    // Requires this Moodle version
+$module->component = 'mod_page';       // Full name of the plugin (used for diagnostics)
+$module->cron      = 0;

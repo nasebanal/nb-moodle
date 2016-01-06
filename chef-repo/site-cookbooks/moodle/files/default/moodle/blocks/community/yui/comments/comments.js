@@ -23,7 +23,7 @@ YUI.add('moodle-block_community-comments', function(Y) {
                         .append(Y.one('#commentoverlay-'+commentid+' .commenttitle').get('innerHTML')),
                     bodyContent:Y.one('#commentoverlay-'+commentid).get('innerHTML'),
                     visible: false, //by default it is not displayed
-                    modal: false,
+                    lightbox : false,
                     zIndex:100,
                     closeButtonTitle: this.get('closeButtonTitle')
                 });
@@ -93,5 +93,5 @@ YUI.add('moodle-block_community-comments', function(Y) {
     }
 
 }, '@VERSION@', {
-    requires:['base', 'moodle-core-notification']
+    requires:['base', 'moodle-enrol-notification']
 });

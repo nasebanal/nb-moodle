@@ -17,13 +17,14 @@
 /**
  * Theme version info
  *
- * @package    theme_base
+ * @package    theme
+ * @subpackage base
  * @copyright  2011 Petr Skoda  {@link http://skodak.org}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die;
 
-$plugin->version   = 2015111600; // The current module version (Date: YYYYMMDDXX).
-$plugin->requires  = 2015111000; // Requires this Moodle version.
-$plugin->component = 'theme_base'; // Full name of the plugin (used for diagnostics).
+$plugin->version   = 2012061701; // The current module version (Date: YYYYMMDDXX)
+$plugin->requires  = 2012061700; // Requires this Moodle version
+$plugin->component = 'theme_base'; // Full name of the plugin (used for diagnostics)

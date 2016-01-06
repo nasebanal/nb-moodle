@@ -57,11 +57,12 @@ if (!empty($userid)) {
     if (!report_stats_can_access_user_report($user, $course, true)) {
         require_capability('report/stats:view', $coursecontext);
     }
-} else if ($mode === STATS_MODE_DETAILED) {
-    print_error('invaliduser');
+
 } else {
     require_capability('report/stats:view', $coursecontext);
 }
+
+add_to_log($course->id, 'course', 'report stats', "report/stats/graph.php?userid=$userid&id=$course->id&mode=$mode&roleid=$roleid", $course->id);
 
 stats_check_uptodate($course->id);
 
@@ -124,7 +125,11 @@ if (empty($param->crosstab)) {
     $times = array();
     $roles = array();
     $missedlines = array();
-    $rolenames = role_fix_names(get_all_roles($coursecontext), $coursecontext, ROLENAME_ALIAS, true);
+    $rolenames = get_all_roles();
+    foreach ($rolenames as $r) {
+        $rolenames[$r->id] = $r->name;
+    }
+    $rolenames = role_fix_names($rolenames, get_context_instance(CONTEXT_COURSE, $course->id));
     foreach ($stats as $stat) {
         $data[$stat->roleid][$stat->timeend] = $stat->line1;
         if (!empty($stat->zerofixed)) {

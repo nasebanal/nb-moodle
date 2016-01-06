@@ -57,7 +57,7 @@ class MoodleQuickForm_recaptcha extends HTML_QuickForm_input {
         global $CFG;
         parent::HTML_QuickForm_input($elementName, $elementLabel, $attributes);
         $this->_type = 'recaptcha';
-        if (is_https()) {
+        if (!empty($attributes['https']) or strpos($CFG->httpswwwroot, 'https:') === 0) {
             $this->_https = true;
         } else {
             $this->_https = false;
@@ -108,6 +108,19 @@ class MoodleQuickForm_recaptcha extends HTML_QuickForm_input {
 </div>';
 
         return $html . recaptcha_get_html($CFG->recaptchapublickey, $error, $this->_https);
+    }
+
+    /**
+     * set html for help button
+     *
+     * @param array $helpbuttonargs array of arguments to make a help button
+     * @param string $function function name to call to get html
+     * @deprecated since Moodle 2.0. Please do not call this function any more.
+     * @todo MDL-31047 this api will be removed.
+     * @see MoodleQuickForm::setHelpButton()
+     */
+    function setHelpButton($helpbuttonargs, $function='helpbutton'){
+        debugging('component setHelpButton() is not used any more, please use $mform->setHelpButton() instead');
     }
 
     /**

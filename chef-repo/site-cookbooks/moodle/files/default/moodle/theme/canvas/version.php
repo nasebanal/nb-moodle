@@ -17,16 +17,14 @@
 /**
  * Theme version info
  *
- * @package    theme_canvas
+ * @package    theme
+ * @subpackage canvas
  * @copyright  2010 Patrick Malley
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die;
 
-$plugin->version   = 2015111600; // The current module version (Date: YYYYMMDDXX)
-$plugin->requires  = 2015111000; // Requires this Moodle version
+$plugin->version   = 2012061700; // The current module version (Date: YYYYMMDDXX)
+$plugin->requires  = 2012061700; // Requires this Moodle version
 $plugin->component = 'theme_canvas'; // Full name of the plugin (used for diagnostics)
-$plugin->dependencies = array(
-    'theme_base'  => 2015111000,
-);

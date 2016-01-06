@@ -38,8 +38,7 @@ $string['clitypevalue'] = 'Wert eingeben';
 $string['clitypevaluedefault'] = 'Wert eingeben oder Standardwert benutzen ({$a})';
 $string['cliunknowoption'] = 'Nicht erkannte Optionen:
   {$a}
-Hilfe wird über die Option --help angezeigt.';
+Hilfe wird über die Option -help angezeigt.';
 $string['cliyesnoprompt'] = 'y (yes=ja) oder n (no=nein) eingeben';
 $string['environmentrequireinstall'] = 'muss installiert und aktiviert sein';
-$string['environmentrequireversion'] = 'notwendig: {$a->needed} - installiert: {$a->current}';
-$string['upgradekeyset'] = 'Aktualisierungsschlüssel (leer, um keinen zu setzen)';
+$string['environmentrequireversion'] = 'Version {$a->needed} ist erforderlich - aktuell ist {$a->current} installiert.';

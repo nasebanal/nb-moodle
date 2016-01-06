@@ -63,16 +63,11 @@ if ($id) {
 $PAGE->set_url($url);
 
 require_login($course);
-$context = context_course::instance($course->id);
+$context = get_context_instance(CONTEXT_COURSE, $course->id);
 require_capability('moodle/course:managegroups', $context);
 
-$strgroupings = get_string('groupings', 'group');
-$PAGE->set_title($strgroupings);
-$PAGE->set_heading($course->fullname. ': '.$strgroupings);
-$PAGE->set_pagelayout('admin');
-navigation_node::override_active_url(new moodle_url('/group/index.php', array('id' => $course->id)));
-
 $returnurl = $CFG->wwwroot.'/group/groupings.php?id='.$course->id;
+
 
 if ($id and $delete) {
     if (!empty($grouping->idnumber) && !has_capability('moodle/course:changeidnumber', $context)) {
@@ -131,7 +126,9 @@ if ($editform->is_cancelled()) {
 
 }
 
+$strgroupings    = get_string('groupings', 'group');
 $strparticipants = get_string('participants');
+
 if ($id) {
     $strheading = get_string('editgroupingsettings', 'group');
 } else {
@@ -143,6 +140,8 @@ $PAGE->navbar->add($strgroupings, new moodle_url('/group/groupings.php', array('
 $PAGE->navbar->add($strheading);
 
 /// Print header
+$PAGE->set_title($strgroupings);
+$PAGE->set_heading($course->fullname. ': '.$strgroupings);
 echo $OUTPUT->header();
 echo $OUTPUT->heading($strheading);
 $editform->display();

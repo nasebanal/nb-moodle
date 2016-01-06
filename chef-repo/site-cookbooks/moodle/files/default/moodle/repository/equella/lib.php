@@ -17,7 +17,7 @@
 /**
  * This plugin is used to access equella repositories.
  *
- * @since Moodle 2.3
+ * @since 2.3
  * @package    repository_equella
  * @copyright  2012 Dongsheng Cai {@link http://dongsheng.org}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -30,7 +30,7 @@ require_once($CFG->dirroot . '/repository/lib.php');
 /**
  * repository_equella class implements equella_client
  *
- * @since Moodle 2.3
+ * @since 2.3
  * @package    repository_equella
  * @copyright  2012 Dongsheng Cai {@link http://dongsheng.org}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -93,11 +93,6 @@ class repository_equella extends repository {
                 . '&attachmentUuidUrls=true'
                 . '&options='.urlencode($this->get_option('equella_options') . $mimetypesstr)
                 . $restrict;
-
-        $manageurl = $this->get_option('equella_url');
-        $manageurl = str_ireplace('signon.do', 'logon.do', $manageurl);
-        $manageurl = $this->appendtoken($manageurl);
-
         $list = array();
         $list['object'] = array();
         $list['object']['type'] = 'text/html';
@@ -105,7 +100,6 @@ class repository_equella extends repository {
         $list['nologin']  = true;
         $list['nosearch'] = true;
         $list['norefresh'] = true;
-        $list['manage'] = $manageurl;
         return $list;
     }
 
@@ -125,11 +119,7 @@ class repository_equella extends repository {
      * @return string file referece
      */
     public function get_file_reference($source) {
-        // Internally we store serialized value but user input is json-encoded for security reasons.
-        $ref = json_decode(base64_decode($source));
-        $filename  = clean_param($ref->filename, PARAM_FILE);
-        $url = clean_param($ref->url, PARAM_URL);
-        return base64_encode(serialize((object)array('url' => $url, 'filename' => $filename)));
+        return $source;
     }
 
     /**
@@ -138,7 +128,7 @@ class repository_equella extends repository {
      * If we received the connection timeout more than 3 times in a row, we don't attemt to
      * connect to the server any more during this request.
      *
-     * This function is used by {@link repository_equella::sync_reference()} that
+     * This function is used by {@link repository_equella::get_file_by_reference()} that
      * synchronises the file size of referenced files.
      *
      * @param int $errno omit if we just want to know the return value, the last curl_errno otherwise
@@ -164,6 +154,18 @@ class repository_equella extends repository {
     }
 
     /**
+     * Decide whether or not the file should be synced
+     *
+     * @param stored_file $storedfile
+     * @return bool
+     */
+    public function sync_individual_file(stored_file $storedfile) {
+        // if we had several unsuccessfull attempts to connect to server - do not try any more
+        return $this->connection_result();
+    }
+
+
+    /**
      * Download a file, this function can be overridden by subclass. {@link curl}
      *
      * @param string $reference the source of the file
@@ -174,7 +176,7 @@ class repository_equella extends repository {
      *   url: URL to the source (from parameters)
      */
     public function get_file($reference, $filename = '') {
-        global $USER, $CFG;
+        global $USER;
         $ref = @unserialize(base64_decode($reference));
         if (!isset($ref->url) || !($url = $this->appendtoken($ref->url))) {
             // Occurs when the user isn't known..
@@ -183,7 +185,7 @@ class repository_equella extends repository {
         $path = $this->prepare_file($filename);
         $cookiepathname = $this->prepare_file($USER->id. '_'. uniqid('', true). '.cookie');
         $c = new curl(array('cookie'=>$cookiepathname));
-        $result = $c->download_one($url, null, array('filepath' => $path, 'followlocation' => true, 'timeout' => $CFG->repositorygetfiletimeout));
+        $result = $c->download_one($url, null, array('filepath' => $path, 'followlocation' => true, 'timeout' => self::GETFILE_TIMEOUT));
         // Delete cookie jar.
         if (file_exists($cookiepathname)) {
             unlink($cookiepathname);
@@ -194,33 +196,37 @@ class repository_equella extends repository {
         return array('path'=>$path, 'url'=>$url);
     }
 
-    public function sync_reference(stored_file $file) {
-        global $USER, $CFG;
-        if ($file->get_referencelastsync() + DAYSECS > time() || !$this->connection_result()) {
-            // Synchronise not more often than once a day.
-            // if we had several unsuccessfull attempts to connect to server - do not try any more.
-            return false;
-        }
-        $ref = @unserialize(base64_decode($file->get_reference()));
+    /**
+     * Returns information about file in this repository by reference
+     *
+     * If the file is an image we download the contents and save it in our filesystem
+     * so we can generate thumbnails. Otherwise we just request the file size.
+     * Returns null if file not found or can not be accessed
+     *
+     * @param stdClass $reference file reference db record
+     * @return stdClass|null contains one of the following:
+     *   - 'filesize' (for non-image files or files we failed to retrieve fully because of timeout)
+     *   - 'filepath' (for image files that we retrieived and saved)
+     */
+    public function get_file_by_reference($reference) {
+        global $USER;
+        $ref = @unserialize(base64_decode($reference->reference));
         if (!isset($ref->url) || !($url = $this->appendtoken($ref->url))) {
             // Occurs when the user isn't known..
-            $file->set_missingsource();
-            return true;
+            return null;
         }
 
+        $return = null;
         $cookiepathname = $this->prepare_file($USER->id. '_'. uniqid('', true). '.cookie');
         $c = new curl(array('cookie' => $cookiepathname));
         if (file_extension_in_typegroup($ref->filename, 'web_image')) {
             $path = $this->prepare_file('');
-            $result = $c->download_one($url, null, array('filepath' => $path, 'followlocation' => true, 'timeout' => $CFG->repositorysyncimagetimeout));
+            $result = $c->download_one($url, null, array('filepath' => $path, 'followlocation' => true, 'timeout' => self::SYNCIMAGE_TIMEOUT));
             if ($result === true) {
-                $fs = get_file_storage();
-                list($contenthash, $filesize, $newfile) = $fs->add_file_to_pool($path);
-                $file->set_synchronized($contenthash, $filesize);
-                return true;
+                $return = (object)array('filepath' => $path);
             }
         } else {
-            $result = $c->head($url, array('followlocation' => true, 'timeout' => $CFG->repositorysyncfiletimeout));
+            $result = $c->head($url, array('followlocation' => true, 'timeout' => self::SYNCFILE_TIMEOUT));
         }
         // Delete cookie jar.
         if (file_exists($cookiepathname)) {
@@ -229,27 +235,25 @@ class repository_equella extends repository {
 
         $this->connection_result($c->get_errno());
         $curlinfo = $c->get_info();
-        if (isset($curlinfo['http_code']) && $curlinfo['http_code'] == 200
+        if ($return === null && isset($curlinfo['http_code']) && $curlinfo['http_code'] == 200
                 && array_key_exists('download_content_length', $curlinfo)
                 && $curlinfo['download_content_length'] >= 0) {
             // we received a correct header and at least can tell the file size
-            $file->set_synchronized(null, $curlinfo['download_content_length']);
-            return true;
+            $return = (object)array('filesize' => $curlinfo['download_content_length']);
         }
-        $file->set_missingsource();
-        return true;
+        return $return;
     }
 
     /**
      * Repository method to serve the referenced file
      *
      * @param stored_file $storedfile the file that contains the reference
-     * @param int $lifetime Number of seconds before the file should expire from caches (null means $CFG->filelifetime)
+     * @param int $lifetime Number of seconds before the file should expire from caches (default 24 hours)
      * @param int $filter 0 (default)=no filtering, 1=all files, 2=html files only
      * @param bool $forcedownload If true (default false), forces download of file rather than view in browser/plugin
      * @param array $options additional options affecting the file serving
      */
-    public function send_file($stored_file, $lifetime=null , $filter=0, $forcedownload=false, array $options = null) {
+    public function send_file($stored_file, $lifetime=86400 , $filter=0, $forcedownload=false, array $options = null) {
         $reference  = unserialize(base64_decode($stored_file->get_reference()));
         $url = $this->appendtoken($reference->url);
         if ($url) {
@@ -281,7 +285,7 @@ class repository_equella extends repository {
         );
         $mform->addElement('select', 'equella_select_restriction', get_string('selectrestriction', 'repository_equella'), $choices);
 
-        $mform->addElement('header', 'groupheader',
+        $mform->addElement('header', '',
             get_string('group', 'repository_equella', get_string('groupdefault', 'repository_equella')));
         $mform->addElement('text', 'equella_shareid', get_string('sharedid', 'repository_equella'));
         $mform->setType('equella_shareid', PARAM_RAW);
@@ -292,8 +296,7 @@ class repository_equella extends repository {
         $mform->addRule('equella_sharedsecret', $strrequired, 'required', null, 'client');
 
         foreach (self::get_all_editing_roles() as $role) {
-            $mform->addElement('header', 'groupheader_'.$role->shortname, get_string('group', 'repository_equella',
-                format_string($role->name)));
+            $mform->addElement('header', '', get_string('group', 'repository_equella', format_string($role->name)));
             $mform->addElement('text', "equella_{$role->shortname}_shareid", get_string('sharedid', 'repository_equella'));
             $mform->setType("equella_{$role->shortname}_shareid", PARAM_RAW);
             $mform->addElement('text', "equella_{$role->shortname}_sharedsecret",
@@ -404,13 +407,12 @@ class repository_equella extends repository {
     /**
      * Return the source information
      *
-     * @param string $source
+     * @param stdClass $url
      * @return string|null
      */
-    public function get_file_source_info($source) {
-        $ref = json_decode(base64_decode($source));
-        $filename  = clean_param($ref->filename, PARAM_FILE);
-        return 'EQUELLA: ' . $filename;
+    public function get_file_source_info($url) {
+        $ref = unserialize(base64_decode($url));
+        return 'EQUELLA: ' . $ref->filename;
     }
 
     /**
@@ -428,14 +430,5 @@ class repository_equella extends repository {
         } else {
             return get_string('lostsource', 'repository', '');
         }
-    }
-
-    /**
-     * Is this repository accessing private data?
-     *
-     * @return bool
-     */
-    public function contains_private_data() {
-        return false;
     }
 }

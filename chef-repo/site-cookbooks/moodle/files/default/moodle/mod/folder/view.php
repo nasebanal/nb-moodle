@@ -18,9 +18,10 @@
 /**
  * Folder module main user interface
  *
- * @package   mod_folder
- * @copyright 2009 Petr Skoda  {@link http://skodak.org}
- * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @package    mod
+ * @subpackage folder
+ * @copyright  2009 Petr Skoda  {@link http://skodak.org}
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 require('../../config.php');
@@ -33,31 +34,20 @@ $f  = optional_param('f', 0, PARAM_INT);   // Folder instance id
 
 if ($f) {  // Two ways to specify the module
     $folder = $DB->get_record('folder', array('id'=>$f), '*', MUST_EXIST);
-    $cm = get_coursemodule_from_instance('folder', $folder->id, $folder->course, true, MUST_EXIST);
+    $cm = get_coursemodule_from_instance('folder', $folder->id, $folder->course, false, MUST_EXIST);
 
 } else {
-    $cm = get_coursemodule_from_id('folder', $id, 0, true, MUST_EXIST);
+    $cm = get_coursemodule_from_id('folder', $id, 0, false, MUST_EXIST);
     $folder = $DB->get_record('folder', array('id'=>$cm->instance), '*', MUST_EXIST);
 }
 
 $course = $DB->get_record('course', array('id'=>$cm->course), '*', MUST_EXIST);
 
 require_course_login($course, true, $cm);
-$context = context_module::instance($cm->id);
+$context = get_context_instance(CONTEXT_MODULE, $cm->id);
 require_capability('mod/folder:view', $context);
-if ($folder->display == FOLDER_DISPLAY_INLINE) {
-    redirect(course_get_url($folder->course, $cm->sectionnum));
-}
 
-$params = array(
-    'context' => $context,
-    'objectid' => $folder->id
-);
-$event = \mod_folder\event\course_module_viewed::create($params);
-$event->add_record_snapshot('course_modules', $cm);
-$event->add_record_snapshot('course', $course);
-$event->add_record_snapshot('folder', $folder);
-$event->trigger();
+add_to_log($course->id, 'folder', 'view', 'view.php?id='.$cm->id, $folder->id, $cm->id);
 
 // Update 'viewed' state if required by completion system
 $completion = new completion_info($course);
@@ -76,6 +66,20 @@ echo $output->header();
 
 echo $output->heading(format_string($folder->name), 2);
 
-echo $output->display_folder($folder);
+if (trim(strip_tags($folder->intro))) {
+    echo $output->box_start('mod_introbox', 'pageintro');
+    echo format_module_intro('folder', $folder, $cm->id);
+    echo $output->box_end();
+}
+
+echo $output->box_start('generalbox foldertree');
+echo $output->folder_tree($folder, $cm, $course);
+echo $output->box_end();
+
+if (has_capability('mod/folder:managefiles', $context)) {
+    echo $output->container_start('mdl-align');
+    echo $output->single_button(new moodle_url('/mod/folder/edit.php', array('id'=>$id)), get_string('edit'));
+    echo $output->container_end();
+}
 
 echo $output->footer();

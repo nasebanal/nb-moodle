@@ -1,4 +1,5 @@
 <?php
+
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -17,7 +18,8 @@
 /**
  * Private imscp module utility functions
  *
- * @package mod_imscp
+ * @package    mod
+ * @subpackage imscp
  * @copyright  2009 Petr Skoda  {@link http://skodak.org}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -28,19 +30,12 @@ require_once("$CFG->dirroot/mod/imscp/lib.php");
 require_once("$CFG->libdir/filelib.php");
 require_once("$CFG->libdir/resourcelib.php");
 
-/**
- * Print IMSCP content to page.
- *
- * @param stdClass $imscp module instance.
- * @param stdClass $cm course module.
- * @param stdClass $course record.
- */
 function imscp_print_content($imscp, $cm, $course) {
     global $PAGE, $CFG;
 
     $items = unserialize($imscp->structure);
     $first = reset($items);
-    $context = context_module::instance($cm->id);
+    $context = get_context_instance(CONTEXT_MODULE, $cm->id);
     $urlbase = "$CFG->wwwroot/pluginfile.php";
     $path = '/'.$context->id.'/mod_imscp/content/'.$imscp->revision.'/'.$first['href'];
     $firsturl = file_encode_url($urlbase, $path, false);
@@ -52,10 +47,7 @@ function imscp_print_content($imscp, $cm, $course) {
         echo imscp_htmllize_item($item, $imscp, $cm);
     }
     echo '</ul></div>';
-    echo '<div id="imscp_nav" style="display:none">';
-    echo '<button id="nav_skipprev">&lt;&lt;</button><button id="nav_prev">&lt;</button><button id="nav_up">^</button>';
-    echo '<button id="nav_next">&gt;</button><button id="nav_skipnext">&gt;&gt;</button>';
-    echo '</div>';
+    echo '<div id="imscp_nav" style="display:none"><button id="nav_skipprev">&lt;&lt;</button><button id="nav_prev">&lt;</button><button id="nav_up">^</button><button id="nav_next">&gt;</button><button id="nav_skipnext">&gt;&gt;</button></div>';
     echo '</div>';
     echo '</div>';
 
@@ -69,19 +61,15 @@ function imscp_print_content($imscp, $cm, $course) {
 function imscp_htmllize_item($item, $imscp, $cm) {
     global $CFG;
 
-    if ($item['href']) {
-        if (preg_match('|^https?://|', $item['href'])) {
-            $url = $item['href'];
-        } else {
-            $context = context_module::instance($cm->id);
-            $urlbase = "$CFG->wwwroot/pluginfile.php";
-            $path = '/'.$context->id.'/mod_imscp/content/'.$imscp->revision.'/'.$item['href'];
-            $url = file_encode_url($urlbase, $path, false);
-        }
-        $result = "<li><a href=\"$url\">".$item['title'].'</a>';
+    if (preg_match('|^https?://|', $item['href'])) {
+        $url = $item['href'];
     } else {
-        $result = '<li>'.$item['title'];
+        $context = context_module::instance($cm->id);
+        $urlbase = "$CFG->wwwroot/pluginfile.php";
+        $path = '/'.$context->id.'/mod_imscp/content/'.$imscp->revision.'/'.$item['href'];
+        $url = file_encode_url($urlbase, $path, false);
     }
+    $result = "<li><a href=\"$url\">".$item['title'].'</a>';
     if ($item['subitems']) {
         $result .= '<ul>';
         foreach ($item['subitems'] as $subitem) {
@@ -107,23 +95,21 @@ function imscp_parse_structure($imscp, $context) {
         return null;
     }
 
-    return imscp_parse_manifestfile($manifestfile->get_content(), $imscp, $context);
+    return imscp_parse_manifestfile($manifestfile->get_content());
 }
 
 /**
- * Parse the contents of a IMS package's manifest file.
+ * Parse the contents of a IMS package's manifest file
  * @param string $manifestfilecontents the contents of the manifest file
  * @return array
  */
-function imscp_parse_manifestfile($manifestfilecontents, $imscp, $context) {
+function imscp_parse_manifestfile($manifestfilecontents) {
     $doc = new DOMDocument();
-    $oldentities = libxml_disable_entity_loader(true);
     if (!$doc->loadXML($manifestfilecontents, LIBXML_NONET)) {
         return null;
     }
-    libxml_disable_entity_loader($oldentities);
 
-    // We put this fake URL as base in order to detect path changes caused by xml:base attributes.
+    // we put this fake URL as base in order to detect path changes caused by xml:base attributes
     $doc->documentURI = 'http://grrr/';
 
     $xmlorganizations = $doc->getElementsByTagName('organizations');
@@ -141,20 +127,20 @@ function imscp_parse_manifestfile($manifestfilecontents, $imscp, $context) {
     $organization = null;
     foreach ($xmlorganization as $org) {
         if (is_null($organization)) {
-            // Use first if default nor found.
+            // use first if default nor found
             $organization = $org;
         }
         if (!$org->attributes->getNamedItem('identifier')) {
             continue;
         }
         if ($default === $org->attributes->getNamedItem('identifier')->nodeValue) {
-            // Found default - use it.
+            // found default - use it
             $organization = $org;
             break;
         }
     }
 
-    // Load all resources.
+    // load all resources
     $resources = array();
 
     $xmlresources = $doc->getElementsByTagName('resource');
@@ -164,20 +150,17 @@ function imscp_parse_manifestfile($manifestfilecontents, $imscp, $context) {
         }
         $identifier = $identifier->nodeValue;
         if ($xmlbase = $res->baseURI) {
-            // Undo the fake URL, we are interested in relative links only.
+            // undo the fake URL, we are interested in relative links only
             $xmlbase = str_replace('http://grrr/', '/', $xmlbase);
             $xmlbase = rtrim($xmlbase, '/').'/';
         } else {
             $xmlbase = '';
         }
         if (!$href = $res->attributes->getNamedItem('href')) {
-            // If href not found look for <file href="help.htm"/>.
+            // If href not found look for <file href="help.htm"/>
             $fileresources = $res->getElementsByTagName('file');
             foreach ($fileresources as $file) {
                 $href = $file->getAttribute('href');
-            }
-            if (pathinfo($href, PATHINFO_EXTENSION) == 'xml') {
-                $href = imscp_recursive_href($href, $imscp, $context);
             }
             if (empty($href)) {
                 continue;
@@ -188,7 +171,7 @@ function imscp_parse_manifestfile($manifestfilecontents, $imscp, $context) {
         if (strpos($href, 'http://') !== 0) {
             $href = $xmlbase.$href;
         }
-        // Item href cleanup - Some packages are poorly done and use \ in urls.
+        // href cleanup - Some packages are poorly done and use \ in urls
         $href = ltrim(strtr($href, "\\", '/'), '/');
         $resources[$identifier] = $href;
     }
@@ -206,47 +189,6 @@ function imscp_parse_manifestfile($manifestfilecontents, $imscp, $context) {
     return $items;
 }
 
-function imscp_recursive_href($manifestfilename, $imscp, $context) {
-    $fs = get_file_storage();
-
-    $dirname = dirname($manifestfilename);
-    $filename = basename($manifestfilename);
-
-    if ($dirname !== '/') {
-        $dirname = "/$dirname/";
-    }
-
-    if (!$manifestfile = $fs->get_file($context->id, 'mod_imscp', 'content', $imscp->revision, $dirname, $filename)) {
-        return null;
-    }
-
-    $doc = new DOMDocument();
-    $oldentities = libxml_disable_entity_loader(true);
-    if (!$doc->loadXML($manifestfile->get_content(), LIBXML_NONET)) {
-        return null;
-    }
-    libxml_disable_entity_loader($oldentities);
-
-    $xmlresources = $doc->getElementsByTagName('resource');
-    foreach ($xmlresources as $res) {
-        if (!$href = $res->attributes->getNamedItem('href')) {
-            $fileresources = $res->getElementsByTagName('file');
-            foreach ($fileresources as $file) {
-                $href = $file->getAttribute('href');
-                if (pathinfo($href, PATHINFO_EXTENSION) == 'xml') {
-                    $href = imscp_recursive_href($href, $imscp, $context);
-                }
-
-                if (pathinfo($href, PATHINFO_EXTENSION) == 'htm' || pathinfo($href, PATHINFO_EXTENSION) == 'html') {
-                    return $href;
-                }
-            }
-        }
-    }
-
-    return $href;
-}
-
 function imscp_recursive_item($xmlitem, $level, $resources) {
     $identifierref = '';
     if ($identifierref = $xmlitem->attributes->getNamedItem('identifierref')) {
@@ -261,7 +203,7 @@ function imscp_recursive_item($xmlitem, $level, $resources) {
             $title = $child->textContent;
 
         } else if ($child->nodeName === 'item') {
-            if ($subitem = imscp_recursive_item($child, $level + 1, $resources)) {
+            if ($subitem = imscp_recursive_item($child, $level+1, $resources)) {
                 $subitems[] = $subitem;
             }
         }
@@ -276,9 +218,6 @@ function imscp_recursive_item($xmlitem, $level, $resources) {
 
 /**
  * File browsing support class
- *
- * @copyright  2009 Petr Skoda  {@link http://skodak.org}
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class imscp_file_info extends file_info {
     protected $course;
@@ -301,12 +240,12 @@ class imscp_file_info extends file_info {
      * @return array with keys contextid, filearea, itemid, filepath and filename
      */
     public function get_params() {
-        return array('contextid' => $this->context->id,
-                     'component' => 'mod_imscp',
-                     'filearea'  => $this->filearea,
-                     'itemid'    => null,
-                     'filepath'  => null,
-                     'filename'  => null);
+        return array('contextid'=>$this->context->id,
+                     'component'=>'mod_imscp',
+                     'filearea' =>$this->filearea,
+                     'itemid'   =>null,
+                     'filepath' =>null,
+                     'filename' =>null);
     }
 
     /**

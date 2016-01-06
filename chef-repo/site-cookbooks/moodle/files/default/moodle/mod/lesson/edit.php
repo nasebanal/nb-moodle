@@ -18,7 +18,8 @@
 /**
  * Provides the interface for overall authoring of lessons
  *
- * @package mod_lesson
+ * @package    mod
+ * @subpackage lesson
  * @copyright  1999 onwards Martin Dougiamas  {@link http://moodle.com}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  **/
@@ -28,13 +29,13 @@ require_once($CFG->dirroot.'/mod/lesson/locallib.php');
 
 $id = required_param('id', PARAM_INT);
 
-$cm = get_coursemodule_from_id('lesson', $id, 0, false, MUST_EXIST);
+$cm = get_coursemodule_from_id('lesson', $id, 0, false, MUST_EXIST);;
 $course = $DB->get_record('course', array('id' => $cm->course), '*', MUST_EXIST);
 $lesson = new lesson($DB->get_record('lesson', array('id' => $cm->instance), '*', MUST_EXIST));
 
 require_login($course, false, $cm);
 
-$context = context_module::instance($cm->id);
+$context = get_context_instance(CONTEXT_MODULE, $cm->id);
 require_capability('mod/lesson:manage', $context);
 
 $mode    = optional_param('mode', get_user_preferences('lesson_view', 'collapsed'), PARAM_ALPHA);
@@ -46,7 +47,7 @@ if ($mode != get_user_preferences('lesson_view', 'collapsed') && $mode !== 'sing
 
 $lessonoutput = $PAGE->get_renderer('mod_lesson');
 $PAGE->navbar->add(get_string('edit'));
-echo $lessonoutput->header($lesson, $cm, $mode, false, null, get_string('edit', 'lesson'));
+echo $lessonoutput->header($lesson, $cm, $mode);
 
 if (!$lesson->has_pages()) {
     // There are no pages; give teacher some options

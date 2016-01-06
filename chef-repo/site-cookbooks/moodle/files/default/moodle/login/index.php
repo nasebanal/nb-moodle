@@ -25,13 +25,6 @@
  */
 
 require('../config.php');
-require_once('lib.php');
-
-// Try to prevent searching for sites that allow sign-up.
-if (!isset($CFG->additionalhtmlhead)) {
-    $CFG->additionalhtmlhead = '';
-}
-$CFG->additionalhtmlhead .= '<meta name="robots" content="noindex" />';
 
 redirect_if_major_upgrade_required();
 
@@ -45,7 +38,7 @@ if ($cancel) {
 //HTTPS is required in this page when $CFG->loginhttps enabled
 $PAGE->https_required();
 
-$context = context_system::instance();
+$context = get_context_instance(CONTEXT_SYSTEM);
 $PAGE->set_url("$CFG->httpswwwroot/login/index.php");
 $PAGE->set_context($context);
 $PAGE->set_pagelayout('login');
@@ -93,10 +86,6 @@ foreach($authsequence as $authname) {
 /// Define variables used in page
 $site = get_site();
 
-// Ignore any active pages in the navigation/settings.
-// We do this because there won't be an active page there, and by ignoring the active pages the
-// navigation and settings won't be initialised unless something else needs them.
-$PAGE->navbar->ignore_active();
 $loginsite = get_string("loginsite");
 $PAGE->navbar->add($loginsite);
 
@@ -124,7 +113,7 @@ if ($user !== false or $frm !== false or $errormsg !== '') {
 
 if ($frm and isset($frm->username)) {                             // Login WITH cookies
 
-    $frm->username = trim(core_text::strtolower($frm->username));
+    $frm->username = trim(textlib::strtolower($frm->username));
 
     if (is_enabled_auth('none') ) {
         if ($frm->username !== clean_param($frm->username, PARAM_USERNAME)) {
@@ -141,7 +130,7 @@ if ($frm and isset($frm->username)) {                             // Login WITH 
         $frm = false;
     } else {
         if (empty($errormsg)) {
-            $user = authenticate_user_login($frm->username, $frm->password, false, $errorcode);
+            $user = authenticate_user_login($frm->username, $frm->password);
         }
     }
 
@@ -158,6 +147,8 @@ if ($frm and isset($frm->username)) {                             // Login WITH 
         echo $OUTPUT->footer();
         die;
     }
+
+    update_login_count();
 
     if ($user) {
 
@@ -182,9 +173,9 @@ if ($frm and isset($frm->username)) {                             // Login WITH 
         }
 
     /// Let's get them all set up.
+        add_to_log(SITEID, 'user', 'login', "view.php?id=$USER->id&course=".SITEID,
+                   $user->id, 0, $user->id);
         complete_user_login($user);
-
-        \core\session\manager::apply_concurrent_login_limit($user->id, session_id());
 
         // sets the username cookie
         if (!empty($CFG->nolastloggedin)) {
@@ -200,12 +191,36 @@ if ($frm and isset($frm->username)) {                             // Login WITH 
             set_moodle_cookie($USER->username);
         }
 
-        $urltogo = core_login_get_return_url();
+    /// Prepare redirection
+        if (user_not_fully_set_up($USER)) {
+            $urltogo = $CFG->wwwroot.'/user/edit.php';
+            // We don't delete $SESSION->wantsurl yet, so we get there later
+
+        } else if (isset($SESSION->wantsurl) and (strpos($SESSION->wantsurl, $CFG->wwwroot) === 0 or strpos($SESSION->wantsurl, str_replace('http://', 'https://', $CFG->wwwroot)) === 0)) {
+            $urltogo = $SESSION->wantsurl;    /// Because it's an address in this site
+            unset($SESSION->wantsurl);
+
+        } else {
+            // no wantsurl stored or external - go to homepage
+            $urltogo = $CFG->wwwroot.'/';
+            unset($SESSION->wantsurl);
+        }
+
+        // If the url to go to is the same as the site page, check for default homepage.
+        if ($urltogo == ($CFG->wwwroot . '/')) {
+            $home_page = get_home_page();
+            // Go to my-moodle page instead of site homepage if defaulthomepage set to homepage_my
+            if ($home_page == HOMEPAGE_MY && !is_siteadmin() && !isguestuser()) {
+                if ($urltogo == $CFG->wwwroot or $urltogo == $CFG->wwwroot.'/' or $urltogo == $CFG->wwwroot.'/index.php') {
+                    $urltogo = $CFG->wwwroot.'/my/';
+                }
+            }
+        }
 
     /// check if user password has expired
     /// Currently supported only for ldap-authentication module
         $userauth = get_auth_plugin($USER->auth);
-        if (!isguestuser() and !empty($userauth->config->expiration) and $userauth->config->expiration == 1) {
+        if (!empty($userauth->config->expiration) and $userauth->config->expiration == 1) {
             if ($userauth->can_change_password()) {
                 $passwordchangeurl = $userauth->change_password_url();
                 if (!$passwordchangeurl) {
@@ -230,8 +245,7 @@ if ($frm and isset($frm->username)) {                             // Login WITH 
             }
         }
 
-        // Discard any errors before the last redirect.
-        unset($SESSION->loginerrormsg);
+        reset_login_count();
 
         // test the session actually works by redirecting to self
         $SESSION->wantsurl = $urltogo;
@@ -239,12 +253,8 @@ if ($frm and isset($frm->username)) {                             // Login WITH 
 
     } else {
         if (empty($errormsg)) {
-            if ($errorcode == AUTH_LOGIN_UNAUTHORISED) {
-                $errormsg = get_string("unauthorisedlogin", "", $frm->username);
-            } else {
-                $errormsg = get_string("invalidlogin");
-                $errorcode = 3;
-            }
+            $errormsg = get_string("invalidlogin");
+            $errorcode = 3;
         }
     }
 }
@@ -258,16 +268,12 @@ if ($session_has_timed_out and !data_submitted()) {
 /// First, let's remember where the user was trying to get to before they got here
 
 if (empty($SESSION->wantsurl)) {
-    $SESSION->wantsurl = null;
-    $referer = get_local_referer(false);
-    if ($referer &&
-            $referer != $CFG->wwwroot &&
-            $referer != $CFG->wwwroot . '/' &&
-            $referer != $CFG->httpswwwroot . '/login/' &&
-            strpos($referer, $CFG->httpswwwroot . '/login/?') !== 0 &&
-            strpos($referer, $CFG->httpswwwroot . '/login/index.php') !== 0) { // There might be some extra params such as ?lang=.
-        $SESSION->wantsurl = $referer;
-    }
+    $SESSION->wantsurl = (array_key_exists('HTTP_REFERER',$_SERVER) &&
+                          $_SERVER["HTTP_REFERER"] != $CFG->wwwroot &&
+                          $_SERVER["HTTP_REFERER"] != $CFG->wwwroot.'/' &&
+                          $_SERVER["HTTP_REFERER"] != $CFG->httpswwwroot.'/login/' &&
+                          $_SERVER["HTTP_REFERER"] != $CFG->httpswwwroot.'/login/index.php')
+        ? $_SERVER["HTTP_REFERER"] : NULL;
 }
 
 /// Redirect to alternative login URL if needed
@@ -326,23 +332,6 @@ $potentialidps = array();
 foreach($authsequence as $authname) {
     $authplugin = get_auth_plugin($authname);
     $potentialidps = array_merge($potentialidps, $authplugin->loginpage_idp_list($SESSION->wantsurl));
-}
-
-if (!empty($SESSION->loginerrormsg)) {
-    // We had some errors before redirect, show them now.
-    $errormsg = $SESSION->loginerrormsg;
-    unset($SESSION->loginerrormsg);
-
-} else if ($testsession) {
-    // No need to redirect here.
-    unset($SESSION->loginerrormsg);
-
-} else if ($errormsg or !empty($frm->password)) {
-    // We must redirect after every password submission.
-    if ($errormsg) {
-        $SESSION->loginerrormsg = $errormsg;
-    }
-    redirect(new moodle_url('/login/index.php'));
 }
 
 $PAGE->set_title("$site->fullname: $loginsite");

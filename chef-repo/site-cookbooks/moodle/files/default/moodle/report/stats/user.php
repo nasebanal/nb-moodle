@@ -35,13 +35,6 @@ $course = $DB->get_record('course', array('id'=>$courseid), '*', MUST_EXIST);
 $coursecontext   = context_course::instance($course->id);
 $personalcontext = context_user::instance($user->id);
 
-$pageheading = $course->fullname;
-$userfullname = fullname($user);
-if ($courseid == SITEID) {
-    $PAGE->set_context($personalcontext);
-    $pageheading = $userfullname;
-}
-
 if ($USER->id != $user->id and has_capability('moodle/user:viewuseractivitiesreport', $personalcontext)
         and !is_enrolled($coursecontext, $USER) and is_enrolled($coursecontext, $user)) {
     //TODO: do not require parents to be enrolled in courses - this is a hack!
@@ -53,37 +46,21 @@ if ($USER->id != $user->id and has_capability('moodle/user:viewuseractivitiesrep
 
 if (!report_stats_can_access_user_report($user, $course, true)) {
     // this should never happen
-    print_error('nocapability', 'report_stats');
+    error('Can not access user statistics report');
 }
+
+add_to_log($course->id, 'course', 'report stats', "report/stats/user.php?id=$user->id&course=$course->id", $course->id);
 
 $stractivityreport = get_string('activityreport');
 
-$PAGE->set_pagelayout('report');
+$PAGE->set_pagelayout('admin');
 $PAGE->set_url('/report/stats/user.php', array('id'=>$user->id, 'course'=>$course->id));
 $PAGE->navigation->extend_for_user($user);
 $PAGE->navigation->set_userid_for_parent_checks($user->id); // see MDL-25805 for reasons and for full commit reference for reversal when fixed.
-// Breadcrumb stuff.
-$navigationnode = array(
-        'name' => get_string('stats'),
-        'url' => new moodle_url('/report/stats/user.php', array('id' => $user->id, 'course' => $course->id))
-    );
-$PAGE->add_report_nodes($user->id, $navigationnode);
-
 $PAGE->set_title("$course->shortname: $stractivityreport");
-$PAGE->set_heading($pageheading);
+$PAGE->set_heading($course->fullname);
 echo $OUTPUT->header();
-if ($courseid != SITEID) {
-    echo $OUTPUT->context_header(
-            array(
-            'heading' => $userfullname,
-            'user' => $user,
-            'usercontext' => $personalcontext
-        ), 2);
-}
 
-// Trigger a user report viewed event.
-$event = \report_stats\event\user_report_viewed::create(array('context' => $coursecontext, 'relateduserid' => $user->id));
-$event->trigger();
 
 if (empty($CFG->enablestats)) {
     print_error('statsdisable', 'error');
@@ -119,15 +96,14 @@ if (empty($timeoptions)) {
 }
 
 // use the earliest.
-$timekeys = array_keys($timeoptions);
-$time = array_pop($timekeys);
+$time = array_pop(array_keys($timeoptions));
 
 $param = stats_get_parameters($time,STATS_REPORT_USER_VIEW,$course->id,STATS_MODE_DETAILED);
 $params = $param->params;
 
 $param->table = 'user_'.$param->table;
 
-$sql = 'SELECT id, timeend,'.$param->fields.' FROM {stats_'.$param->table.'} WHERE '
+$sql = 'SELECT timeend,'.$param->fields.' FROM {stats_'.$param->table.'} WHERE '
 .(($course->id == SITEID) ? '' : ' courseid = '.$course->id.' AND ')
     .' userid = '.$user->id.' AND timeend >= '.$param->timeafter .$param->extras
     .' ORDER BY timeend DESC';
@@ -137,7 +113,9 @@ if (empty($stats)) {
     print_error('nostatstodisplay', '', $CFG->wwwroot.'/course/user.php?id='.$course->id.'&user='.$user->id.'&mode=outline');
 }
 
-echo '<center><img src="'.$CFG->wwwroot.'/report/stats/graph.php?mode='.STATS_MODE_DETAILED.'&course='.$course->id.'&time='.$time.'&report='.STATS_REPORT_USER_VIEW.'&userid='.$user->id.'" alt="'.get_string('statisticsgraph').'" /></center>';
+if (!empty($CFG->gdversion)) {
+    echo '<center><img src="'.$CFG->wwwroot.'/report/stats/graph.php?mode='.STATS_MODE_DETAILED.'&course='.$course->id.'&time='.$time.'&report='.STATS_REPORT_USER_VIEW.'&userid='.$user->id.'" alt="'.get_string('statisticsgraph').'" /></center>';
+}
 
 // What the heck is this about?   -- MD
 $stats = stats_fix_zeros($stats,$param->timeafter,$param->table,(!empty($param->line2)),(!empty($param->line3)));

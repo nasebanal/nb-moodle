@@ -28,13 +28,15 @@
  */
 define('NO_DEBUG_DISPLAY', true);
 
-define('WS_SERVER', true);
+/**
+ * NO_MOODLE_COOKIES - no cookies with web service
+ */
+define('NO_MOODLE_COOKIES', true);
 
 require('../../config.php');
 require_once("$CFG->dirroot/webservice/rest/locallib.php");
 
 if (!webservice_protocol_is_enabled('rest')) {
-    header("HTTP/1.0 403 Forbidden");
     debugging('The server died because the web services or the REST protocol are not enable',
         DEBUG_DEVELOPER);
     die;

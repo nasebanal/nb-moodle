@@ -22,19 +22,6 @@ class grade_export_ods extends grade_export {
     public $plugin = 'ods';
 
     /**
-     * Constructor should set up all the private variables ready to be pulled
-     * @param object $course
-     * @param int $groupid id of selected group, 0 means all
-     * @param stdClass $formdata The validated data from the grade export form.
-     */
-    public function __construct($course, $groupid, $formdata) {
-        parent::__construct($course, $groupid, $formdata);
-
-        // Overrides.
-        $this->usercustomfields = true;
-    }
-
-    /**
      * To be implemented by child classes
      */
     function print_grades() {
@@ -45,73 +32,62 @@ class grade_export_ods extends grade_export {
 
         $strgrades = get_string('grades');
 
-        $shortname = format_string($this->course->shortname, true, array('context' => context_course::instance($this->course->id)));
+        $shortname = format_string($this->course->shortname, true, array('context' => get_context_instance(CONTEXT_COURSE, $this->course->id)));
 
-        // Calculate file name
+    /// Calculate file name
         $downloadfilename = clean_filename("$shortname $strgrades.ods");
-        // Creating a workbook
+    /// Creating a workbook
         $workbook = new MoodleODSWorkbook("-");
-        // Sending HTTP headers
+    /// Sending HTTP headers
         $workbook->send($downloadfilename);
-        // Adding the worksheet
+    /// Adding the worksheet
         $myxls = $workbook->add_worksheet($strgrades);
 
-
-        // Print names of all the fields.
-        $profilefields = grade_helper::get_user_profile_fields($this->course->id, $this->usercustomfields);
-        foreach ($profilefields as $id => $field) {
-            $myxls->write_string(0, $id, $field->fullname);
-        }
-        $pos = count($profilefields);
-        if (!$this->onlyactive) {
-            $myxls->write_string(0, $pos++, get_string("suspended"));
-        }
+    /// Print names of all the fields
+        $myxls->write_string(0,0,get_string("firstname"));
+        $myxls->write_string(0,1,get_string("lastname"));
+        $myxls->write_string(0,2,get_string("idnumber"));
+        $myxls->write_string(0,3,get_string("institution"));
+        $myxls->write_string(0,4,get_string("department"));
+        $myxls->write_string(0,5,get_string("email"));
+        $pos=6;
         foreach ($this->columns as $grade_item) {
-            foreach ($this->displaytype as $gradedisplayname => $gradedisplayconst) {
-                $myxls->write_string(0, $pos++, $this->format_column_name($grade_item, false, $gradedisplayname));
-            }
+            $myxls->write_string(0, $pos++, $this->format_column_name($grade_item));
 
-            // Add a column_feedback column.
+            /// add a column_feedback column
             if ($this->export_feedback) {
                 $myxls->write_string(0, $pos++, $this->format_column_name($grade_item, true));
             }
         }
-        // Last downloaded column header.
-        $myxls->write_string(0, $pos++, get_string('timeexported', 'gradeexport_ods'));
 
-        // Print all the lines of data.
+    /// Print all the lines of data.
         $i = 0;
         $geub = new grade_export_update_buffer();
         $gui = new graded_users_iterator($this->course, $this->columns, $this->groupid);
         $gui->require_active_enrolment($this->onlyactive);
-        $gui->allow_user_custom_fields($this->usercustomfields);
         $gui->init();
         while ($userdata = $gui->next_user()) {
             $i++;
             $user = $userdata->user;
 
-            foreach($profilefields as $id => $field) {
-                $fieldvalue = grade_helper::get_user_field_value($user, $field);
-                $myxls->write_string($i, $id, $fieldvalue);
-            }
-            $j = count($profilefields);
-
-            if (!$this->onlyactive) {
-                $issuspended = ($user->suspendedenrolment) ? get_string('yes') : '';
-                $myxls->write_string($i, $j++, $issuspended);
-            }
+            $myxls->write_string($i,0,$user->firstname);
+            $myxls->write_string($i,1,$user->lastname);
+            $myxls->write_string($i,2,$user->idnumber);
+            $myxls->write_string($i,3,$user->institution);
+            $myxls->write_string($i,4,$user->department);
+            $myxls->write_string($i,5,$user->email);
+            $j=6;
             foreach ($userdata->grades as $itemid => $grade) {
                 if ($export_tracking) {
                     $status = $geub->track($grade);
                 }
 
-                foreach ($this->displaytype as $gradedisplayconst) {
-                    $gradestr = $this->format_grade($grade, $gradedisplayconst);
-                    if (is_numeric($gradestr)) {
-                        $myxls->write_number($i, $j++, $gradestr);
-                    } else {
-                        $myxls->write_string($i, $j++, $gradestr);
-                    }
+                $gradestr = $this->format_grade($grade);
+                if (is_numeric($gradestr)) {
+                    $myxls->write_number($i,$j++,$gradestr);
+                }
+                else {
+                    $myxls->write_string($i,$j++,$gradestr);
                 }
 
                 // writing feedback if requested
@@ -119,13 +95,11 @@ class grade_export_ods extends grade_export {
                     $myxls->write_string($i, $j++, $this->format_feedback($userdata->feedbacks[$itemid]));
                 }
             }
-            // Time exported.
-            $myxls->write_string($i, $j++, time());
         }
         $gui->close();
         $geub->close();
 
-        // Close the workbook.
+    /// Close the workbook
         $workbook->close();
 
         exit;

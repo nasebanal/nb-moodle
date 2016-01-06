@@ -52,11 +52,6 @@ function booktool_print_extend_settings_navigation(settings_navigation $settings
 
 /**
  * Return read actions.
- *
- * Note: This is not used by new logging system. Event with
- *       crud = 'r' and edulevel = LEVEL_PARTICIPATING will
- *       be considered as view action.
- *
  * @return array
  */
 function booktool_print_get_view_actions() {

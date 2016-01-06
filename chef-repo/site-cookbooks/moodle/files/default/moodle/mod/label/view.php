@@ -18,7 +18,8 @@
 /**
  * Label module
  *
- * @package mod_label
+ * @package    mod
+ * @subpackage label
  * @copyright  2003 onwards Martin Dougiamas  {@link http://moodle.com}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

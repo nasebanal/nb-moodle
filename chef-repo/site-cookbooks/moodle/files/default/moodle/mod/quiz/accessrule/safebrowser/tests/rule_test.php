@@ -42,6 +42,7 @@ class quizaccess_safebrowser_testcase extends basic_testcase {
     public function test_safebrowser_access_rule() {
         $quiz = new stdClass();
         $quiz->browsersecurity = 'safebrowser';
+        $quiz->questions = '';
         $cm = new stdClass();
         $cm->id = 0;
         $quizobj = new quiz($quiz, $cm, null);

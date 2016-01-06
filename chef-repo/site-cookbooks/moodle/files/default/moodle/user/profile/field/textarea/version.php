@@ -15,15 +15,14 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Version information for the textarea profile field.
- *
- * @package    profilefield_textarea
+ * @package    profilefield
+ * @subpackage textarea
  * @copyright  2007 onwards Shane Elliot {@link http://pukunui.com}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2015111600;        // The current plugin version (Date: YYYYMMDDXX)
-$plugin->requires  = 2015111000;        // Requires this Moodle version
+$plugin->version   = 2012061700;        // The current plugin version (Date: YYYYMMDDXX)
+$plugin->requires  = 2012061700;        // Requires this Moodle version
 $plugin->component = 'profilefield_textarea'; // Full name of the plugin (used for diagnostics)

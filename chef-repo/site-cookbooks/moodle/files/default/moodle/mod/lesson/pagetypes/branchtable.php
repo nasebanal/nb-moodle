@@ -18,7 +18,8 @@
 /**
  * Branch Table
  *
- * @package mod_lesson
+ * @package    mod
+ * @subpackage lesson
  * @copyright  2009 Sam Hemelryk
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  **/
@@ -145,15 +146,6 @@ class lesson_page_type_branchtable extends lesson_page {
             $output .= $renderer->slideshow_end();
         }
 
-        // Trigger an event: content page viewed.
-        $eventparams = array(
-            'context' => context_module::instance($PAGE->cm->id),
-            'objectid' => $this->properties->id
-            );
-
-        $event = \mod_lesson\event\content_page_viewed::create($eventparams);
-        $event->trigger();
-
         return $output;
     }
 
@@ -161,7 +153,7 @@ class lesson_page_type_branchtable extends lesson_page {
         global $USER, $DB, $PAGE, $CFG;
 
         require_sesskey();
-        $newpageid = optional_param('jumpto', null, PARAM_INT);
+        $newpageid = optional_param('jumpto', NULL, PARAM_INT);
         // going to insert into lesson_branch
         if ($newpageid == LESSON_RANDOMBRANCH) {
             $branchflag = 1;
@@ -173,9 +165,18 @@ class lesson_page_type_branchtable extends lesson_page {
         } else {
             $retries = 0;
         }
+        $branch = new stdClass;
+        $branch->lessonid = $this->lesson->id;
+        $branch->userid = $USER->id;
+        $branch->pageid = $this->properties->id;
+        $branch->retry = $retries;
+        $branch->flag = $branchflag;
+        $branch->timeseen = time();
+
+        $DB->insert_record("lesson_branch", $branch);
 
         //  this is called when jumping to random from a branch table
-        $context = context_module::instance($PAGE->cm->id);
+        $context = get_context_instance(CONTEXT_MODULE, $PAGE->cm->id);
         if($newpageid == LESSON_UNSEENBRANCHPAGE) {
             if (has_capability('mod/lesson:manage', $context)) {
                  $newpageid = LESSON_NEXTPAGE;
@@ -198,19 +199,8 @@ class lesson_page_type_branchtable extends lesson_page {
         } elseif ($newpageid == LESSON_RANDOMBRANCH) {
             $newpageid = lesson_unseen_branch_jump($this->lesson, $USER->id);
         }
-
-        // Record this page in lesson_branch.
-        $branch = new stdClass;
-        $branch->lessonid = $this->lesson->id;
-        $branch->userid = $USER->id;
-        $branch->pageid = $this->properties->id;
-        $branch->retry = $retries;
-        $branch->flag = $branchflag;
-        $branch->timeseen = time();
-        $branch->nextpageid = $newpageid;
-        $DB->insert_record("lesson_branch", $branch);
-
-        redirect(new moodle_url('/mod/lesson/view.php', array('id' => $PAGE->cm->id, 'pageid' => $newpageid)));
+        // no need to record anything in lesson_attempts
+        redirect(new moodle_url('/mod/lesson/view.php', array('id'=>$PAGE->cm->id,'pageid'=>$newpageid)));
     }
 
     public function display_answers(html_table $table) {
@@ -248,8 +238,6 @@ class lesson_page_type_branchtable extends lesson_page {
         $answers = $this->get_answers();
         $formattextdefoptions = new stdClass;
         $formattextdefoptions->para = false;  //I'll use it widely in this page
-        $formattextdefoptions->context = $answerpage->context;
-
         foreach ($answers as $answer) {
             $data = "<input type=\"button\" name=\"$answer->id\" value=\"".s(strip_tags(format_text($answer->answer, FORMAT_MOODLE,$formattextdefoptions)))."\" disabled=\"disabled\"> ";
             $data .= get_string('jumpsto', 'lesson', $this->get_jump_name($answer->jumpto));

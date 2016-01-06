@@ -1,4 +1,5 @@
 <?php
+
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -15,20 +16,17 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Strings for component 'enrol_cohort', language 'en'.
+ * Strings for component 'enrol_cohort', language 'en', branch 'MOODLE_20_STABLE'
  *
- * @package    enrol_cohort
+ * @package    enrol
+ * @subpackage cohort
  * @copyright  2010 Petr Skoda  {@link http://skodak.org}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-$string['addgroup'] = 'Add to group';
-$string['assignrole'] = 'Assign role';
+$string['ajaxmore'] = 'More...';
+$string['cohortsearch'] = 'Search';
 $string['cohort:config'] = 'Configure cohort instances';
 $string['cohort:unenrol'] = 'Unenrol suspended users';
-$string['defaultgroupnametext'] = '{$a->name} cohort {$a->increment}';
-$string['instanceexists'] = 'Cohort is already synchronised with selected role';
 $string['pluginname'] = 'Cohort sync';
 $string['pluginname_desc'] = 'Cohort enrolment plugin synchronises cohort members with course participants.';
-$string['status'] = 'Active';
-$string['creategroup'] = 'Create new group';

@@ -6,7 +6,7 @@
  * @author Josep Arús
  *
  * @license http://www.gnu.org/copyleft/gpl.html GNU Public License
- * @package mod_wiki
+ * @package wiki
  */
 include_once("nwiki.php");
 
@@ -17,14 +17,11 @@ class html_parser extends nwiki_parser {
 
     public function __construct() {
         parent::__construct();
-        // The order is important, headers should be parsed before links.
-        $this->tagrules = array(
-            // Headers are considered tags here.
-            'header' => array(
-                'expression' => "/<\s*h([1-$this->maxheaderdepth])\s*>(.+?)<\/h[1-$this->maxheaderdepth]>/is"
-            ),
-            'link' => $this->tagrules['link'],
-            'url' => $this->tagrules['url']
+        $this->tagrules = array('link' => $this->tagrules['link'], 'url' => $this->tagrules['url']);
+
+        //headers are considered tags here...
+        $h1 = array("<\s*h1\s*>", "<\/h1>");
+        $this->tagrules['header1'] = array('expression' => "/{$h1[0]}(.+?){$h1[1]}/is"
         );
     }
 
@@ -35,12 +32,10 @@ class html_parser extends nwiki_parser {
     }
 
     /**
-     * Header tag rule
-     * @param array $match Header regex match
-     * @return string
+     * Header 1 tag rule
      */
-    protected function header_tag_rule($match) {
-        return $this->generate_header($match[2], $match[1]);
+    protected function header1_tag_rule($match) {
+        return $this->generate_header($match[1], 1);
     }
 
     /**
@@ -56,8 +51,7 @@ class html_parser extends nwiki_parser {
 
         $h1 = array("<\s*h1\s*>", "<\/h1>");
 
-        $regex = "/(.*?)({$h1[0]}\s*".preg_quote($header, '/')."\s*{$h1[1]}.*?)((?:\n{$h1[0]}.*)|$)/is";
-        preg_match($regex, $text, $match);
+        preg_match("/(.*?)({$h1[0]}\s*\Q$header\E\s*{$h1[1]}.*?)((?:\n{$h1[0]}.*)|$)/is", $text, $match);
 
         if (!empty($match)) {
             return array($match[1], $match[2], $match[3]);
@@ -68,11 +62,11 @@ class html_parser extends nwiki_parser {
 
     protected function get_repeated_sections(&$text, $repeated = array()) {
         $this->repeated_sections = $repeated;
-        return preg_replace_callback($this->tagrules['header'], array($this, 'get_repeated_sections_callback'), $text);
+        return preg_replace_callback($this->tagrules['header1'], array($this, 'get_repeated_sections_callback'), $text);
     }
 
     protected function get_repeated_sections_callback($match) {
-        $text = trim($match[2]);
+        $text = trim($match[1]);
 
         if (in_array($text, $this->repeated_sections)) {
             $this->returnvalues['repeated_sections'][] = $text;

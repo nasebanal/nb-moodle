@@ -8,9 +8,9 @@ function textrotate_make_svg(el)
   var abs=document.createElement('div');
   abs.appendChild(document.createTextNode(string));
   abs.style.position='absolute';
-  document.body.appendChild(abs);
-  var textWidth=abs.offsetWidth * 1.2,textHeight=abs.offsetHeight;
-  document.body.removeChild(abs);
+  el.parentNode.insertBefore(abs,el);
+  var textWidth=abs.offsetWidth,textHeight=abs.offsetHeight;
+  el.parentNode.removeChild(abs);
 
   // Create SVG
   var svg=document.createElementNS(SVGNS,'svg');
@@ -48,18 +48,8 @@ function textrotate_make_svg(el)
   el.parentNode.removeChild(el);
 }
 
-function browser_supports_svg() {
-    return document.implementation.hasFeature("http://www.w3.org/TR/SVG11/feature#BasicStructure", "1.1");
-}
-
 function textrotate_init() {
-    if (!browser_supports_svg()) {
-        // Feature detect, else bail.
-        return;
-    }
-
-YUI().use('yui2-dom', function(Y) {
-  var elements= Y.YUI2.util.Dom.getElementsByClassName('completion-activityname', 'span');
+  var elements=YAHOO.util.Dom.getElementsByClassName('completion-activityname', 'span');
   for(var i=0;i<elements.length;i++)
   {
     var el=elements[i];
@@ -67,7 +57,7 @@ YUI().use('yui2-dom', function(Y) {
     textrotate_make_svg(el);
   }
 
-  elements= Y.YUI2.util.Dom.getElementsByClassName('completion-expected', 'div');
+  elements=YAHOO.util.Dom.getElementsByClassName('completion-expected', 'div');
   for(var i=0;i<elements.length;i++)
   {
     var el=elements[i];
@@ -78,17 +68,18 @@ YUI().use('yui2-dom', function(Y) {
     textrotate_make_svg(el.firstChild);
   }
 
-  elements= Y.YUI2.util.Dom.getElementsByClassName('rotateheaders', 'table');
+  elements=YAHOO.util.Dom.getElementsByClassName('rotateheaders', 'table');
   for(var i=0;i<elements.length;i++)
   {
     var table=elements[i];
-    var headercells = Y.YUI2.util.Dom.getElementsByClassName('header', 'th', table);
+    var headercells = YAHOO.util.Dom.getElementsByClassName('header', 'th', table);
     for(var j=0;j<headercells.length;j++)
     {
       var el=headercells[j];
       textrotate_make_svg(el.firstChild);
     }
   }
-});
 }
+
+YAHOO.util.Event.onDOMReady(textrotate_init);
 

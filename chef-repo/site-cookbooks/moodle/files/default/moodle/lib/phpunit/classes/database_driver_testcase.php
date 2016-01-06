@@ -45,7 +45,7 @@
  * @copyright  2012 Petr Skoda {@link http://skodak.org}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-abstract class database_driver_testcase extends base_testcase {
+abstract class database_driver_testcase extends PHPUnit_Framework_TestCase {
     /** @var moodle_database connection to extra database */
     private static $extradb = null;
 
@@ -130,7 +130,7 @@ abstract class database_driver_testcase extends base_testcase {
             self::$extradb->dispose();
             self::$extradb = null;
         }
-        phpunit_util::reset_all_data(null);
+        phpunit_util::reset_all_data();
         parent::tearDownAfterClass();
     }
 
@@ -149,72 +149,5 @@ abstract class database_driver_testcase extends base_testcase {
             $this->tearDown();
             throw $e;
         }
-    }
-
-    /**
-     * Return debugging messages from the current test.
-     * @return array with instances having 'message', 'level' and 'stacktrace' property.
-     */
-    public function getDebuggingMessages() {
-        return phpunit_util::get_debugging_messages();
-    }
-
-    /**
-     * Clear all previous debugging messages in current test.
-     */
-    public function resetDebugging() {
-        phpunit_util::reset_debugging();
-    }
-
-    /**
-     * Assert that exactly debugging was just called once.
-     *
-     * Discards the debugging message if successful.
-     *
-     * @param null|string $debugmessage null means any
-     * @param null|string $debuglevel null means any
-     * @param string $message
-     */
-    public function assertDebuggingCalled($debugmessage = null, $debuglevel = null, $message = '') {
-        $debugging = $this->getDebuggingMessages();
-        $count = count($debugging);
-
-        if ($count == 0) {
-            if ($message === '') {
-                $message = 'Expectation failed, debugging() not triggered.';
-            }
-            $this->fail($message);
-        }
-        if ($count > 1) {
-            if ($message === '') {
-                $message = 'Expectation failed, debugging() triggered '.$count.' times.';
-            }
-            $this->fail($message);
-        }
-        $this->assertEquals(1, $count);
-
-        $debug = reset($debugging);
-        if ($debugmessage !== null) {
-            $this->assertSame($debugmessage, $debug->message, $message);
-        }
-        if ($debuglevel !== null) {
-            $this->assertSame($debuglevel, $debug->level, $message);
-        }
-
-        $this->resetDebugging();
-    }
-
-    /**
-     * Call when no debugging() messages expected.
-     * @param string $message
-     */
-    public function assertDebuggingNotCalled($message = '') {
-        $debugging = $this->getDebuggingMessages();
-        $count = count($debugging);
-
-        if ($message === '') {
-            $message = 'Expectation failed, debugging() was triggered.';
-        }
-        $this->assertEquals(0, $count, $message);
     }
 }

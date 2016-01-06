@@ -1,4 +1,5 @@
 <?php
+
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -32,7 +33,7 @@
  * @todo MDL-36050 improve capability check on stick blocks, so we can check user capability before sending images.
  */
 function block_html_pluginfile($course, $birecord_or_cm, $context, $filearea, $args, $forcedownload, array $options=array()) {
-    global $DB, $CFG, $USER;
+    global $DB, $CFG;
 
     if ($context->contextlevel != CONTEXT_BLOCK) {
         send_file_not_found();
@@ -52,11 +53,8 @@ function block_html_pluginfile($course, $birecord_or_cm, $context, $filearea, $a
             if (!$category->visible) {
                 require_capability('moodle/category:viewhiddencategories', $parentcontext);
             }
-        } else if ($parentcontext->contextlevel === CONTEXT_USER && $parentcontext->instanceid != $USER->id) {
-            // The block is in the context of a user, it is only visible to the user who it belongs to.
-            send_file_not_found();
         }
-        // At this point there is no way to check SYSTEM context, so ignoring it.
+        // At this point there is no way to check SYSTEM or USER context, so ignoring it.
     }
 
     if ($filearea !== 'content') {
@@ -72,7 +70,7 @@ function block_html_pluginfile($course, $birecord_or_cm, $context, $filearea, $a
         send_file_not_found();
     }
 
-    if ($parentcontext = context::instance_by_id($birecord_or_cm->parentcontextid, IGNORE_MISSING)) {
+    if ($parentcontext = get_context_instance_by_id($birecord_or_cm->parentcontextid)) {
         if ($parentcontext->contextlevel == CONTEXT_USER) {
             // force download on all personal pages including /my/
             //because we do not have reliable way to find out from where this is used
@@ -83,10 +81,8 @@ function block_html_pluginfile($course, $birecord_or_cm, $context, $filearea, $a
         $forcedownload = true;
     }
 
-    // NOTE: it woudl be nice to have file revisions here, for now rely on standard file lifetime,
-    //       do not lower it because the files are dispalyed very often.
-    \core\session\manager::write_close();
-    send_stored_file($file, null, 0, $forcedownload, $options);
+    session_get_instance()->write_close();
+    send_stored_file($file, 60*60, 0, $forcedownload, $options);
 }
 
 /**

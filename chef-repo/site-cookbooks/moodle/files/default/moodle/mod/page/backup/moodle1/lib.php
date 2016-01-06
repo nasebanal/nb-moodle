@@ -18,7 +18,8 @@
 /**
  * Provides support for the conversion of moodle1 backup to the moodle2 format
  *
- * @package mod_page
+ * @package    mod
+ * @subpackage page
  * @copyright  2011 Andrew Davis <andrew@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -72,7 +73,7 @@ class moodle1_mod_page_handler extends moodle1_resource_successor_handler {
         $page['timemodified']       = $data['timemodified'];
 
         // populate display and displayoptions fields
-        $options = array('printheading' => 1, 'printintro' => 0);
+        $options = array('printheading' => 0, 'printintro' => 0);
         if ($data['popup']) {
             $page['display'] = RESOURCELIB_DISPLAY_POPUP;
             $rawoptions = explode(',', $data['popup']);

@@ -37,9 +37,10 @@ if (!$course = $DB->get_record('course', array('id'=>$id))) {
 }
 
 require_login($course);
-$context = context_course::instance($course->id);
 
-\core\event\recent_activity_viewed::create(array('context' => $context))->trigger();
+add_to_log($course->id, "course", "recent", "recent.php?id=$course->id", $course->id);
+
+$context = get_context_instance(CONTEXT_COURSE, $course->id);
 
 $lastlogin = time() - COURSE_MAX_RECENT_PERIOD;
 if (!isguestuser() and !empty($USER->lastcourseaccess[$COURSE->id])) {
@@ -83,7 +84,7 @@ echo $OUTPUT->heading(format_string($course->fullname) . ": $userinfo", 2);
 $mform->display();
 
 $modinfo = get_fast_modinfo($course);
-$modnames = get_module_types_names();
+get_all_mods($course->id, $mods, $modnames, $modnamesplural, $modnamesused);
 
 if (has_capability('moodle/course:viewhiddensections', $context)) {
     $hiddenfilter = "";
@@ -91,9 +92,11 @@ if (has_capability('moodle/course:viewhiddensections', $context)) {
     $hiddenfilter = "AND cs.visible = 1";
 }
 $sections = array();
-foreach ($modinfo->get_section_info_all() as $i => $section) {
-    if (!empty($section->uservisible)) {
-        $sections[$i] = $section;
+$rawsections = array_slice(get_all_sections($course->id), 0, $course->numsections+1, true);
+$canviewhidden = has_capability('moodle/course:viewhiddensections', $context);
+foreach ($rawsections as $section) {
+    if ($canviewhidden || !empty($section->visible)) {
+        $sections[$section->section] = $section;
     }
 }
 
@@ -113,15 +116,20 @@ if ($param->modid === 'all') {
     }
 
 } else if (is_numeric($param->modid)) {
-    $sectionnum = $modinfo->cms[$param->modid]->sectionnum;
-    $filter_modid = $param->modid;
-    $sections = array($sectionnum => $sections[$sectionnum]);
+    $section = $sections[$modinfo->cms[$param->modid]->sectionnum];
+    $section->sequence = $param->modid;
+    $sections = array($section->sequence=>$section);
+}
+
+
+if (is_null($modinfo->groups)) {
+    $modinfo->groups = groups_get_user_groups($course->id); // load all my groups and cache it in modinfo
 }
 
 $activities = array();
 $index = 0;
 
-foreach ($sections as $sectionnum => $section) {
+foreach ($sections as $section) {
 
     $activity = new stdClass();
     $activity->type = 'section';
@@ -134,11 +142,17 @@ foreach ($sections as $sectionnum => $section) {
     $activity->visible = $section->visible;
     $activities[$index++] = $activity;
 
-    if (empty($modinfo->sections[$sectionnum])) {
+    if (empty($section->sequence)) {
         continue;
     }
 
-    foreach ($modinfo->sections[$sectionnum] as $cmid) {
+    $sectionmods = explode(",", $section->sequence);
+
+    foreach ($sectionmods as $cmid) {
+        if (!isset($mods[$cmid]) or !isset($modinfo->cms[$cmid])) {
+            continue;
+        }
+
         $cm = $modinfo->cms[$cmid];
 
         if (!$cm->uservisible) {
@@ -146,10 +160,6 @@ foreach ($sections as $sectionnum => $section) {
         }
 
         if (!empty($filter) and $cm->modname != $filter) {
-            continue;
-        }
-
-        if (!empty($filter_modid) and $cmid != $filter_modid) {
             continue;
         }
 
@@ -212,7 +222,7 @@ if (!empty($activities)) {
                 echo $OUTPUT->spacer(array('height'=>30, 'br'=>true)); // should be done with CSS instead
             }
             echo $OUTPUT->box_start();
-            if (strval($activity->name) !== '') {
+            if (!empty($activity->name)) {
                 echo html_writer::tag('h2', $activity->name);
             }
             $inbox = true;
@@ -239,7 +249,7 @@ if (!empty($activities)) {
         } else {
 
             if (!isset($viewfullnames[$activity->cmid])) {
-                $cm_context = context_module::instance($activity->cmid);
+                $cm_context = get_context_instance(CONTEXT_MODULE, $activity->cmid);
                 $viewfullnames[$activity->cmid] = has_capability('moodle/site:viewfullnames', $cm_context);
             }
 
@@ -268,4 +278,40 @@ if (!empty($activities)) {
 }
 
 echo $OUTPUT->footer();
+
+function compare_activities_by_time_desc($a, $b) {
+    // make sure the activities actually have a timestamp property
+    if ((!array_key_exists('timestamp', $a)) && (!array_key_exists('timestamp', $b))) {
+        return 0;
+    }
+    // We treat instances without timestamp as if they have a timestamp of 0.
+    if ((!array_key_exists('timestamp', $a)) && (array_key_exists('timestamp', $b))) {
+        return 1;
+    }
+    if ((array_key_exists('timestamp', $a)) && (!array_key_exists('timestamp', $b))) {
+        return -1;
+    }
+    if ($a->timestamp == $b->timestamp) {
+        return 0;
+    }
+    return ($a->timestamp > $b->timestamp) ? -1 : 1;
+}
+
+function compare_activities_by_time_asc($a, $b) {
+    // make sure the activities actually have a timestamp property
+    if ((!array_key_exists('timestamp', $a)) && (!array_key_exists('timestamp', $b))) {
+      return 0;
+    }
+    // We treat instances without timestamp as if they have a timestamp of 0.
+    if ((!array_key_exists('timestamp', $a)) && (array_key_exists('timestamp', $b))) {
+        return -1;
+    }
+    if ((array_key_exists('timestamp', $a)) && (!array_key_exists('timestamp', $b))) {
+        return 1;
+    }
+    if ($a->timestamp == $b->timestamp) {
+        return 0;
+    }
+    return ($a->timestamp < $b->timestamp) ? -1 : 1;
+}
 

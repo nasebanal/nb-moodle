@@ -1,4 +1,5 @@
 <?php
+
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -17,8 +18,8 @@
 /**
  * Form for editing settings navigation instances.
  *
- * @since Moodle 2.0
- * @package block_settings
+ * @since 2.0
+ * @package blocks
  * @copyright 2009 Sam Hemelryk
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -26,7 +27,7 @@
 /**
  * Form for setting navigation instances.
  *
- * @package block_settings
+ * @package blocks
  * @copyright 2009 Sam Hemelryk
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

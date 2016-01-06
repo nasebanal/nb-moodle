@@ -466,9 +466,6 @@ class moodle1_converter extends base_converter {
         if (empty($record)) {
             throw new moodle1_convert_empty_storage_exception('required_not_stashed_data', array($stashname, $itemid));
         } else {
-            if (empty($record->info)) {
-                return array();
-            }
             return $record->info;
         }
     }
@@ -531,8 +528,7 @@ class moodle1_converter extends base_converter {
      * CONTEXT_SYSTEM and CONTEXT_COURSE ignore the $instance as they represent a
      * single system or the course being restored.
      *
-     * @see context_system::instance()
-     * @see context_course::instance()
+     * @see get_context_instance()
      * @param int $level the context level, like CONTEXT_COURSE or CONTEXT_MODULE
      * @param int $instance the instance id, for example $course->id for courses or $cm->id for activity modules
      * @return int the context id
@@ -864,15 +860,6 @@ class convert_path {
 
     /**
      * Constructor
-     *
-     * The optional recipe array can have three keys, and for each key, the value is another array.
-     * - newfields    => array fieldname => defaultvalue indicates fields that have been added to the table,
-     *                                                   and so should be added to the XML.
-     * - dropfields   => array fieldname                 indicates fieldsthat have been dropped from the table,
-     *                                                   and so can be dropped from the XML.
-     * - renamefields => array oldname => newname        indicates fieldsthat have been renamed in the table,
-     *                                                   and so should be renamed in the XML.
-     * {@line moodle1_course_outline_handler} is a good example that uses all of these.
      *
      * @param string $name name of the element
      * @param string $path path of the element
@@ -1245,7 +1232,7 @@ class moodle1_file_manager implements loggable {
         }
         $filepath = clean_param($filepath, PARAM_PATH);
 
-        if (core_text::strlen($filepath) > 255) {
+        if (textlib::strlen($filepath) > 255) {
             throw new moodle1_convert_exception('file_path_longer_than_255_chars');
         }
 
@@ -1293,7 +1280,6 @@ class moodle1_file_manager implements loggable {
 
         // Check the trailing slash in the $rootpath
         if (substr($rootpath, -1) === '/') {
-            debugging('moodle1_file_manager::migrate_directory() expects $rootpath without the trailing slash', DEBUG_DEVELOPER);
             $rootpath = substr($rootpath, 0, strlen($rootpath) - 1);
         }
 

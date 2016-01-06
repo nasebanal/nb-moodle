@@ -19,7 +19,7 @@
  *
  * @author Andreas Grabs
  * @license http://www.gnu.org/copyleft/gpl.html GNU Public License
- * @package mod_feedback
+ * @package feedback
  */
 defined('MOODLE_INTERNAL') OR die('not allowed');
 
@@ -35,7 +35,10 @@ if (isset($cmid) AND intval($cmid) AND $cmid > 0) {
     $usedid = $id;
 }
 
-$context = context_module::instance($usedid);
+if (!$context = get_context_instance(CONTEXT_MODULE, $usedid)) {
+        print_error('badcontext');
+}
+
 
 $courseid = optional_param('courseid', false, PARAM_INT);
 // $current_tab = $SESSION->feedback->current_tab;

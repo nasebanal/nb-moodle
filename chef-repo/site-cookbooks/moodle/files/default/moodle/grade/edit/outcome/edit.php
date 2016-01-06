@@ -40,7 +40,7 @@ if ($id !== 0) {
 $PAGE->set_url($url);
 $PAGE->set_pagelayout('admin');
 
-$systemcontext = context_system::instance();
+$systemcontext = get_context_instance(CONTEXT_SYSTEM);
 $heading = null;
 
 // a bit complex access control :-O
@@ -57,7 +57,7 @@ if ($id) {
             print_error('invalidcourseid');
         }
         require_login($course);
-        $context = context_course::instance($course->id);
+        $context = get_context_instance(CONTEXT_COURSE, $course->id);
         require_capability('moodle/grade:manage', $context);
         $courseid = $course->id;
     } else {
@@ -77,7 +77,7 @@ if ($id) {
     /// adding new outcome from course
     $course = $DB->get_record('course', array('id' => $courseid), '*', MUST_EXIST);
     require_login($course);
-    $context = context_course::instance($course->id);
+    $context = get_context_instance(CONTEXT_COURSE, $course->id);
     require_capability('moodle/grade:manage', $context);
     navigation_node::override_active_url(new moodle_url('/grade/edit/outcome/course.php', array('id'=>$courseid)));
 
@@ -111,10 +111,8 @@ $editoroptions = array(
 );
 
 if (!empty($outcome_rec->id)) {
-    $editoroptions['subdirs'] = file_area_contains_subdirs($systemcontext, 'grade', 'outcome', $outcome_rec->id);
     $outcome_rec = file_prepare_standard_editor($outcome_rec, 'description', $editoroptions, $systemcontext, 'grade', 'outcome', $outcome_rec->id);
 } else {
-    $editoroptions['subdirs'] = false;
     $outcome_rec = file_prepare_standard_editor($outcome_rec, 'description', $editoroptions, $systemcontext, 'grade', 'outcome', null);
 }
 

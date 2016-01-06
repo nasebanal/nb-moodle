@@ -19,7 +19,7 @@
  *
  * @author Andreas Grabs
  * @license http://www.gnu.org/copyleft/gpl.html GNU Public License
- * @package mod_feedback
+ * @package feedback
  */
 
 require_once("../../config.php");
@@ -43,8 +43,14 @@ $current_tab = 'nonrespondents';
 ////////////////////////////////////////////////////////
 //get the objects
 ////////////////////////////////////////////////////////
+if (! $cm = get_coursemodule_from_id('feedback', $id)) {
+    print_error('invalidcoursemodule');
+}
 
-list ($course, $cm) = get_course_and_cm_from_cmid($id, 'feedback');
+if (! $course = $DB->get_record("course", array("id"=>$cm->course))) {
+    print_error('coursemisconf');
+}
+
 if (! $feedback = $DB->get_record("feedback", array("id"=>$cm->instance))) {
     print_error('invalidcoursemodule');
 }
@@ -59,10 +65,14 @@ $url = new moodle_url('/mod/feedback/show_nonrespondents.php', array('id'=>$cm->
 
 $PAGE->set_url($url);
 
-$context = context_module::instance($cm->id);
+if (!$context = get_context_instance(CONTEXT_MODULE, $cm->id)) {
+        print_error('badcontext');
+}
 
 //we need the coursecontext to allow sending of mass mails
-$coursecontext = context_course::instance($course->id);
+if (!$coursecontext = get_context_instance(CONTEXT_COURSE, $course->id)) {
+        print_error('badcontext');
+}
 
 require_login($course, true, $cm);
 
@@ -75,7 +85,7 @@ require_capability('mod/feedback:viewreports', $context);
 if ($action == 'sendmessage' AND has_capability('moodle/course:bulkmessaging', $coursecontext)) {
     $shortname = format_string($course->shortname,
                             true,
-                            array('context' => $coursecontext));
+                            array('context' => get_context_instance(CONTEXT_COURSE, $course->id)));
     $strfeedbacks = get_string("modulenameplural", "feedback");
 
     $htmlmessage = "<body id=\"email\">";
@@ -125,8 +135,8 @@ if ($action == 'sendmessage' AND has_capability('moodle/course:bulkmessaging', $
 
 /// Print the page header
 $PAGE->navbar->add(get_string('show_nonrespondents', 'feedback'));
-$PAGE->set_heading($course->fullname);
-$PAGE->set_title($feedback->name);
+$PAGE->set_heading(format_string($course->fullname));
+$PAGE->set_title(format_string($feedback->name));
 echo $OUTPUT->header();
 
 require('tabs.php');
@@ -262,6 +272,7 @@ if (!$students) {
         echo $OUTPUT->container(html_writer::link($allurl, get_string('showall', '', $matchcount)), array(), 'showall');
     }
     if (has_capability('moodle/course:bulkmessaging', $coursecontext)) {
+        $usehtmleditor = can_use_html_editor();
         echo '<div class="buttons"><br />';
         echo '<input type="button" id="checkall" value="'.get_string('selectall').'" /> ';
         echo '<input type="button" id="checknone" value="'.get_string('deselectall').'" /> ';
@@ -272,9 +283,14 @@ if (!$students) {
         echo '<label for="feedback_subject">'.get_string('subject', 'feedback').'&nbsp;</label>';
         echo '<input type="text" id="feedback_subject" size="50" maxlength="255" name="subject" value="'.$subject.'" />';
         echo '</div>';
-        print_textarea(true, 15, 25, 30, 10, "message", $message);
-        print_string('formathtml');
-        echo '<input type="hidden" name="format" value="'.FORMAT_HTML.'" />';
+        print_textarea($usehtmleditor, 15, 25, 30, 10, "message", $message);
+        if ($usehtmleditor) {
+            print_string('formathtml');
+            echo '<input type="hidden" name="format" value="'.FORMAT_HTML.'" />';
+        } else {
+            echo '<label for="menuformat" class="accesshide">'. get_string('format') .'</label>';
+            choose_from_menu(format_text_menu(), "format", $format, "");
+        }
         echo '<br /><div class="buttons">';
         echo '<input type="submit" name="send_message" value="'.get_string('send', 'feedback').'" />';
         echo '</div>';

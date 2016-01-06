@@ -1,9 +1,13 @@
-Description of Minify 2.1.7 import into Moodle
+Description of Minify 2.1.5 import into Moodle
 
 Notes:
- * Do not use anything from /lib/minify/ directly, always use core_minify::*() methods.
- * In 2.7dev we will import only the minimal number of files required by new core_minify class
-   and delete deprecated js_minify() and css_minify_css().
+ * Uses are required to add minify/lib to the include path
+ * We ever actually use things within minify/lib/*
+
+Usage:
+ * /lib/javascript.php
+ * /theme/javascript.php
+ * /theme/styles.php
 
 Changes:
  * Removed index.php - Is an unused entry point program and could potentially
@@ -11,4 +15,3 @@ Changes:
  * Removed /builder/* - Not needed
  * Removed .htaccess - Not needed
  * Changed config.php - added moodle specific settings
- * Removed lib/JSMin.php which is not GNU GPL compatible.

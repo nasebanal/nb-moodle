@@ -69,21 +69,26 @@ class database_manager {
     /**
      * This function will execute an array of SQL commands.
      *
-     * @param string[] $sqlarr Array of sql statements to execute.
-     * @throws ddl_change_structure_exception This exception is thrown if any error is found.
+     * @param array $sqlarr Array of sql statements to execute.
+     * @throws ddl_exception This exception is thrown if any error is found.
      */
     protected function execute_sql_arr(array $sqlarr) {
-        $this->mdb->change_database_structure($sqlarr);
+        foreach ($sqlarr as $sql) {
+            $this->execute_sql($sql);
+        }
     }
 
     /**
      * Execute a given sql command string.
      *
      * @param string $sql The sql string you wish to be executed.
-     * @throws ddl_change_structure_exception This exception is thrown if any error is found.
+     * @throws ddl_exception This exception is thrown if any error is found.
      */
     protected function execute_sql($sql) {
-        $this->mdb->change_database_structure($sql);
+        if (!$this->mdb->change_database_structure($sql)) {
+            // in case driver does not throw exceptions yet ;-)
+            throw new ddl_change_structure_exception($this->mdb->get_last_error(), $sql);
+        }
     }
 
     /**
@@ -160,11 +165,10 @@ class database_manager {
      *
      * @param xmldb_table $xmldb_table table to be searched
      * @param xmldb_index $xmldb_index the index to be searched
-     * @param bool $returnall true means return array of all indexes, false means first index only as string
-     * @return array|string|bool Index name, array of index names or false if no indexes are found.
+     * @return string|bool Index name or false if no indexes are found.
      * @throws ddl_table_missing_exception Thrown when table is not found.
      */
-    public function find_index_name(xmldb_table $xmldb_table, xmldb_index $xmldb_index, $returnall = false) {
+    public function find_index_name(xmldb_table $xmldb_table, xmldb_index $xmldb_index) {
         // Calculate the name of the table
         $tablename = $xmldb_table->getName();
 
@@ -179,8 +183,6 @@ class database_manager {
         // Get list of indexes in table
         $indexes = $this->mdb->get_indexes($tablename);
 
-        $return = array();
-
         // Iterate over them looking for columns coincidence
         foreach ($indexes as $indexname => $index) {
             $columns = $index['columns'];
@@ -188,16 +190,8 @@ class database_manager {
             $diferences = array_merge(array_diff($columns, $indcolumns), array_diff($indcolumns, $columns));
             // If no differences, we have find the index
             if (empty($diferences)) {
-                if ($returnall) {
-                    $return[] = $indexname;
-                } else {
-                    return $indexname;
-                }
+                return $indexname;
             }
-        }
-
-        if ($return and $returnall) {
-            return $return;
         }
 
         // Arriving here, index not found
@@ -295,8 +289,6 @@ class database_manager {
         }
 
         if ($xmldb_tables = $structure->getTables()) {
-            // Delete in opposite order, this should help with foreign keys in the future.
-            $xmldb_tables = array_reverse($xmldb_tables);
             foreach($xmldb_tables as $table) {
                 if ($this->table_exists($table)) {
                     $this->drop_table($table);
@@ -497,7 +489,7 @@ class database_manager {
 
         // Check new table doesn't exist
         if ($this->table_exists($check)) {
-            throw new ddl_exception('ddltablealreadyexists', $check->getName(), 'can not rename table');
+            throw new ddl_exception('ddltablealreadyexists', $xmldb_table->getName(), 'can not rename table');
         }
 
         if (!$sqlarr = $this->generator->getRenameTableSQL($xmldb_table, $newname)) {
@@ -904,176 +896,67 @@ class database_manager {
     /**
      * Checks the database schema against a schema specified by an xmldb_structure object
      * @param xmldb_structure $schema export schema describing all known tables
-     * @param array $options
      * @return array keyed by table name with array of difference messages as values
      */
-    public function check_database_schema(xmldb_structure $schema, array $options = null) {
-        $alloptions = array(
-            'extratables' => true,
-            'missingtables' => true,
-            'extracolumns' => true,
-            'missingcolumns' => true,
-            'changedcolumns' => true,
-        );
-
-        $typesmap = array(
-            'I' => XMLDB_TYPE_INTEGER,
-            'R' => XMLDB_TYPE_INTEGER,
-            'N' => XMLDB_TYPE_NUMBER,
-            'F' => XMLDB_TYPE_NUMBER, // Nobody should be using floats!
-            'C' => XMLDB_TYPE_CHAR,
-            'X' => XMLDB_TYPE_TEXT,
-            'B' => XMLDB_TYPE_BINARY,
-            'T' => XMLDB_TYPE_TIMESTAMP,
-            'D' => XMLDB_TYPE_DATETIME,
-        );
-
-        $options = (array)$options;
-        $options = array_merge($alloptions, $options);
-
-        // Note: the error descriptions are not supposed to be localised,
-        //       it is intended for developers and skilled admins only.
+    public function check_database_schema(xmldb_structure $schema) {
         $errors = array();
 
-        /** @var string[] $dbtables */
-        $dbtables = $this->mdb->get_tables(false);
-        /** @var xmldb_table[] $tables */
-        $tables = $schema->getTables();
+        $dbtables = $this->mdb->get_tables();
+        $tables   = $schema->getTables();
 
+        //TODO: maybe add several levels error/warning
+
+        // make sure that current and schema tables match exactly
         foreach ($tables as $table) {
             $tablename = $table->getName();
-
-            if ($options['missingtables']) {
-                // Missing tables are a fatal problem.
-                if (empty($dbtables[$tablename])) {
-                    $errors[$tablename][] = "table is missing";
-                    continue;
+            if (empty($dbtables[$tablename])) {
+                if (!isset($errors[$tablename])) {
+                    $errors[$tablename] = array();
                 }
+                $errors[$tablename][] = "Table $tablename is missing in database."; //TODO: localize
+                continue;
             }
 
-            /** @var database_column_info[] $dbfields */
-            $dbfields = $this->mdb->get_columns($tablename, false);
-            /** @var xmldb_field[] $fields */
-            $fields = $table->getFields();
-
+            // a) check for required fields
+            $dbfields = $this->mdb->get_columns($tablename);
+            $fields   = $table->getFields();
             foreach ($fields as $field) {
                 $fieldname = $field->getName();
                 if (empty($dbfields[$fieldname])) {
-                    if ($options['missingcolumns']) {
-                        // Missing columns are a fatal problem.
-                        $errors[$tablename][] = "column '$fieldname' is missing";
+                    if (!isset($errors[$tablename])) {
+                        $errors[$tablename] = array();
                     }
-                } else if ($options['changedcolumns']) {
-                    $dbfield = $dbfields[$fieldname];
-
-                    if (!isset($typesmap[$dbfield->meta_type])) {
-                        $errors[$tablename][] = "column '$fieldname' has unsupported type '$dbfield->meta_type'";
-                    } else {
-                        $dbtype = $typesmap[$dbfield->meta_type];
-                        $type = $field->getType();
-                        if ($type == XMLDB_TYPE_FLOAT) {
-                            $type = XMLDB_TYPE_NUMBER;
-                        }
-                        if ($type != $dbtype) {
-                            if ($expected = array_search($type, $typesmap)) {
-                                $errors[$tablename][] = "column '$fieldname' has incorrect type '$dbfield->meta_type', expected '$expected'";
-                            } else {
-                                $errors[$tablename][] = "column '$fieldname' has incorrect type '$dbfield->meta_type'";
-                            }
-                        } else {
-                            if ($field->getNotNull() != $dbfield->not_null) {
-                                if ($field->getNotNull()) {
-                                    $errors[$tablename][] = "column '$fieldname' should be NOT NULL ($dbfield->meta_type)";
-                                } else {
-                                    $errors[$tablename][] = "column '$fieldname' should allow NULL ($dbfield->meta_type)";
-                                }
-                            }
-                            if ($dbtype == XMLDB_TYPE_TEXT) {
-                                // No length check necessary - there is one size only now.
-
-                            } else if ($dbtype == XMLDB_TYPE_NUMBER) {
-                                if ($field->getType() == XMLDB_TYPE_FLOAT) {
-                                    // Do not use floats in any new code, they are deprecated in XMLDB editor!
-
-                                } else if ($field->getLength() != $dbfield->max_length or $field->getDecimals() != $dbfield->scale) {
-                                    $size = "({$field->getLength()},{$field->getDecimals()})";
-                                    $dbsize = "($dbfield->max_length,$dbfield->scale)";
-                                    $errors[$tablename][] = "column '$fieldname' size is $dbsize, expected $size ($dbfield->meta_type)";
-                                }
-
-                            } else if ($dbtype == XMLDB_TYPE_CHAR) {
-                                // This is not critical, but they should ideally match.
-                                if ($field->getLength() != $dbfield->max_length) {
-                                    $errors[$tablename][] = "column '$fieldname' length is $dbfield->max_length, expected {$field->getLength()} ($dbfield->meta_type)";
-                                }
-
-                            } else if ($dbtype == XMLDB_TYPE_INTEGER) {
-                                // Integers may be bigger in some DBs.
-                                $length = $field->getLength();
-                                if ($length > 18) {
-                                    // Integers are not supposed to be bigger than 18.
-                                    $length = 18;
-                                }
-                                if ($length > $dbfield->max_length) {
-                                    $errors[$tablename][] = "column '$fieldname' length is $dbfield->max_length, expected at least {$field->getLength()} ($dbfield->meta_type)";
-                                }
-
-                            } else if ($dbtype == XMLDB_TYPE_BINARY) {
-                                // Ignore binary types.
-                                continue;
-
-                            } else if ($dbtype == XMLDB_TYPE_TIMESTAMP) {
-                                $errors[$tablename][] = "column '$fieldname' is a timestamp, this type is not supported ($dbfield->meta_type)";
-                                continue;
-
-                            } else if ($dbtype == XMLDB_TYPE_DATETIME) {
-                                $errors[$tablename][] = "column '$fieldname' is a datetime, this type is not supported ($dbfield->meta_type)";
-                                continue;
-
-                            } else {
-                                // Report all other unsupported types as problems.
-                                $errors[$tablename][] = "column '$fieldname' has unknown type ($dbfield->meta_type)";
-                                continue;
-                            }
-
-                            // Note: The empty string defaults are a bit messy...
-                            if ($field->getDefault() != $dbfield->default_value) {
-                                $default = is_null($field->getDefault()) ? 'NULL' : $field->getDefault();
-                                $dbdefault = is_null($dbfield->default_value) ? 'NULL' : $dbfield->default_value;
-                                $errors[$tablename][] = "column '$fieldname' has default '$dbdefault', expected '$default' ($dbfield->meta_type)";
-                            }
-                        }
-                    }
+                    $errors[$tablename][] = "Field $fieldname is missing in table $tablename.";  //TODO: localize
                 }
                 unset($dbfields[$fieldname]);
             }
 
-            // Check for extra columns (indicates unsupported hacks) - modify install.xml if you want to pass validation.
-            foreach ($dbfields as $fieldname => $dbfield) {
-                if ($options['extracolumns']) {
-                    $errors[$tablename][] = "column '$fieldname' is not expected ($dbfield->meta_type)";
+            // b) check for extra fields (indicates unsupported hacks) - modify install.xml if you want the script to continue ;-)
+            foreach ($dbfields as $fieldname=>$info) {
+                if (!isset($errors[$tablename])) {
+                    $errors[$tablename] = array();
                 }
+                $errors[$tablename][] = "Field $fieldname is not expected in table $tablename.";  //TODO: localize
             }
             unset($dbtables[$tablename]);
         }
 
-        if ($options['extratables']) {
-            // Look for unsupported tables - local custom tables should be in /local/xxxx/db/install.xml file.
-            // If there is no prefix, we can not say if table is ours, sorry.
-            if ($this->generator->prefix !== '') {
-                foreach ($dbtables as $tablename => $unused) {
-                    if (strpos($tablename, 'pma_') === 0) {
-                        // Ignore phpmyadmin tables.
-                        continue;
-                    }
-                    if (strpos($tablename, 'test') === 0) {
-                        // Legacy simple test db tables need to be eventually removed,
-                        // report them as problems!
-                        $errors[$tablename][] = "table is not expected (it may be a leftover after Simpletest unit tests)";
-                    } else {
-                        $errors[$tablename][] = "table is not expected";
-                    }
+        // look for unsupported tables - local custom tables should be in /local/xxxx/db/install.xml ;-)
+        // if there is no prefix, we can not say if tale is ours :-(
+        if ($this->generator->prefix !== '') {
+            foreach ($dbtables as $tablename=>$unused) {
+                if (strpos($tablename, 'pma_') === 0) {
+                    // ignore phpmyadmin tables for now
+                    continue;
                 }
+                if (strpos($tablename, 'test') === 0) {
+                    // ignore broken results of unit tests
+                    continue;
+                }
+                if (!isset($errors[$tablename])) {
+                    $errors[$tablename] = array();
+                }
+                $errors[$tablename][] = "Table $tablename is not expected.";  //TODO: localize
             }
         }
 

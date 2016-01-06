@@ -137,13 +137,6 @@
     margin-right: 5px;
 }
 
-.path-mod-workshop .submission-full .attachments .images div {
-    display: inline-block;
-    margin: 5px;
-    padding: 5px;
-    border: 1px solid #ddd;
-}
-
 /**
  * Example submission - summary display
  */
@@ -169,7 +162,7 @@
 .path-mod-workshop .message {
     padding: 5px 5em 5px 15px;
     margin: 0px auto 20px auto;
-    width: 100%;
+    width: 60%;
     font-size: 80%;
     position: relative;
 }
@@ -200,7 +193,7 @@
 
 .path-mod-workshop .allocation-init-results {
     margin: 10px auto;
-    width: 100%;
+    width: 60%;
     font-size: 80%;
 }
 
@@ -232,10 +225,11 @@
  * User plan
  */
 .path-mod-workshop .userplan {
-    width: 100%;
+    width: 70%;
     margin: 1em auto 1em auto;
     font-size: 80%;
-    border: 1px solid #ddd;
+    border-left: 1px solid #ddd;
+    border-right: 1px solid #ddd;
 }
 
 .path-mod-workshop .userplan th {
@@ -291,16 +285,11 @@
     background-color: #e7f1c3;
 }
 
-.path-mod-workshop .userplan th .actions {
-    display: inline;
-}
 .path-mod-workshop .userplan tr.phasetasks li {
     background-image: url([[pix:mod_workshop|userplan/task-todo]]);
     background-position: top left;
     background-repeat: no-repeat;
     list-style-type: none;
-    min-height: 16px;
-    margin: .3em 0;
 }
 
 .path-mod-workshop .userplan tr.phasetasks li.completed {
@@ -382,8 +371,7 @@
     display: inline;
 }
 
-.path-mod-workshop .assessment-full .assessment-form-wrapper,
-.path-mod-workshop .assessment-full .overall-feedback-wrapper {
+.path-mod-workshop .assessment-full .assessment-form-wrapper {
     margin-top: 0.5em;
     padding: 0px 1em;
 }
@@ -399,25 +387,6 @@
 }
 
 /**
- * Overall feedback
- */
-.path-mod-workshop .assessment-full .overallfeedback .content,
-.path-mod-workshop .assessment-full .overallfeedback .attachments {
-    padding: 5px 10px;
-}
-
-.path-mod-workshop .assessment-full .overallfeedback .attachments .files img.icon {
-    margin-right: 5px;
-}
-
-.path-mod-workshop .assessment-full .overallfeedback .attachments .images div {
-    display: inline-block;
-    margin: 5px;
-    padding: 5px;
-    border: 1px solid #ddd;
-}
-
-/**
  * Assessment form
  */
 .path-mod-workshop .assessmentform .description {
@@ -428,7 +397,7 @@
  * Grading report
  */
 .path-mod-workshop .grading-report {
-    width: 100%;
+    width: 90%;
     margin: 1em auto 1em auto;
     font-size: 80%;
     border: 1px solid #ddd;
@@ -490,38 +459,6 @@
 }
 
 /**
- * Final grades
- */
-.path-mod-workshop #workshop-viewlet-yourgrades .finalgrades {
-    text-align: center;
-}
-
-.path-mod-workshop #workshop-viewlet-yourgrades .finalgrades .grade {
-    border: 1px solid #ddd;
-    margin: 1em;
-    padding: 2em;
-    display: inline-block;
-    -webkit-border-radius: 15px;
-    -moz-border-radius: 15px;
-    border-radius: 15px;
-}
-
-.path-mod-workshop #workshop-viewlet-yourgrades .finalgrades .grade.submissiongrade {
-    background-color: #d2ebff;
-}
-
-.path-mod-workshop #workshop-viewlet-yourgrades .finalgrades .grade.assessmentgrade {
-    background-color: #eee;
-    /*background-color: #e7f1c3;*/
-}
-
-.path-mod-workshop #workshop-viewlet-yourgrades .finalgrades .grade .gradevalue {
-    font-weight: bold;
-    font-size: x-large;
-    margin: 10px;
-}
-
-/**
  * Edit assessment form
  */
 #mod-workshop-editform fieldset.fgroup * {
@@ -534,7 +471,7 @@
 .path-mod-workshop .feedback {
     border: 1px solid #ddd;
     margin: 0px auto 1em auto;
-    width: 100%;
+    width: 80%;
 }
 
 .path-mod-workshop .feedback .header {
@@ -583,19 +520,3 @@
 .path-mod-workshop div.buttonwithhelp div {
     display: inline;
 }
-
-.path-mod-workshop #evaluationmethodchooser {
-    margin: 2em auto;
-    text-align: center;
-}
-
-.path-mod-workshop .lastmodified {
-    line-height: 1.0em;
-}
-
-.path-mod-workshop .nothingfound {
-    font-size: 150%;
-    color: #FF4500;
-}
-
-.path-mod-workshop .workshop-risk-dataloss { vertical-align: text-bottom; }

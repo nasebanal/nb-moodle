@@ -1,4 +1,5 @@
 <?php
+
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -19,7 +20,7 @@
  *
  * @copyright 1999 Martin Dougiamas  http://dougiamas.com
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @package core_user
+ * @package user
  */
 
 require_once("../config.php");
@@ -27,9 +28,9 @@ require_once("../config.php");
 $formaction = required_param('formaction', PARAM_FILE);
 $id = required_param('id', PARAM_INT);
 
-$PAGE->set_url('/user/action_redir.php', array('formaction' => $formaction, 'id' => $id));
+$PAGE->set_url('/user/action_redir.php', array('formaction'=>$formaction,'id'=>$id));
 
-// Add every page will be redirected by this script.
+// Add every page will be redirected by this script
 $actions = array(
         'messageselect.php',
         'addnote.php',

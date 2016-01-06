@@ -37,11 +37,11 @@ $huburl = optional_param('huburl', 0, PARAM_URL);
 $course = $DB->get_record('course', array('id'=>$id), '*', MUST_EXIST);
 
 require_login($course);
-$context = context_course::instance($course->id);
+$context = get_context_instance(CONTEXT_COURSE, $course->id);
 $shortname = format_string($course->shortname, true, array('context' => $context));
 
 $PAGE->set_url('/course/publish/index.php', array('id' => $course->id));
-$PAGE->set_pagelayout('incourse');
+$PAGE->set_pagelayout('course');
 $PAGE->set_title(get_string('course') . ': ' . $course->fullname);
 $PAGE->set_heading($course->fullname);
 
@@ -56,7 +56,7 @@ if (!extension_loaded('xmlrpc')) {
     die();
 }
 
-if (has_capability('moodle/course:publish', context_course::instance($id))) {
+if (has_capability('moodle/course:publish', get_context_instance(CONTEXT_COURSE, $id))) {
 
     $publicationmanager = new course_publish_manager();
     $confirmmessage = '';
@@ -118,7 +118,6 @@ if (has_capability('moodle/course:publish', context_course::instance($id))) {
         $hubcourseid = optional_param('hubcourseid', 0, PARAM_INT);
         $publicationid = optional_param('publicationid', 0, PARAM_INT);
         $timepublished = optional_param('timepublished', 0, PARAM_INT);
-        $publication = new stdClass();
         $publication->courseshortname = $course->shortname;
         $publication->courseid = $course->id;
         $publication->hubname = $hubname;

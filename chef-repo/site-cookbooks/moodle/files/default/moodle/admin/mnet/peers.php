@@ -34,7 +34,7 @@ require_once($CFG->dirroot.'/'.$CFG->admin.'/mnet/peer_forms.php');
 
 require_login();
 
-$context = context_system::instance();
+$context = get_context_instance(CONTEXT_SYSTEM);
 require_capability('moodle/site:config', $context, $USER->id, true, 'nopermissions');
 
 /// Initialize variables.
@@ -172,7 +172,6 @@ if ($formdata = $reviewform->get_data()) {
     $mnet_peer->public_key          = $formdata->public_key;
     $credentials                    = $mnet_peer->check_credentials($mnet_peer->public_key);
     $mnet_peer->public_key_expires  = $credentials['validTo_time_t'];
-    $mnet_peer->sslverification     = $formdata->sslverification;
 
     if ($mnet_peer->commit()) {
         redirect(new moodle_url('/admin/mnet/peers.php', array('hostid' => $mnet_peer->id)), get_string('changessaved'));

@@ -26,11 +26,11 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'qbehaviour_adaptivenopenalty';
-$plugin->version   = 2015111600;
+$plugin->version   = 2012061700;
 
-$plugin->requires  = 2015111000;
+$plugin->requires  = 2012061700;
 $plugin->dependencies = array(
-    'qbehaviour_adaptive' => 2015111000
+    'qbehaviour_adaptive' => 2012061700
 );
 
 $plugin->maturity  = MATURITY_STABLE;

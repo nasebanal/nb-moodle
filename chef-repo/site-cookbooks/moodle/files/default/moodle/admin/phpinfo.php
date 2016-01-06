@@ -11,7 +11,7 @@
     echo '<div class="phpinfo">';
 
     ob_start();
-    phpinfo(INFO_GENERAL + INFO_CONFIGURATION + INFO_MODULES + INFO_VARIABLES);
+    phpinfo(INFO_GENERAL + INFO_CONFIGURATION + INFO_MODULES);
     $html = ob_get_contents();
     ob_end_clean();
 

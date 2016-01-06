@@ -47,21 +47,21 @@ if ($perpage !== 18) {
     $params['perpage'] = $perpage;
 }
 $PAGE->set_url(new moodle_url('/tag/search.php', $params));
-$PAGE->set_context(context_system::instance());
+$PAGE->set_context(get_context_instance(CONTEXT_SYSTEM));
 $PAGE->set_pagelayout('standard');
 
-$systemcontext = context_system::instance();
+$systemcontext = get_context_instance(CONTEXT_SYSTEM);
 $manage_link = '&nbsp;';
 
 $PAGE->set_title(get_string('tags', 'tag'));
-$PAGE->set_heading($SITE->fullname);
+$PAGE->set_heading($SITE->fullname.': '.$PAGE->title);
 echo $OUTPUT->header();
-
-echo $OUTPUT->heading(get_string('searchtags', 'tag'), 2);
 
 if ( has_capability('moodle/tag:manage',$systemcontext) ) {
     echo '<div class="managelink"><a href="'. $CFG->wwwroot .'/tag/manage.php">' . get_string('managetags', 'tag') . '</a></div>' ;
 }
+
+echo $OUTPUT->heading(get_string('searchtags', 'tag'), 2);
 
 tag_print_search_box();
 
@@ -72,7 +72,7 @@ if(!empty($query)) {
 echo '<br/><br/>';
 
 echo $OUTPUT->box_start('generalbox', 'big-tag-cloud-box');
-tag_print_cloud(null, 150);
+tag_print_cloud(150);
 echo $OUTPUT->box_end();
 
 echo $OUTPUT->footer();

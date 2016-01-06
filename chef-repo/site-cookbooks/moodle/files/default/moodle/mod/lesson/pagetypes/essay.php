@@ -18,7 +18,8 @@
 /**
  * Essay
  *
- * @package mod_lesson
+ * @package    mod
+ * @subpackage lesson
  * @copyright  2009 Sam Hemelryk
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  **/
@@ -47,23 +48,6 @@ class lesson_page_type_essay extends lesson_page {
     public function get_idstring() {
         return $this->typeidstring;
     }
-
-    /**
-     * Unserialize attempt useranswer and add missing responseformat if needed
-     * for compatibility with old records.
-     *
-     * @param string $useranswer serialized object
-     * @return object
-     */
-    static public function extract_useranswer($useranswer) {
-        $essayinfo = unserialize($useranswer);
-        if (!isset($essayinfo->responseformat)) {
-            $essayinfo->response = text_to_html($essayinfo->response, false, false);
-            $essayinfo->responseformat = FORMAT_HTML;
-        }
-        return $essayinfo;
-    }
-
     public function display($renderer, $attempt) {
         global $PAGE, $CFG, $USER;
 
@@ -73,22 +57,10 @@ class lesson_page_type_essay extends lesson_page {
         $data->id = $PAGE->cm->id;
         $data->pageid = $this->properties->id;
         if (isset($USER->modattempts[$this->lesson->id])) {
-            $essayinfo = self::extract_useranswer($attempt->useranswer);
+            $essayinfo = unserialize($attempt->useranswer);
             $data->answer = $essayinfo->answer;
         }
         $mform->set_data($data);
-
-        // Trigger an event question viewed.
-        $eventparams = array(
-            'context' => context_module::instance($PAGE->cm->id),
-            'objectid' => $this->properties->id,
-            'other' => array(
-                    'pagetype' => $this->get_typestring()
-                )
-            );
-
-        $event = \mod_lesson\event\question_viewed::create($eventparams);
-        $event->trigger();
         return $mform->display();
     }
     public function create_answers($properties) {
@@ -128,7 +100,7 @@ class lesson_page_type_essay extends lesson_page {
             $studentanswerformat = $data->answer['format'];
         } else {
             $studentanswer = $data->answer;
-            $studentanswerformat = FORMAT_HTML;
+            $studentanswerformat = FORMAT_MOODLE;
         }
 
         if (trim($studentanswer) === '') {
@@ -148,11 +120,10 @@ class lesson_page_type_essay extends lesson_page {
         $userresponse->score = 0;
         $userresponse->answer = $studentanswer;
         $userresponse->answerformat = $studentanswerformat;
-        $userresponse->response = '';
-        $userresponse->responseformat = FORMAT_HTML;
+        $userresponse->response = "";
         $result->userresponse = serialize($userresponse);
         $result->studentanswerformat = $studentanswerformat;
-        $result->studentanswer = $studentanswer;
+        $result->studentanswer = s($studentanswer);
         return $result;
     }
     public function update($properties, $context = null, $maxbytes = null) {
@@ -160,12 +131,8 @@ class lesson_page_type_essay extends lesson_page {
         $answers  = $this->get_answers();
         $properties->id = $this->properties->id;
         $properties->lessonid = $this->lesson->id;
-        $properties->timemodified = time();
-        $properties = file_postupdate_standard_editor($properties, 'contents', array('noclean'=>true, 'maxfiles'=>EDITOR_UNLIMITED_FILES, 'maxbytes'=>$PAGE->course->maxbytes), context_module::instance($PAGE->cm->id), 'mod_lesson', 'page_contents', $properties->id);
+        $properties = file_postupdate_standard_editor($properties, 'contents', array('noclean'=>true, 'maxfiles'=>EDITOR_UNLIMITED_FILES, 'maxbytes'=>$PAGE->course->maxbytes), get_context_instance(CONTEXT_MODULE, $PAGE->cm->id), 'mod_lesson', 'page_contents', $properties->id);
         $DB->update_record("lesson_pages", $properties);
-
-        // Trigger an event: page updated.
-        \mod_lesson\event\page_updated::create_from_lesson_page($this, $context)->trigger();
 
         if (!array_key_exists(0, $this->answers)) {
             $this->answers[0] = new stdClass;
@@ -194,7 +161,7 @@ class lesson_page_type_essay extends lesson_page {
             // else, user attempted the question less than the max, so grab the last one
             $temp = end($tries);
         }
-        $essayinfo = self::extract_useranswer($temp->useranswer);
+        $essayinfo = unserialize($temp->useranswer);
         if ($essayinfo->graded) {
             if (isset($pagestats[$temp->pageid])) {
                 $essaystats = $pagestats[$temp->pageid];
@@ -211,21 +178,18 @@ class lesson_page_type_essay extends lesson_page {
         return true;
     }
     public function report_answers($answerpage, $answerdata, $useranswer, $pagestats, &$i, &$n) {
-        $formattextdefoptions = new stdClass();
-        $formattextdefoptions->noclean = true;
-        $formattextdefoptions->para = false;
-        $formattextdefoptions->context = $answerpage->context;
         $answers = $this->get_answers();
+        $formattextdefoptions = new stdClass;
+        $formattextdefoptions->para = false;  //I'll use it widely in this page
+        $formattextdefoptions->context = $answerpage->context;
 
         foreach ($answers as $answer) {
-            if ($useranswer != null) {
-                $essayinfo = self::extract_useranswer($useranswer->useranswer);
-                if ($essayinfo->response == null) {
+            if ($useranswer != NULL) {
+                $essayinfo = unserialize($useranswer->useranswer);
+                if ($essayinfo->response == NULL) {
                     $answerdata->response = get_string("nocommentyet", "lesson");
                 } else {
-                    $essayinfo->response = file_rewrite_pluginfile_urls($essayinfo->response, 'pluginfile.php',
-                            $answerpage->context->id, 'mod_lesson', 'essay_responses', $useranswer->id);
-                    $answerdata->response  = format_text($essayinfo->response, $essayinfo->responseformat, $formattextdefoptions);
+                    $answerdata->response = s($essayinfo->response);
                 }
                 if (isset($pagestats[$this->properties->id])) {
                     $percent = $pagestats[$this->properties->id]->totalscore / $pagestats[$this->properties->id]->total * 100;
@@ -260,9 +224,7 @@ class lesson_page_type_essay extends lesson_page {
                 // dont think this should ever be reached....
                 $avescore = get_string("nooneansweredthisquestion", "lesson");
             }
-            // This is the student's answer so it should be cleaned.
-            $answerdata->answers[] = array(format_text($essayinfo->answer, $essayinfo->answerformat,
-                    array('para' => true, 'context' => $answerpage->context)), $avescore);
+            $answerdata->answers[] = array(format_text($essayinfo->answer, $essayinfo->answerformat, $formattextdefoptions), $avescore);
             $answerpage->answerdata = $answerdata;
         }
         return $answerpage;
@@ -278,7 +240,7 @@ class lesson_page_type_essay extends lesson_page {
         return true;
     }
     public function get_earnedscore($answers, $attempt) {
-        $essayinfo = self::extract_useranswer($attempt->useranswer);
+        $essayinfo = unserialize($attempt->useranswer);
         return $essayinfo->score;
     }
 }
@@ -312,14 +274,11 @@ class lesson_display_answer_form_essay extends moodleform {
             if (isset($USER->modattempts[$lessonid]->useranswer) && !empty($USER->modattempts[$lessonid]->useranswer)) {
                 $attrs = array('disabled' => 'disabled');
                 $hasattempt = true;
-                $useranswertemp = lesson_page_type_essay::extract_useranswer($USER->modattempts[$lessonid]->useranswer);
+                $useranswertemp = unserialize($USER->modattempts[$lessonid]->useranswer);
                 $useranswer = htmlspecialchars_decode($useranswertemp->answer, ENT_QUOTES);
                 $useranswerraw = $useranswertemp->answer;
             }
         }
-
-        // Disable shortforms.
-        $mform->setDisableShortforms();
 
         $mform->addElement('header', 'pageheader');
 

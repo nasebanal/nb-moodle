@@ -17,7 +17,8 @@
 /**
  * Bulk user enrolment processing.
  *
- * @package    core_enrol
+ * @package    core
+ * @subpackage enrol
  * @copyright  2011 Sam Hemelryk
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -31,11 +32,11 @@ require_once("$CFG->dirroot/group/lib.php");
 $id         = required_param('id', PARAM_INT); // course id
 $bulkuserop = required_param('bulkuserop', PARAM_ALPHANUMEXT);
 $userids    = required_param_array('bulkuser', PARAM_INT);
-$action     = optional_param('action', '', PARAM_ALPHANUMEXT);
+$action     = optional_param('action', '', PARAM_ACTION);
 $filter     = optional_param('ifilter', 0, PARAM_INT);
 
 $course = $DB->get_record('course', array('id'=>$id), '*', MUST_EXIST);
-$context = context_course::instance($course->id, MUST_EXIST);
+$context = get_context_instance(CONTEXT_COURSE, $course->id, MUST_EXIST);
 
 if ($course->id == SITEID) {
     redirect(new moodle_url('/'));

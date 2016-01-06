@@ -55,31 +55,24 @@ class moodle1_mod_quiz_handler extends moodle1_mod_handler {
                 'quiz', '/MOODLE_BACKUP/COURSE/MODULES/MOD/QUIZ',
                 array(
                     'newfields' => array(
-                        'showuserpicture'       => 0,
+                        'showuserpicture'   => 0,
                         'questiondecimalpoints' => -1,
-                        'introformat'           => 0,
-                        'showblocks'            => 0,
-                    ),
+                        'introformat'   => 0,
+                        'showblocks'    => 0,
+                    )
                 )
             ),
             new convert_path('quiz_question_instances',
                     '/MOODLE_BACKUP/COURSE/MODULES/MOD/QUIZ/QUESTION_INSTANCES'),
             new convert_path('quiz_question_instance',
-                    '/MOODLE_BACKUP/COURSE/MODULES/MOD/QUIZ/QUESTION_INSTANCES/QUESTION_INSTANCE',
-                array(
-                    'renamefields' => array(
-                        'question' => 'questionid',
-                        'grade'    => 'maxmark',
-                    ),
-                )
-            ),
+                    '/MOODLE_BACKUP/COURSE/MODULES/MOD/QUIZ/QUESTION_INSTANCES/QUESTION_INSTANCE'),
             new convert_path('quiz_feedbacks',
                     '/MOODLE_BACKUP/COURSE/MODULES/MOD/QUIZ/FEEDBACKS'),
             new convert_path('quiz_feedback',
                     '/MOODLE_BACKUP/COURSE/MODULES/MOD/QUIZ/FEEDBACKS/FEEDBACK',
                 array(
                     'newfields' => array(
-                        'feedbacktextformat' => FORMAT_HTML,
+                        'feedbacktextformat' => 0
                     )
                 )
             )

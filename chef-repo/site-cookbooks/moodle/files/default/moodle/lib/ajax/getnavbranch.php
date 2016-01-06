@@ -19,7 +19,7 @@
  * This file is used to deliver a branch from the navigation structure
  * in XML format back to a page from an AJAX call
  *
- * @since Moodle 2.0
+ * @since 2.0
  * @package core
  * @copyright 2009 Sam Hemelryk
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -35,16 +35,14 @@ require_once($CFG->dirroot.'/course/lib.php');
 try {
     // Start buffer capture so that we can `remove` any errors
     ob_start();
-    // Require id This is the key for whatever branch we want to get.
-    // This accepts alphanum because the courses and my courses branches don't have numerical keys.
-    // For those branches we return the alphanum key, courses and mycourses.
-    $branchid = required_param('id', PARAM_ALPHANUM);
+    // Require id This is the key for whatever branch we want to get
+    $branchid = required_param('id', PARAM_INT);
     // This identifies the type of the branch we want to get
     $branchtype = required_param('type', PARAM_INT);
     // This identifies the block instance requesting AJAX extension
     $instanceid = optional_param('instance', null, PARAM_INT);
 
-    $PAGE->set_context(context_system::instance());
+    $PAGE->set_context(get_context_instance(CONTEXT_SYSTEM));
 
     // Create a global nav object
     $navigation = new global_navigation_for_ajax($PAGE, $branchtype, $branchid);
@@ -89,21 +87,12 @@ try {
     }
     $converter = new navigation_json();
 
-    // Find the actual branch we are looking for
-    if ($branchtype != 0) {
-        $branch = $navigation->find($branchid, $branchtype);
-    } else if ($branchid === 'mycourses' || $branchid === 'courses') {
-        $branch = $navigation->find($branchid, navigation_node::TYPE_ROOTNODE);
-    } else {
-        throw new coding_exception('Invalid branch type/id passed to AJAX call to load branches.');
-    }
+    // Find the actuall branch we are looking for
+    $branch = $navigation->find($branchid, $branchtype);
 
     // Remove links to categories if required.
     if (!$linkcategories) {
         foreach ($branch->find_all_of_type(navigation_node::TYPE_CATEGORY) as $category) {
-            $category->action = null;
-        }
-        foreach ($branch->find_all_of_type(navigation_node::TYPE_MY_CATEGORY) as $category) {
             $category->action = null;
         }
     }
@@ -112,16 +101,16 @@ try {
     $html = ob_get_contents();
     ob_end_clean();
 } catch (Exception $e) {
-    throw new coding_exception('Error: '.$e->getMessage());
+    die('Error: '.$e->getMessage());
 }
 
 // Check if the buffer contianed anything if it did ERROR!
 if (trim($html) !== '') {
-    throw new coding_exception('Errors were encountered while producing the navigation branch'."\n\n\n".$html);
+    die('Errors were encountered while producing the navigation branch'."\n\n\n".$html);
 }
 // Check that branch isn't empty... if it is ERROR!
-if (empty($branch) || ($branch->nodetype !== navigation_node::NODETYPE_BRANCH && !$branch->isexpandable)) {
-    throw new coding_exception('No further information available for this branch');
+if (empty($branch) || $branch->nodetype !== navigation_node::NODETYPE_BRANCH) {
+    die('No further information available for this branch');
 }
 
 // Prepare an XML converter for the branch

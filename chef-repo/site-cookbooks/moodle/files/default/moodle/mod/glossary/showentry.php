@@ -39,7 +39,7 @@ if ($eid) {
     print_error('invalidelementid');
 }
 
-$PAGE->set_pagelayout('incourse');
+$PAGE->set_pagelayout('course');
 
 if ($entries) {
     foreach ($entries as $key => $entry) {
@@ -54,19 +54,14 @@ if ($entries) {
         }
         // make sure the entry is approved (or approvable by current user)
         if (!$entry->approved and ($USER->id != $entry->userid)) {
-            $context = context_module::instance($entry->cmid);
+            $context = get_context_instance(CONTEXT_MODULE, $entry->cmid);
             if (!has_capability('mod/glossary:approve', $context)) {
                 unset($entries[$key]);
                 continue;
             }
         }
         $entries[$key]->footer = "<p style=\"text-align:right\">&raquo;&nbsp;<a href=\"$CFG->wwwroot/mod/glossary/view.php?g=$entry->glossaryid\">".format_string($entry->glossaryname,true)."</a></p>";
-        $event = \mod_glossary\event\entry_viewed::create(array(
-            'objectid' => $entry->id,
-            'context' => $modinfo->cms[$entry->cmid]->context
-        ));
-        $event->add_record_snapshot('glossary_entries', $entry);
-        $event->trigger();
+        add_to_log($entry->courseid, 'glossary', 'view entry', "showentry.php?eid=$entry->id", $entry->id, $entry->cmid);
     }
 }
 

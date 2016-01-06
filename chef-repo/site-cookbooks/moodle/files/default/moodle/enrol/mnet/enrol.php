@@ -1,4 +1,5 @@
 <?php
+
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -25,7 +26,8 @@
  * be a common name of a plugin library containing functions/methods callable
  * via MNet framework.
  *
- * @package    enrol_mnet
+ * @package    enrol
+ * @subpackage mnet
  * @copyright  2010 David Mudrak <david@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -86,7 +88,7 @@ class enrol_mnet_mnetservice_enrol {
             // use the record if it does not exist yet or is host-specific
             if (empty($courses[$course->remoteid]) or ($course->customint1 > 0)) {
                 unset($course->customint1); // the client does not need to know this
-                $context = context_course::instance($course->remoteid);
+                $context = get_context_instance(CONTEXT_COURSE, $course->remoteid);
                 // Rewrite file URLs so that they are correct
                 $course->summary = file_rewrite_pluginfile_urls($course->summary, 'pluginfile.php', $context->id, 'course', 'summary', false);
                 $courses[$course->remoteid] = $course;
@@ -342,10 +344,9 @@ class enrol_mnet_mnetservice_enrol {
             $params = array_merge($params, $rparams);
         }
 
-        list($sort, $sortparams) = users_order_by_sql('u');
-        $sql .= " ORDER BY $sort";
+        $sql .= " ORDER BY u.lastname, u.firstname";
 
-        $rs = $DB->get_recordset_sql($sql, array_merge($params, $sortparams));
+        $rs = $DB->get_recordset_sql($sql, $params);
         $list = array();
         foreach ($rs as $record) {
             $list[] = $record;

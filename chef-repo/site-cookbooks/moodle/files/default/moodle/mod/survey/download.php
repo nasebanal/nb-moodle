@@ -19,7 +19,7 @@
  * This file is responsible for producing the downloadable versions of a survey
  * module.
  *
- * @package   mod_survey
+ * @package   mod-survey
  * @copyright 1999 onwards Martin Dougiamas  {@link http://moodle.com}
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -40,7 +40,7 @@ if (! $course = $DB->get_record("course", array("id"=>$cm->course))) {
     print_error('coursemisconf');
 }
 
-$context = context_module::instance($cm->id);
+$context = get_context_instance(CONTEXT_MODULE, $cm->id);
 
 $PAGE->set_url('/mod/survey/download.php', array('id'=>$id, 'type'=>$type, 'group'=>$group));
 
@@ -51,14 +51,7 @@ if (! $survey = $DB->get_record("survey", array("id"=>$cm->instance))) {
     print_error('invalidsurveyid', 'survey');
 }
 
-$params = array(
-    'objectid' => $survey->id,
-    'context' => $context,
-    'courseid' => $course->id,
-    'other' => array('type' => $type, 'groupid' => $group)
-);
-$event = \mod_survey\event\report_downloaded::create($params);
-$event->trigger();
+add_to_log($course->id, "survey", "download", $PAGE->url->out(), "$survey->id", $cm->id);
 
 /// Check to see if groups are being used in this survey
 
@@ -153,7 +146,7 @@ foreach ($surveyanswers as $surveyanswer) {
 }
 
 // Output the file as a valid ODS spreadsheet if required
-$coursecontext = context_course::instance($course->id);
+$coursecontext = get_context_instance(CONTEXT_COURSE, $course->id);
 $courseshortname = format_string($course->shortname, true, array('context' => $coursecontext));
 
 if ($type == "ods") {
@@ -166,7 +159,7 @@ if ($type == "ods") {
 /// Sending HTTP headers
     $workbook->send($downloadfilename);
 /// Creating the first worksheet
-    $myxls = $workbook->add_worksheet(core_text::substr(strip_tags(format_string($survey->name,true)), 0, 31));
+    $myxls = $workbook->add_worksheet(textlib::substr(strip_tags(format_string($survey->name,true)), 0, 31));
 
     $header = array("surveyid","surveyname","userid","firstname","lastname","email","idnumber","time", "notes");
     $col=0;
@@ -241,7 +234,7 @@ if ($type == "xls") {
 /// Sending HTTP headers
     $workbook->send($downloadfilename);
 /// Creating the first worksheet
-    $myxls = $workbook->add_worksheet(core_text::substr(strip_tags(format_string($survey->name,true)), 0, 31));
+    $myxls = $workbook->add_worksheet(textlib::substr(strip_tags(format_string($survey->name,true)), 0, 31));
 
     $header = array("surveyid","surveyname","userid","firstname","lastname","email","idnumber","time", "notes");
     $col=0;

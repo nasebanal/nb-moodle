@@ -44,7 +44,7 @@
 
         $glossaryid  = clean_param($args[3], PARAM_INT);
         $cm = get_coursemodule_from_instance('glossary', $glossaryid, 0, false, MUST_EXIST);
-        $modcontext = context_module::instance($cm->id);
+        $modcontext = get_context_instance(CONTEXT_MODULE, $cm->id);
 
         if ($COURSE->id == $cm->course) {
             $course = $COURSE;
@@ -86,10 +86,14 @@
 
             foreach ($recs as $rec) {
                 $item = new stdClass();
+                $user = new stdClass();
                 $item->title = $rec->entryconcept;
 
                 if ($glossary->rsstype == 1) {//With author
-                    $item->author = fullname($rec);
+                    $user->firstname = $rec->userfirstname;
+                    $user->lastname = $rec->userlastname;
+
+                    $item->author = fullname($user);
                 }
 
                 $item->pubdate = $rec->entrytimecreated;
@@ -145,7 +149,6 @@
         }
 
         if ($glossary->rsstype == 1) {//With author
-            $allnamefields = get_all_user_name_fields(true,'u');
             $sql = "SELECT e.id AS entryid,
                       e.concept AS entryconcept,
                       e.definition AS entrydefinition,
@@ -153,7 +156,8 @@
                       e.definitiontrust AS entrytrust,
                       e.timecreated AS entrytimecreated,
                       u.id AS userid,
-                      $allnamefields
+                      u.firstname AS userfirstname,
+                      u.lastname AS userlastname
                  FROM {glossary_entries} e,
                       {user} u
                 WHERE e.glossaryid = {$glossary->id} AND
@@ -196,14 +200,4 @@
         return ($recs && !empty($recs));
     }
 
-    /**
-      * Given a glossary object, deletes all cached RSS files associated with it.
-      *
-      * @param stdClass $glossary
-      */
-    function glossary_rss_delete_file($glossary) {
-        global $CFG;
-        require_once("$CFG->libdir/rsslib.php");
 
-        rss_delete_file('mod_glossary', $glossary);
-    }

@@ -29,7 +29,7 @@ if (!$course = $DB->get_record('course', array('id'=>$id))) {
 }
 
 require_login($course);
-$context = context_course::instance($id);
+$context = get_context_instance(CONTEXT_COURSE, $id);
 require_capability('moodle/grade:import', $context);
 require_capability('gradeimport/xml:view', $context);
 
@@ -41,18 +41,17 @@ if (!empty($CFG->gradepublishing)) {
     $CFG->gradepublishing = has_capability('gradeimport/xml:publish', $context);
 }
 
-$mform = new grade_import_form(null, array('acceptedtypes' => array('.xml')));
+$mform = new grade_import_form();
 
 if ($data = $mform->get_data()) {
     // Large files are likely to take their time and memory. Let PHP know
     // that we'll take longer, and that the process should be recycled soon
     // to free up memory.
-    core_php_time_limit::raise();
+    @set_time_limit(0);
     raise_memory_limit(MEMORY_EXTRA);
 
     if ($text = $mform->get_file_content('userfile')) {
-        print_grade_page_head($COURSE->id, 'import', 'xml',
-                              get_string('importxml', 'grades'), false, false, true, 'importxml', 'gradeimport_xml');
+        print_grade_page_head($COURSE->id, 'import', 'xml', get_string('importxml', 'grades'));
 
         $error = '';
         $importcode = import_xml_grades($text, $course, $error);
@@ -75,8 +74,7 @@ if ($data = $mform->get_data()) {
             $data->key = create_user_key('grade/import', $USER->id, $course->id, $data->iprestriction, $data->validuntil);
         }
 
-        print_grade_page_head($COURSE->id, 'import', 'xml',
-                              get_string('importxml', 'grades'), false, false, true, 'importxml', 'gradeimport_xml');
+        print_grade_page_head($COURSE->id, 'import', 'xml', get_string('importxml', 'grades'));
 
         echo '<div class="gradeexportlink">';
         $link = $CFG->wwwroot.'/grade/import/xml/fetch.php?id='.$id.'&amp;feedback='.(int)($data->feedback).'&amp;url='.urlencode($data->url).'&amp;key='.$data->key;
@@ -87,9 +85,10 @@ if ($data = $mform->get_data()) {
     }
 }
 
-print_grade_page_head($COURSE->id, 'import', 'xml',
-                      get_string('importxml', 'grades'), false, false, true, 'importxml', 'gradeimport_xml');
+print_grade_page_head($COURSE->id, 'import', 'xml', get_string('importxml', 'grades'));
 
 $mform->display();
 
 echo $OUTPUT->footer();
+
+

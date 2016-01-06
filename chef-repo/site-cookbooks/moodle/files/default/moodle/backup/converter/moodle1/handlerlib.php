@@ -84,7 +84,7 @@ abstract class moodle1_handlers_factory {
         global $CFG;
 
         $handlers = array();
-        $plugins = core_component::get_plugin_list($type);
+        $plugins = get_plugin_list($type);
         foreach ($plugins as $name => $dir) {
             $handlerfile  = $dir . '/backup/moodle1/lib.php';
             $handlerclass = "moodle1_{$type}_{$name}_handler";
@@ -799,7 +799,10 @@ class moodle1_course_outline_handler extends moodle1_xml_handler {
                         'completiongradeitemnumber' => null,
                         'completionview'            => 0,
                         'completionexpected'        => 0,
-                        'availability'              => null,
+                        'availablefrom'             => 0,
+                        'availableuntil'            => 0,
+                        'showavailability'          => 0,
+                        'availability_info'         => array(),
                         'visibleold'                => 1,
                         'showdescription'           => 0,
                     ),
@@ -863,11 +866,9 @@ class moodle1_course_outline_handler extends moodle1_xml_handler {
         // host...
         $versionfile = $CFG->dirroot.'/mod/'.$data['modulename'].'/version.php';
         if (file_exists($versionfile)) {
-            $plugin = new stdClass();
-            $plugin->version = null;
-            $module = $plugin;
+            $module = new stdClass();
             include($versionfile);
-            $data['version'] = $plugin->version;
+            $data['version'] = $module->version;
         } else {
             $data['version'] = null;
         }
@@ -1221,7 +1222,7 @@ class moodle1_question_bank_handler extends moodle1_xml_handler {
 
         // replay the upgrade step 2010080901 - updating question image
         if (!empty($data['image'])) {
-            if (core_text::substr(core_text::strtolower($data['image']), 0, 7) == 'http://') {
+            if (textlib::substr(textlib::strtolower($data['image']), 0, 7) == 'http://') {
                 // it is a link, appending to existing question text
                 $data['questiontext'] .= ' <img src="' . $data['image'] . '" />';
 
@@ -1292,9 +1293,7 @@ class moodle1_question_bank_handler extends moodle1_xml_handler {
      * Closes the questions wrapper
      */
     public function on_questions_end() {
-        if ($this->questionswrapperwritten) {
-            $this->xmlwriter->end_tag('questions');
-        }
+        $this->xmlwriter->end_tag('questions');
     }
 
     /**
@@ -1336,7 +1335,7 @@ class moodle1_question_bank_handler extends moodle1_xml_handler {
         if (is_null($this->qtypehandlers)) {
             // initialize the list of qtype handler instances
             $this->qtypehandlers = array();
-            foreach (core_component::get_plugin_list('qtype') as $qtypename => $qtypelocation) {
+            foreach (get_plugin_list('qtype') as $qtypename => $qtypelocation) {
                 $filename = $qtypelocation.'/backup/moodle1/lib.php';
                 if (file_exists($filename)) {
                     $classname = 'moodle1_qtype_'.$qtypename.'_handler';

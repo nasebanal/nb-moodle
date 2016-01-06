@@ -6,7 +6,7 @@
  * @author Josep Arús
  *
  * @license http://www.gnu.org/copyleft/gpl.html GNU Public License
- * @package mod_wiki
+ * @package wiki
  */
 
 require_once($CFG->dirroot . "/lib/outputcomponents.php");

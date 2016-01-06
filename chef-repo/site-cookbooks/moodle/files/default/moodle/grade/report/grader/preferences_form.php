@@ -40,7 +40,8 @@ class grader_report_preferences_form extends moodleform {
         $mform    =& $this->_form;
         $course   = $this->_customdata['course'];
 
-        $context = context_course::instance($course->id);
+        $context = get_context_instance(CONTEXT_COURSE, $course->id);
+        $systemcontext = get_context_instance(CONTEXT_SYSTEM);
 
         $canviewhidden = has_capability('moodle/grade:viewhidden', $context);
 
@@ -55,9 +56,7 @@ class grader_report_preferences_form extends moodleform {
         if (has_capability('moodle/grade:manage', $context)) {
 
             $preferences['prefshow'] = array();
-
-            $preferences['prefshow']['showcalculations'] = $checkbox_default;
-
+            $preferences['prefshow']['showcalculations']  = $checkbox_default;
             $preferences['prefshow']['showeyecons']       = $checkbox_default;
             if ($canviewhidden) {
                 $preferences['prefshow']['showaverages']  = $checkbox_default;
@@ -101,9 +100,6 @@ class grader_report_preferences_form extends moodleform {
         // View capability is the lowest permission. Users with grade:manage or grade:edit must also have grader:view
         if (has_capability('gradereport/grader:view', $context)) {
             $preferences['prefgeneral']['studentsperpage'] = 'text';
-            if (has_capability('moodle/course:viewsuspendedusers', $context)) {
-                $preferences['prefgeneral']['showonlyactiveenrol'] = $checkbox_default;
-            }
             $preferences['prefgeneral']['aggregationposition'] = array(GRADE_REPORT_PREFERENCE_DEFAULT => '*default*',
                                                                        GRADE_REPORT_AGGREGATION_POSITION_FIRST => get_string('positionfirst', 'grades'),
                                                                        GRADE_REPORT_AGGREGATION_POSITION_LAST => get_string('positionlast', 'grades'));
@@ -124,7 +120,6 @@ class grader_report_preferences_form extends moodleform {
 
         foreach ($preferences as $group => $prefs) {
             $mform->addElement('header', $group, get_string($group, 'grades'));
-            $mform->setExpanded($group);
 
             foreach ($prefs as $pref => $type) {
                 // Detect and process dynamically numbered preferences

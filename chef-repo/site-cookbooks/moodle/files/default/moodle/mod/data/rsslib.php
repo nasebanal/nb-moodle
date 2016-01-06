@@ -44,7 +44,7 @@
         $dataid = clean_param($args[3], PARAM_INT);
         $cm = get_coursemodule_from_instance('data', $dataid, 0, false, MUST_EXIST);
         if ($cm) {
-            $modcontext = context_module::instance($cm->id);
+            $modcontext = get_context_instance(CONTEXT_MODULE, $cm->id);
 
             //context id from db should match the submitted one
             if ($context->id != $modcontext->id || !has_capability('mod/data:viewentry', $modcontext)) {
@@ -107,7 +107,7 @@
                 array_push($items, $item);
             }
             $course = $DB->get_record('course', array('id'=>$data->course));
-            $coursecontext = context_course::instance($course->id);
+            $coursecontext = get_context_instance(CONTEXT_COURSE, $course->id);
             $courseshortname = format_string($course->shortname, true, array('context' => $coursecontext));
 
             // First all rss feeds common headers.
@@ -175,17 +175,5 @@
 
         $recs = $DB->get_records_sql($sql, null, 0, 1);//limit of 1. If we get even 1 back we have new stuff
         return ($recs && !empty($recs));
-    }
-
-    /**
-     * Given a database object, deletes all cached RSS files associated with it.
-     *
-     * @param stdClass $data
-     */
-    function data_rss_delete_file($data) {
-        global $CFG;
-        require_once("$CFG->libdir/rsslib.php");
-
-        rss_delete_file('mod_data', $data);
     }
 

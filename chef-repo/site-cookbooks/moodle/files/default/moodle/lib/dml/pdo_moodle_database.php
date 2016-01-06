@@ -129,6 +129,15 @@ abstract class pdo_moodle_database extends moodle_database {
     }
 
     /**
+     * Returns localised database description
+     * Note: can be used before connect()
+     * @return string
+     */
+    public function get_configuration_hints() {
+        return get_string('databasesettingssub_' . $this->get_dbtype() . '_pdo', 'install');
+    }
+
+    /**
      * Returns database server info array
      * @return array Array containing 'description' and 'version' info
      */
@@ -174,34 +183,22 @@ abstract class pdo_moodle_database extends moodle_database {
 
     /**
      * Do NOT use in code, to be used by database_manager only!
-     * @param string|array $sql query
-     * @return bool true
-     * @throws ddl_change_structure_exception A DDL specific exception is thrown for any errors.
+     * @param string $sql query
+     * @return bool success
      */
     public function change_database_structure($sql) {
-        $this->get_manager(); // Includes DDL exceptions classes ;-)
-        $sqls = (array)$sql;
+        $result = true;
+        $this->query_start($sql, null, SQL_QUERY_STRUCTURE);
 
         try {
-            foreach ($sqls as $sql) {
-                $result = true;
-                $this->query_start($sql, null, SQL_QUERY_STRUCTURE);
-
-                try {
-                    $this->pdb->exec($sql);
-                } catch (PDOException $ex) {
-                    $this->lastError = $ex->getMessage();
-                    $result = false;
-                }
-                $this->query_end($result);
-            }
-        } catch (ddl_change_structure_exception $e) {
+            $this->pdb->exec($sql);
             $this->reset_caches();
-            throw $e;
+        } catch (PDOException $ex) {
+            $this->lastError = $ex->getMessage();
+            $result = false;
         }
-
-        $this->reset_caches();
-        return true;
+        $this->query_end($result);
+        return $result;
     }
 
     public function delete_records_select($table, $select, array $params=null) {
@@ -320,17 +317,16 @@ abstract class pdo_moodle_database extends moodle_database {
      * @return array of objects, or empty array if no records were found, or false if an error occurred.
      */
     public function get_records_sql($sql, array $params=null, $limitfrom=0, $limitnum=0) {
-        global $CFG;
-
         $rs = $this->get_recordset_sql($sql, $params, $limitfrom, $limitnum);
         if (!$rs->valid()) {
             $rs->close(); // Not going to iterate (but exit), close rs
             return false;
         }
         $objects = array();
+        $debugging = debugging('', DEBUG_DEVELOPER);
         foreach($rs as $value) {
             $key = reset($value);
-            if ($CFG->debugdeveloper && array_key_exists($key, $objects)) {
+            if ($debugging && array_key_exists($key, $objects)) {
                 debugging("Did you remember to make the first column something unique in your call to get_records? Duplicate value '$key' found in column first column of '$sql'.", DEBUG_DEVELOPER);
             }
             $objects[$key] = (object)$value;
@@ -398,10 +394,6 @@ abstract class pdo_moodle_database extends moodle_database {
         $dataobject = (array)$dataobject;
 
         $columns = $this->get_columns($table);
-        if (empty($columns)) {
-            throw new dml_exception('ddltablenotexist', $table);
-        }
-
         $cleaned = array();
 
         foreach ($dataobject as $field=>$value) {

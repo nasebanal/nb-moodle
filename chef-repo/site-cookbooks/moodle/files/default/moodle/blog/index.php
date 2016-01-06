@@ -1,18 +1,4 @@
 <?php
-// This file is part of Moodle - http://moodle.org/
-//
-// Moodle is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// Moodle is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
  * file index.php
@@ -48,74 +34,52 @@ foreach ($url_params as $var => $val) {
 }
 $PAGE->set_url('/blog/index.php', $url_params);
 
-// Correct tagid if a text tag is provided as a param.
+if (empty($CFG->bloglevel)) {
+    print_error('blogdisable', 'blog');
+}
+
+//correct tagid if a text tag is provided as a param
 if (!empty($tag)) {
-    if ($tagrec = $DB->get_record('tag', array('name' => $tag))) {
+    if ($tagrec = $DB->get_record_sql("SELECT * FROM {tag} WHERE ". $DB->sql_like('name', '?', false), array("%$tag%"))) {
         $tagid = $tagrec->id;
     } else {
         unset($tagid);
     }
 }
 
-// Set the userid to the entry author if we have the entry ID.
-if ($entryid and !isset($userid)) {
-    $entry = new blog_entry($entryid);
-    $userid = $entry->userid;
+// add courseid if modid or groupid is specified: This is used for navigation and title
+if (!empty($modid) && empty($courseid)) {
+    $courseid = $DB->get_field('course_modules', 'course', array('id'=>$modid));
 }
 
-if (isset($userid) && !isset($courseid)) {
-    $context = context_user::instance($userid);
-} else if (isset($courseid) && $courseid != SITEID) {
-    $context = context_course::instance($courseid);
-} else {
-    $context = context_system::instance();
-}
-$PAGE->set_context($context);
-
-$sitecontext = context_system::instance();
-
-if (isset($userid) && $USER->id == $userid) {
-    $blognode = $PAGE->navigation->find('siteblog', null);
-    if ($blognode) {
-        $blognode->make_inactive();
-    }
+if (!empty($groupid) && empty($courseid)) {
+    $courseid = $DB->get_field('groups', 'courseid', array('id'=>$groupid));
 }
 
-// Check basic permissions.
+$sitecontext = get_context_instance(CONTEXT_SYSTEM);
+
+// check basic permissions
 if ($CFG->bloglevel == BLOG_GLOBAL_LEVEL) {
-    // Everybody can see anything - no login required unless site is locked down using forcelogin.
+    // everybody can see anything - no login required unless site is locked down using forcelogin
     if ($CFG->forcelogin) {
         require_login();
     }
 
 } else if ($CFG->bloglevel == BLOG_SITE_LEVEL) {
-    // Users must log in and can not be guests.
+    // users must log in and can not be guests
     require_login();
     if (isguestuser()) {
-        // They must have entered the url manually.
+        // they must have entered the url manually...
         print_error('blogdisable', 'blog');
     }
 
 } else if ($CFG->bloglevel == BLOG_USER_LEVEL) {
-    // Users can see own blogs only! with the exception of people with special cap.
+    // users can see own blogs only! with the exception of ppl with special cap
     require_login();
 
 } else {
-    // Weird!
+    // weird!
     print_error('blogdisable', 'blog');
-}
-
-if (empty($CFG->enableblogs)) {
-    print_error('blogdisable', 'blog');
-}
-
-// Add courseid if modid or groupid is specified: This is used for navigation and title.
-if (!empty($modid) && empty($courseid)) {
-    $courseid = $DB->get_field('course_modules', 'course', array('id' => $modid));
-}
-
-if (!empty($groupid) && empty($courseid)) {
-    $courseid = $DB->get_field('groups', 'courseid', array('id' => $groupid));
 }
 
 
@@ -158,13 +122,15 @@ if (!empty($courseid)) {
     }
 
     $courseid = $course->id;
+    $coursecontext = get_context_instance(CONTEXT_COURSE, $course->id);
+
     require_login($course);
 
-    if (!has_capability('moodle/blog:view', $sitecontext)) {
+    if (!has_capability('moodle/blog:view', $coursecontext)) {
         print_error('cannotviewcourseblog', 'blog');
     }
 } else {
-    $coursecontext = context_course::instance(SITEID);
+    $coursecontext = get_context_instance(CONTEXT_COURSE, SITEID);
 }
 
 if (!empty($groupid)) {
@@ -180,11 +146,11 @@ if (!empty($groupid)) {
         print_error('invalidcourseid');
     }
 
-    $coursecontext = context_course::instance($course->id);
+    $coursecontext = get_context_instance(CONTEXT_COURSE, $course->id);
     $courseid = $course->id;
     require_login($course);
 
-    if (!has_capability('moodle/blog:view', $sitecontext)) {
+    if (!has_capability('moodle/blog:view', $coursecontext)) {
         print_error(get_string('cannotviewcourseorgroupblog', 'blog'));
     }
 
@@ -227,6 +193,15 @@ if (!empty($userid)) {
 
 $courseid = (empty($courseid)) ? SITEID : $courseid;
 
+if (empty($entryid) && empty($modid) && empty($groupid)) {
+    $PAGE->set_context(context_user::instance($USER->id));
+} else if (!empty($modid)) {
+    $PAGE->set_context(context_module::instance($modid));
+} else if (!empty($courseid)) {
+    $PAGE->set_context(context_course::instance($courseid));
+} else {
+    $PAGE->set_context(context_system::instance());
+}
 
 $blogheaders = blog_get_headers();
 
@@ -236,40 +211,20 @@ if ($CFG->enablerssfeeds) {
     $thingid = null;
     list($thingid, $rsscontext, $filtertype) = blog_rss_get_params($blogheaders['filters']);
     if (empty($rsscontext)) {
-        $rsscontext = context_system::instance();
+        $rsscontext = get_system_context();
     }
     $rsstitle = $blogheaders['heading'];
 
-    // Check we haven't started output by outputting an error message.
+    //check we haven't started output by outputting an error message
     if ($PAGE->state == moodle_page::STATE_BEFORE_HEADER) {
         blog_rss_add_http_header($rsscontext, $rsstitle, $filtertype, $thingid, $tagid);
     }
+
+    //this works but there isn't a great place to put the link
+    //blog_rss_print_link($rsscontext, $filtertype, $thingid, $tagid);
 }
 
-$usernode = $PAGE->navigation->find('user'.$userid, null);
-if ($usernode && $courseid != SITEID) {
-    $courseblogsnode = $PAGE->navigation->find('courseblogs', null);
-    if ($courseblogsnode) {
-        $courseblogsnode->remove();
-    }
-    $blogurl = new moodle_url($PAGE->url);
-    $blognode = $usernode->add(get_string('blogscourse', 'blog'), $blogurl);
-    $blognode->make_active();
-}
-
-if ($courseid != SITEID) {
-    $PAGE->set_heading($course->fullname);
-    echo $OUTPUT->header();
-    if (!empty($user)) {
-        $headerinfo = array('heading' => fullname($user), 'user' => $user);
-        echo $OUTPUT->context_header($headerinfo, 2);
-    }
-} else if (isset($userid)) {
-    $PAGE->set_heading(fullname($user));
-    echo $OUTPUT->header();
-} else if ($courseid == SITEID) {
-    echo $OUTPUT->header();
-}
+echo $OUTPUT->header();
 
 echo $OUTPUT->heading($blogheaders['heading'], 2);
 
@@ -277,13 +232,5 @@ $bloglisting = new blog_listing($blogheaders['filters']);
 $bloglisting->print_entries();
 
 echo $OUTPUT->footer();
-$eventparams = array(
-    'other' => array('entryid' => $entryid, 'tagid' => $tagid, 'userid' => $userid, 'modid' => $modid, 'groupid' => $groupid,
-                     'search' => $search, 'fromstart' => $start)
-);
-if (!empty($userid)) {
-    $eventparams['relateduserid'] = $userid;
-}
-$eventparams['other']['courseid'] = ($courseid === SITEID) ? 0 : $courseid;
-$event = \core\event\blog_entries_viewed::create($eventparams);
-$event->trigger();
+
+add_to_log($courseid, 'blog', 'view', 'index.php?entryid='.$entryid.'&amp;tagid='.@$tagid.'&amp;tag='.$tag, 'view blog entry');

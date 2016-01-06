@@ -1,4 +1,5 @@
 <?php
+
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -22,19 +23,19 @@
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-$string['configtitle'] = 'Block title';
-$string['disabledtags'] = 'Tags are disabled';
-$string['defaultdisplay'] = 'Tag type to display';
-$string['pluginname'] = 'Tags';
-$string['tags:addinstance'] = 'Add a new tags block';
-$string['tags:myaddinstance'] = 'Add a new tags block to Dashboard';
-
-// Deprecated since 3.0
-
 $string['add'] = 'Add';
 $string['alltags'] = 'All tags:';
+$string['alltags1'] = 'all tags';
+$string['alltags2'] = 'Show all tags (user profile, blogs and course tags)';
 $string['arrowtitle'] = 'Click here to enter the suggested text (grey letters).';
+$string['communitytags'] = 'Community tags:';
+$string['communitytags1'] = 'community tags';
+$string['communitytags2'] = 'Show all user created course tags';
+$string['configtitle'] = 'Block title';
 $string['coursetags'] = 'Course tags:';
+$string['coursetags1'] = 'course tags';
+$string['coursetags2'] = 'Show tags for this course';
+$string['disabledtags'] = 'Tags are disabled';
 $string['edit'] = 'edit...';
 $string['editdeletemytag'] = 'Delete tag from this course:';
 $string['editmytags'] = 'My tags - shortcuts to all your tagged courses.';
@@ -56,7 +57,7 @@ $string['moreorderdate'] = 'Date created';
 $string['moreorderpop'] = 'Popularity';
 $string['moreshow'] = 'Show:';
 $string['moreshowalltags'] = 'All tags';
-$string['moreshowcommtags'] = 'Non-official tags';
+$string['moreshowcommtags'] = 'Community tags';
 $string['moreshowcoursetags'] = 'Tags for \'{$a}\'';
 $string['moreshowmytags'] = 'My tags';
 $string['moreshowofficialtags'] = 'Official tags';
@@ -68,9 +69,17 @@ like your favourite courses, your blogs or your profile with your own words.
 Different groups of tags may be displayed with the links on the \'Show:\' line,
 and may be reordered with the links on the \'Order:\' line.';
 $string['mycoursetags'] = 'My course tags:';
+$string['mycoursetag1'] = 'Show my course tags';
+$string['mycoursetag2'] = 'my course tags';
 $string['mytags'] = 'My tags:';
+$string['mytags1'] = 'my tags';
+$string['mytags2'] = 'Show my personal tags';
 $string['notagsyet'] = 'No tags yet';
+$string['officialtags'] = 'Official course tags:';
+$string['officialtags1'] = 'official tags';
+$string['officialtags2'] = 'Show official course tags';
 $string['please'] = 'Please';
+$string['pluginname'] = 'Tags';
 $string['select'] = 'Select...';
 $string['showcoursetags'] = 'Show course tags';
 $string['showcoursetagsdef'] = 'Display the course tagging features in the tags block, allowing students to tag courses.';

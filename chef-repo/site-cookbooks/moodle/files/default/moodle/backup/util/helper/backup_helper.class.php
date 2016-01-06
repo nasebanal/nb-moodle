@@ -41,16 +41,10 @@ abstract class backup_helper {
 
     /**
      * Given one backupid, ensure its temp dir is completely empty
-     *
-     * If supplied, progress object should be ready to receive indeterminate
-     * progress reports.
-     *
-     * @param string $backupid Backup id
-     * @param \core\progress\base $progress Optional progress reporting object
      */
-    static public function clear_backup_dir($backupid, \core\progress\base $progress = null) {
+    static public function clear_backup_dir($backupid) {
         global $CFG;
-        if (!self::delete_dir_contents($CFG->tempdir . '/backup/' . $backupid, '', $progress)) {
+        if (!self::delete_dir_contents($CFG->tempdir . '/backup/' . $backupid)) {
             throw new backup_helper_exception('cannot_empty_backup_temp_dir');
         }
         return true;
@@ -58,16 +52,10 @@ abstract class backup_helper {
 
     /**
      * Given one backupid, delete completely its temp dir
-     *
-     * If supplied, progress object should be ready to receive indeterminate
-     * progress reports.
-     *
-     * @param string $backupid Backup id
-     * @param \core\progress\base $progress Optional progress reporting object
      */
-     static public function delete_backup_dir($backupid, \core\progress\base $progress = null) {
+     static public function delete_backup_dir($backupid) {
          global $CFG;
-         self::clear_backup_dir($backupid, $progress);
+         self::clear_backup_dir($backupid);
          return rmdir($CFG->tempdir . '/backup/' . $backupid);
      }
 
@@ -75,20 +63,9 @@ abstract class backup_helper {
      * Given one fullpath to directory, delete its contents recursively
      * Copied originally from somewhere in the net.
      * TODO: Modernise this
-     *
-     * If supplied, progress object should be ready to receive indeterminate
-     * progress reports.
-     *
-     * @param string $dir Directory to delete
-     * @param string $excludedir Exclude this directory
-     * @param \core\progress\base $progress Optional progress reporting object
      */
-    static public function delete_dir_contents($dir, $excludeddir='', \core\progress\base $progress = null) {
+    static public function delete_dir_contents($dir, $excludeddir='') {
         global $CFG;
-
-        if ($progress) {
-            $progress->progress();
-        }
 
         if (!is_dir($dir)) {
             // if we've been given a directory that doesn't exist yet, return true.
@@ -131,7 +108,7 @@ abstract class backup_helper {
         // Empty sub directories and then remove the directory
         for ($i=0; $i<count($dir_subdirs); $i++) {
             chmod($dir_subdirs[$i], $CFG->directorypermissions);
-            if (self::delete_dir_contents($dir_subdirs[$i], '', $progress) == false) {
+            if (self::delete_dir_contents($dir_subdirs[$i]) == false) {
                 return false;
             } else {
                 if (remove_dir($dir_subdirs[$i]) == false) {
@@ -148,15 +125,9 @@ abstract class backup_helper {
     }
 
     /**
-     * Delete all the temp dirs older than the time specified.
-     *
-     * If supplied, progress object should be ready to receive indeterminate
-     * progress reports.
-     *
-     * @param int $deletefrom Time to delete from
-     * @param \core\progress\base $progress Optional progress reporting object
+     * Delete all the temp dirs older than the time specified
      */
-    static public function delete_old_backup_dirs($deletefrom, \core\progress\base $progress = null) {
+    static public function delete_old_backup_dirs($deletefrom) {
         global $CFG;
 
         $status = true;
@@ -169,7 +140,7 @@ abstract class backup_helper {
                 //If directory, recurse
                 if (is_dir($file_path)) {
                     // $file is really the backupid
-                    $status = self::delete_backup_dir($file, $progress);
+                    $status = self::delete_backup_dir($file);
                 //If file
                 } else {
                     unlink($file_path);
@@ -208,22 +179,17 @@ abstract class backup_helper {
      *
      * Note: the $filepath is deleted if the backup file is created successfully
      *
-     * If you specify the progress monitor, this will start a new progress section
-     * to track progress in processing (in case this task takes a long time).
-     *
      * @param int $backupid
      * @param string $filepath zip file containing the backup
-     * @param \core\progress\base $progress Optional progress monitor
      * @return stored_file if created, null otherwise
      *
      * @throws moodle_exception in case of any problems
      */
-    static public function store_backup_file($backupid, $filepath, \core\progress\base $progress = null) {
+    static public function store_backup_file($backupid, $filepath) {
         global $CFG;
 
         // First of all, get some information from the backup_controller to help us decide
-        list($dinfo, $cinfo, $sinfo) = backup_controller_dbops::get_moodle_backup_information(
-                $backupid, $progress);
+        list($dinfo, $cinfo, $sinfo) = backup_controller_dbops::get_moodle_backup_information($backupid);
 
         // Extract useful information to decide
         $hasusers  = (bool)$sinfo['users']->value;     // Backup has users
@@ -260,19 +226,19 @@ abstract class backup_helper {
         $itemid    = 0;
         switch ($backuptype) {
             case backup::TYPE_1ACTIVITY:
-                $ctxid     = context_module::instance($id)->id;
+                $ctxid     = get_context_instance(CONTEXT_MODULE, $id)->id;
                 $component = 'backup';
                 $filearea  = 'activity';
                 $itemid    = 0;
                 break;
             case backup::TYPE_1SECTION:
-                $ctxid     = context_course::instance($courseid)->id;
+                $ctxid     = get_context_instance(CONTEXT_COURSE, $courseid)->id;
                 $component = 'backup';
                 $filearea  = 'section';
                 $itemid    = $id;
                 break;
             case backup::TYPE_1COURSE:
-                $ctxid     = context_course::instance($courseid)->id;
+                $ctxid     = get_context_instance(CONTEXT_COURSE, $courseid)->id;
                 $component = 'backup';
                 $filearea  = 'course';
                 $itemid    = 0;
@@ -293,15 +259,11 @@ abstract class backup_helper {
                 if (@rename($filepath, $filedest)) {
                     return null;
                 }
-                umask($CFG->umaskpermissions);
+                umask(0000);
                 if (copy($filepath, $filedest)) {
                     @chmod($filedest, $CFG->filepermissions); // may fail because the permissions may not make sense outside of dataroot
                     unlink($filepath);
                     return null;
-                } else {
-                    $bc = backup_controller::load_controller($backupid);
-                    $bc->log('Attempt to copy backup file to the specified directory using filesystem failed - ',
-                            backup::LOG_WARNING, $dir);
                 }
                 // bad luck, try to deal with the file the old way - keep backup in file area if we can not copy to ext system
             }
@@ -311,7 +273,7 @@ abstract class backup_helper {
         // are sent to user's "user_tohub" file area. The upload process
         // will be responsible for cleaning that filearea once finished
         if ($backupmode == backup::MODE_HUB) {
-            $ctxid     = context_user::instance($userid)->id;
+            $ctxid     = get_context_instance(CONTEXT_USER, $userid)->id;
             $component = 'user';
             $filearea  = 'tohub';
             $itemid    = 0;
@@ -322,7 +284,7 @@ abstract class backup_helper {
         // file area. Maintenance of such area is responsibility of
         // the user via corresponding file manager frontend
         if ($backupmode == backup::MODE_GENERAL && (!$hasusers || $isannon)) {
-            $ctxid     = context_user::instance($userid)->id;
+            $ctxid     = get_context_instance(CONTEXT_USER, $userid)->id;
             $component = 'user';
             $filearea  = 'backup';
             $itemid    = 0;

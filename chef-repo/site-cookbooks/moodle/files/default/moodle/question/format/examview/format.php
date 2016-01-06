@@ -37,21 +37,21 @@ require_once($CFG->libdir . '/xmlize.php');
 class qformat_examview extends qformat_based_on_xml {
 
     public $qtypes = array(
-        'tf' => 'truefalse',
-        'mc' => 'multichoice',
-        'yn' => 'truefalse',
-        'co' => 'shortanswer',
-        'ma' => 'match',
+        'tf' => TRUEFALSE,
+        'mc' => MULTICHOICE,
+        'yn' => TRUEFALSE,
+        'co' => SHORTANSWER,
+        'ma' => MATCH,
         'mtf' => 99,
-        'nr' => 'numerical',
+        'nr' => NUMERICAL,
         'pr' => 99,
-        'es' => 'essay',
+        'es' => ESSAY,
         'ca' => 99,
         'ot' => 99,
-        'sa' => 'shortanswer',
+        'sa' => SHORTANSWER,
     );
 
-    public $matchingquestions = array();
+    public $matching_questions = array();
 
     public function provide_import() {
         return true;
@@ -87,19 +87,19 @@ class qformat_examview extends qformat_based_on_xml {
         return $text;
     }
 
-    public function parse_matching_groups($matchinggroups) {
-        if (empty($matchinggroups)) {
+    public function parse_matching_groups($matching_groups) {
+        if (empty($matching_groups)) {
             return;
         }
-        foreach ($matchinggroups as $matchgroup) {
+        foreach ($matching_groups as $match_group) {
             $newgroup = new stdClass();
-            $groupname = trim($matchgroup['@']['name']);
-            $questiontext = $this->unxmlise($matchgroup['#']['text'][0]['#']);
+            $groupname = trim($match_group['@']['name']);
+            $questiontext = $this->unxmlise($match_group['#']['text'][0]['#']);
             $newgroup->questiontext = trim($questiontext);
             $newgroup->subchoices = array();
             $newgroup->subquestions = array();
             $newgroup->subanswers = array();
-            $choices = $matchgroup['#']['choices']['0']['#'];
+            $choices = $match_group['#']['choices']['0']['#'];
             foreach ($choices as $key => $value) {
                 if (strpos(trim($key), 'choice-') !== false) {
                     $key = strtoupper(trim(str_replace('choice-', '', $key)));
@@ -111,12 +111,12 @@ class qformat_examview extends qformat_based_on_xml {
     }
 
     protected function parse_ma($qrec, $groupname) {
-        $matchgroup = $this->matching_questions[$groupname];
+        $match_group = $this->matching_questions[$groupname];
         $phrase = trim($this->unxmlise($qrec['text']['0']['#']));
         $answer = trim($this->unxmlise($qrec['answer']['0']['#']));
         $answer = strip_tags( $answer );
-        $matchgroup->mappings[$phrase] = $matchgroup->subchoices[$answer];
-        $this->matching_questions[$groupname] = $matchgroup;
+        $match_group->mappings[$phrase] = $match_group->subchoices[$answer];
+        $this->matching_questions[$groupname] = $match_group;
         return null;
     }
 
@@ -125,19 +125,19 @@ class qformat_examview extends qformat_based_on_xml {
             return;
         }
 
-        foreach ($this->matching_questions as $matchgroup) {
+        foreach ($this->matching_questions as $match_group) {
             $question = $this->defaultquestion();
-            $htmltext = s($matchgroup->questiontext);
+            $htmltext = s($match_group->questiontext);
             $question->questiontext = $htmltext;
             $question->questiontextformat = FORMAT_HTML;
             $question->questiontextfiles = array();
             $question->name = $this->create_default_question_name($question->questiontext, get_string('questionname', 'question'));
-            $question->qtype = 'match';
+            $question->qtype = MATCH;
             $question = $this->add_blank_combined_feedback($question);
             $question->subquestions = array();
             $question->subanswers = array();
-            foreach ($matchgroup->subchoices as $subchoice) {
-                $fiber = array_keys ($matchgroup->mappings, $subchoice);
+            foreach ($match_group->subchoices as $subchoice) {
+                $fiber = array_keys ($match_group->mappings, $subchoice);
                 $subquestion = '';
                 foreach ($fiber as $subquestion) {
                     $question->subquestions[] = $this->text_field($subquestion);
@@ -204,23 +204,23 @@ class qformat_examview extends qformat_based_on_xml {
         $question->name = $this->create_default_question_name($question->questiontext, get_string('questionname', 'question'));
 
         switch ($question->qtype) {
-            case 'multichoice':
+            case MULTICHOICE:
                 $question = $this->parse_mc($qrec['#'], $question);
                 break;
-            case 'match':
+            case MATCH:
                 $groupname = trim($qrec['@']['group']);
                 $question = $this->parse_ma($qrec['#'], $groupname);
                 break;
-            case 'truefalse':
+            case TRUEFALSE:
                 $question = $this->parse_tf_yn($qrec['#'], $question);
                 break;
-            case 'shortanswer':
+            case SHORTANSWER:
                 $question = $this->parse_co($qrec['#'], $question);
                 break;
-            case 'essay':
+            case ESSAY:
                 $question = $this->parse_es($qrec['#'], $question);
                 break;
-            case 'numerical':
+            case NUMERICAL:
                 $question = $this->parse_nr($qrec['#'], $question);
                 break;
                 break;
@@ -292,13 +292,10 @@ class qformat_examview extends qformat_based_on_xml {
     protected function parse_es($qrec, $question) {
         $feedback = trim($this->unxmlise($qrec['answer'][0]['#']));
         $question->graderinfo =  $this->text_field($feedback);
-        $question->responsetemplate =  $this->text_field('');
-        $question->responserequired = 1;
         $question->feedback = $feedback;
         $question->responseformat = 'editor';
         $question->responsefieldlines = 15;
         $question->attachments = 0;
-        $question->attachmentsrequired = 0;
         $question->fraction = 0;
         return $question;
     }

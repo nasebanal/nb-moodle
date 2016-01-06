@@ -1,4 +1,5 @@
-<?php
+<?PHP
+
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -14,8 +15,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-/**
- * @package block_community
+/*
+ * @package    blocks
+ * @subpackage community
  * @author     Jerome Mouneyrac <jerome@mouneyrac.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL
  * @copyright  (C) 1999 onwards Martin Dougiamas  http://dougiamas.com
@@ -41,7 +43,7 @@ class block_community extends block_list {
     function user_can_edit() {
         // Don't allow people to edit the block if they can't even use it
         if (!has_capability('moodle/community:add',
-                        context::instance_by_id($this->instance->parentcontextid))) {
+                        get_context_instance_by_id($this->instance->parentcontextid))) {
             return false;
         }
         return parent::user_can_edit();
@@ -50,7 +52,7 @@ class block_community extends block_list {
     function get_content() {
         global $CFG, $OUTPUT, $USER;
 
-        $coursecontext = context::instance_by_id($this->instance->parentcontextid);
+        $coursecontext = get_context_instance_by_id($this->instance->parentcontextid);
 
         if (!has_capability('moodle/community:add', $coursecontext)
                 or $this->content !== NULL) {
@@ -70,7 +72,7 @@ class block_community extends block_list {
                     'class' => 'icon', 'alt' => ""));
         $addcourseurl = new moodle_url('/blocks/community/communitycourse.php',
                         array('add' => true, 'courseid' => $this->page->course->id));
-        $searchlink = html_writer::tag('a', $icon . get_string('addcourse', 'block_community'),
+        $searchlink = html_writer::tag('a', $icon . '&nbsp;' . get_string('addcourse', 'block_community'),
                         array('href' => $addcourseurl->out(false)));
         $this->content->items[] = $searchlink;
 

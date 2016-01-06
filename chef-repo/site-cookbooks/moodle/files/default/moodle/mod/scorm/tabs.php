@@ -19,11 +19,11 @@
  *
  * @author Dan Marsden and others.
  * @license http://www.gnu.org/copyleft/gpl.html GNU Public License
- * @package mod_scorm
+ * @package scorm
  */
 
 if (empty($scorm)) {
-    print_error('cannotaccess', 'mod_scorm');
+    error('You cannot call this script in that way');
 }
 if (!isset($currenttab)) {
     $currenttab = '';
@@ -32,7 +32,7 @@ if (!isset($cm)) {
     $cm = get_coursemodule_from_instance('scorm', $scorm->id);
 }
 
-$contextmodule = context_module::instance($cm->id);
+$contextmodule = get_context_instance(CONTEXT_MODULE, $cm->id);
 
 $tabs = array();
 $row = array();
@@ -46,15 +46,16 @@ if (has_capability('mod/scorm:viewreport', $contextmodule)) {
     $row[] = new tabobject('reports', "$CFG->wwwroot/mod/scorm/report.php?id=$cm->id", get_string('reports', 'scorm'));
 }
 
-if (!($currenttab == 'info' && count($row) == 1)) {
+if ($currenttab == 'info' && count($row) == 1) {
+    // Don't show only an info tab (e.g. to students).
+} else {
     $tabs[] = $row;
 }
 
 if ($currenttab == 'reports' && !empty($reportlist) && count($reportlist) > 1) {
     $row2 = array();
     foreach ($reportlist as $rep) {
-        $row2[] = new tabobject('scorm_'.$rep, $CFG->wwwroot."/mod/scorm/report.php?id=$cm->id&mode=$rep",
-                                get_string('pluginname', 'scormreport_'.$rep));
+        $row2[] = new tabobject('scorm_'.$rep, $CFG->wwwroot."/mod/scorm/report.php?id=$cm->id&mode=$rep", get_string('pluginname', 'scormreport_'.$rep));
     }
     $tabs[] = $row2;
 }

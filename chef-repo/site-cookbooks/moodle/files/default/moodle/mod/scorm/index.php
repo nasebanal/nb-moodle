@@ -17,12 +17,12 @@
 require_once("../../config.php");
 require_once($CFG->dirroot.'/mod/scorm/locallib.php');
 
-$id = required_param('id', PARAM_INT);   // Course id.
+$id = required_param('id', PARAM_INT);   // course id
 
-$PAGE->set_url('/mod/scorm/index.php', array('id' => $id));
+$PAGE->set_url('/mod/scorm/index.php', array('id'=>$id));
 
 if (!empty($id)) {
-    if (!$course = $DB->get_record('course', array('id' => $id))) {
+    if (!$course = $DB->get_record('course', array('id'=>$id))) {
         print_error('invalidcourseid');
     }
 } else {
@@ -32,13 +32,11 @@ if (!empty($id)) {
 require_course_login($course);
 $PAGE->set_pagelayout('incourse');
 
-// Trigger instances list viewed event.
-$event = \mod_scorm\event\course_module_instance_list_viewed::create(array('context' => context_course::instance($course->id)));
-$event->add_record_snapshot('course', $course);
-$event->trigger();
+add_to_log($course->id, "scorm", "view all", "index.php?id=$course->id", "");
 
 $strscorm = get_string("modulename", "scorm");
 $strscorms = get_string("modulenameplural", "scorm");
+$strsectionname  = get_string('sectionname', 'format_'.$course->format);
 $strname = get_string("name");
 $strsummary = get_string("summary");
 $strreport = get_string("report", 'scorm');
@@ -48,9 +46,11 @@ $PAGE->set_title($strscorms);
 $PAGE->set_heading($course->fullname);
 $PAGE->navbar->add($strscorms);
 echo $OUTPUT->header();
-echo $OUTPUT->heading($strscorms);
 
 $usesections = course_format_uses_sections($course->format);
+if ($usesections) {
+    $sections = get_all_sections($course->id);
+}
 
 if ($usesections) {
     $sortorder = "cw.section ASC";
@@ -66,7 +66,6 @@ if (! $scorms = get_all_instances_in_course("scorm", $course)) {
 $table = new html_table();
 
 if ($usesections) {
-    $strsectionname = get_string('sectionname', 'format_'.$course->format);
     $table->head  = array ($strsectionname, $strname, $strsummary, $strreport);
     $table->align = array ("center", "left", "left", "left");
 } else {
@@ -75,11 +74,11 @@ if ($usesections) {
 }
 
 foreach ($scorms as $scorm) {
-    $context = context_module::instance($scorm->coursemodule);
+    $context = get_context_instance(CONTEXT_MODULE, $scorm->coursemodule);
     $tt = "";
     if ($usesections) {
         if ($scorm->section) {
-            $tt = get_section_name($course, $scorm->section);
+            $tt = get_section_name($course, $sections[$scorm->section]);
         }
     } else {
         $tt = userdate($scorm->timemodified);
@@ -89,8 +88,7 @@ foreach ($scorms as $scorm) {
     if (has_capability('mod/scorm:viewreport', $context)) {
         $trackedusers = scorm_get_count_users($scorm->id, $scorm->groupingid);
         if ($trackedusers > 0) {
-            $reportshow = html_writer::link('report.php?id='.$scorm->coursemodule,
-                                                get_string('viewallreports', 'scorm', $trackedusers));
+            $reportshow = '<a href="report.php?id='.$scorm->coursemodule.'">'.get_string('viewallreports', 'scorm', $trackedusers).'</a></div>';
         } else {
             $reportshow = get_string('noreports', 'scorm');
         }
@@ -99,21 +97,19 @@ foreach ($scorms as $scorm) {
         $report = scorm_grade_user($scorm, $USER->id);
         $reportshow = get_string('score', 'scorm').": ".$report;
     }
-    $options = (object)array('noclean' => true);
+    $options = (object)array('noclean'=>true);
     if (!$scorm->visible) {
-        // Show dimmed if the mod is hidden.
-        $table->data[] = array ($tt, html_writer::link('view.php?id='.$scorm->coursemodule,
-                                                        format_string($scorm->name),
-                                                        array('class' => 'dimmed')),
+        //Show dimmed if the mod is hidden
+        $table->data[] = array ($tt, "<a class=\"dimmed\" href=\"view.php?id=$scorm->coursemodule\">".format_string($scorm->name)."</a>",
                                 format_module_intro('scorm', $scorm, $scorm->coursemodule), $reportshow);
     } else {
-        // Show normal if the mod is visible.
-        $table->data[] = array ($tt, html_writer::link('view.php?id='.$scorm->coursemodule, format_string($scorm->name)),
+        //Show normal if the mod is visible
+        $table->data[] = array ($tt, "<a href=\"view.php?id=$scorm->coursemodule\">".format_string($scorm->name)."</a>",
                                 format_module_intro('scorm', $scorm, $scorm->coursemodule), $reportshow);
     }
 }
 
-echo html_writer::empty_tag('br');
+echo "<br />";
 
 echo html_writer::table($table);
 

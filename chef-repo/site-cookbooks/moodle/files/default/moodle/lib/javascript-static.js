@@ -2,15 +2,13 @@
 // Global M object is initilised in inline javascript
 
 /**
- * Add module to list of available modules that can be loaded from YUI.
+ * Add module to list of available modules that can be laoded from YUI.
  * @param {Array} modules
  */
 M.yui.add_module = function(modules) {
     for (var modname in modules) {
-        YUI_config.modules[modname] = modules[modname];
+        M.yui.loader.modules[modname] = modules[modname];
     }
-    // Ensure thaat the YUI_config is applied to the main YUI instance.
-    Y.applyConfig(YUI_config);
 };
 /**
  * The gallery version to use when loading YUI modules from the gallery.
@@ -40,17 +38,10 @@ M.util.image_url = function(imagename, component) {
         component = 'core';
     }
 
-    var url = M.cfg.wwwroot + '/theme/image.php';
     if (M.cfg.themerev > 0 && M.cfg.slasharguments == 1) {
-        if (!M.cfg.svgicons) {
-            url += '/_s';
-        }
-        url += '/' + M.cfg.theme + '/' + component + '/' + M.cfg.themerev + '/' + imagename;
+        var url = M.cfg.wwwroot + '/theme/image.php/' + M.cfg.theme + '/' + component + '/' + M.cfg.themerev + '/' + imagename;
     } else {
-        url += '?theme=' + M.cfg.theme + '&component=' + component + '&rev=' + M.cfg.themerev + '&image=' + imagename;
-        if (!M.cfg.svgicons) {
-            url += '&svg=0';
-        }
+        var url = M.cfg.wwwroot + '/theme/image.php?theme=' + M.cfg.theme + '&component=' + component + '&rev=' + M.cfg.themerev + '&image=' + imagename;
     }
 
     return url;
@@ -113,7 +104,7 @@ M.util.CollapsibleRegion = function(Y, id, userpref, strtooltip) {
     // Get the height of the div at this point before we shrink it if required
     var height = this.div.get('offsetHeight');
     var collapsedimage = 't/collapsed'; // ltr mode
-    if (right_to_left()) {
+    if ( Y.one(document.body).hasClass('dir-rtl') ) {
         collapsedimage = 't/collapsed_rtl';
     } else {
         collapsedimage = 't/collapsed';
@@ -142,7 +133,7 @@ M.util.CollapsibleRegion = function(Y, id, userpref, strtooltip) {
     animation.on('end', function() {
         this.div.toggleClass('collapsed');
         var collapsedimage = 't/collapsed'; // ltr mode
-        if (right_to_left()) {
+        if ( Y.one(document.body).hasClass('dir-rtl') ) {
             collapsedimage = 't/collapsed_rtl';
             } else {
             collapsedimage = 't/collapsed';
@@ -203,7 +194,7 @@ M.util.CollapsibleRegion.prototype.icon = null;
  * @param String the value to set it to.
  */
 M.util.set_user_preference = function(name, value) {
-    YUI().use('io', function(Y) {
+    YUI(M.yui.loader).use('io', function(Y) {
         var url = M.cfg.wwwroot + '/lib/ajax/setuserpref.php?sesskey=' +
                 M.cfg.sesskey + '&pref=' + encodeURI(name) + '&value=' + encodeURI(value);
 
@@ -225,16 +216,10 @@ M.util.set_user_preference = function(name, value) {
 
 /**
  * Prints a confirmation dialog in the style of DOM.confirm().
- *
- * @method show_confirm_dialog
- * @param {EventFacade} e
- * @param {Object} args
- * @param {String} args.message The question to ask the user
- * @param {Function} [args.callback] A callback to apply on confirmation.
- * @param {Object} [args.scope] The scope to use when calling the callback.
- * @param {Object} [args.callbackargs] Any arguments to pass to the callback.
- * @param {String} [args.cancellabel] The label to use on the cancel button.
- * @param {String} [args.continuelabel] The label to use on the continue button.
+ * @param object event A YUI DOM event or null if launched manually
+ * @param string message The message to show in the dialog
+ * @param string url The URL to forward to if YES is clicked. Disabled if fn is given
+ * @param function fn A JS function to run if YES is clicked.
  */
 M.util.show_confirm_dialog = function(e, args) {
     var target = e.target;
@@ -242,35 +227,47 @@ M.util.show_confirm_dialog = function(e, args) {
         e.preventDefault();
     }
 
-    YUI().use('moodle-core-notification-confirm', function(Y) {
-        var confirmationDialogue = new M.core.confirm({
-            width: '300px',
-            center: true,
-            modal: true,
-            visible: false,
-            draggable: false,
-            title: M.util.get_string('confirmation', 'admin'),
-            noLabel: M.util.get_string('cancel', 'moodle'),
-            question: args.message
-        });
+    YUI(M.yui.loader).use('yui2-container', 'yui2-event', function(Y) {
+        var simpledialog = new YAHOO.widget.SimpleDialog('confirmdialog',
+            {width: '300px',
+              fixedcenter: true,
+              modal: true,
+              visible: false,
+              draggable: false
+            }
+        );
 
-        // The dialogue was submitted with a positive value indication.
-        confirmationDialogue.on('complete-yes', function(e) {
-            // Handle any callbacks.
+        simpledialog.setHeader(M.str.admin.confirmation);
+        simpledialog.setBody(args.message);
+        simpledialog.cfg.setProperty('icon', YAHOO.widget.SimpleDialog.ICON_WARN);
+
+        var handle_cancel = function() {
+            simpledialog.hide();
+        };
+
+        var handle_yes = function() {
+            simpledialog.hide();
+
             if (args.callback) {
-                if (!Y.Lang.isFunction(args.callback)) {
-                    Y.log('Callbacks to show_confirm_dialog must now be functions. Please update your code to pass in a function instead.',
-                            'warn', 'M.util.show_confirm_dialog');
-                    return;
+                // args comes from PHP, so callback will be a string, needs to be evaluated by JS
+                var callback = null;
+                if (Y.Lang.isFunction(args.callback)) {
+                    callback = args.callback;
+                } else {
+                    callback = eval('('+args.callback+')');
                 }
 
-                var scope = e.target;
                 if (Y.Lang.isObject(args.scope)) {
-                    scope = args.scope;
+                    var sc = args.scope;
+                } else {
+                    var sc = e.target;
                 }
 
-                var callbackargs = args.callbackargs || [];
-                args.callback.apply(scope, callbackargs);
+                if (args.callbackargs) {
+                    callback.apply(sc, args.callbackargs);
+                } else {
+                    callback.apply(sc);
+                }
                 return;
             }
 
@@ -284,7 +281,9 @@ M.util.show_confirm_dialog = function(e, args) {
                 window.location = targetancestor.get('href');
 
             } else if (target.test('input')) {
-                targetform = target.ancestor('form', true);
+                targetform = target.ancestor(function(node) { return node.get('tagName').toLowerCase() == 'form'; });
+                // We cannot use target.ancestor('form') on the previous line
+                // because of http://yuilibrary.com/projects/yui3/ticket/2531561
                 if (!targetform) {
                     return;
                 }
@@ -294,26 +293,32 @@ M.util.show_confirm_dialog = function(e, args) {
                 }
                 targetform.submit();
 
-            } else if (target.test('form')) {
+            } else if (target.get('tagName').toLowerCase() == 'form') {
+                // We cannot use target.test('form') on the previous line because of
+                // http://yuilibrary.com/projects/yui3/ticket/2531561
                 target.submit();
 
-            } else {
-                Y.log("Element of type " + target.get('tagName') +
-                        " is not supported by the M.util.show_confirm_dialog function. Use A, INPUT, or FORM",
-                        'warn', 'javascript-static');
+            } else if (M.cfg.developerdebug) {
+                alert("Element of type " + target.get('tagName') + " is not supported by the M.util.show_confirm_dialog function. Use A, INPUT, or FORM");
             }
-        }, this);
+        };
 
-        if (args.cancellabel) {
-            confirmationDialogue.set('noLabel', args.cancellabel);
+        if (!args.cancellabel) {
+            args.cancellabel = M.str.moodle.cancel;
+        }
+        if (!args.continuelabel) {
+            args.continuelabel = M.str.moodle.yes;
         }
 
-        if (args.continuelabel) {
-            confirmationDialogue.set('yesLabel', args.continuelabel);
-        }
+        var buttons = [
+            {text: args.cancellabel,   handler: handle_cancel, isDefault: true},
+            {text: args.continuelabel, handler: handle_yes}
+        ];
 
-        confirmationDialogue.render()
-                .show();
+        simpledialog.cfg.queueProperty('buttons', buttons);
+
+        simpledialog.render(document.body);
+        simpledialog.show();
     });
 };
 
@@ -334,18 +339,15 @@ M.util.init_maximised_embed = function(Y, id) {
             if (val == 'auto') {
                 val = el.getComputedStyle(prop);
             }
-            val = parseInt(val);
-            if (isNaN(val)) {
-                return 0;
-            }
-            return val;
+            return parseInt(val);
         } else {
             return 0;
         }
     };
 
     var resize_object = function() {
-        obj.setStyle('display', 'none');
+        obj.setStyle('width', '0px');
+        obj.setStyle('height', '0px');
         var newwidth = get_htmlelement_size('maincontent', 'width') - 35;
 
         if (newwidth > 500) {
@@ -356,20 +358,82 @@ M.util.init_maximised_embed = function(Y, id) {
 
         var headerheight = get_htmlelement_size('page-header', 'height');
         var footerheight = get_htmlelement_size('page-footer', 'height');
-        var newheight = parseInt(Y.one('body').get('docHeight')) - footerheight - headerheight - 100;
+        var newheight = parseInt(YAHOO.util.Dom.getViewportHeight()) - footerheight - headerheight - 100;
         if (newheight < 400) {
             newheight = 400;
         }
         obj.setStyle('height', newheight+'px');
-        obj.setStyle('display', '');
     };
 
     resize_object();
     // fix layout if window resized too
-    Y.use('event-resize', function (Y) {
-        Y.on("windowresize", function() {
-            resize_object();
-        });
+    window.onresize = function() {
+        resize_object();
+    };
+};
+
+/**
+ * Attach handler to single_select
+ */
+M.util.init_select_autosubmit = function(Y, formid, selectid, nothing) {
+    Y.use('event-key', function() {
+        var select = Y.one('#'+selectid);
+        if (select) {
+            // Try to get the form by id
+            var form = Y.one('#'+formid) || (function(){
+                // Hmmm the form's id may have been overriden by an internal input
+                // with the name id which will KILL IE.
+                // We need to manually iterate at this point because if the case
+                // above is true YUI's ancestor method will also kill IE!
+                var form = select;
+                while (form && form.get('nodeName').toUpperCase() !== 'FORM') {
+                    form = form.ancestor();
+                }
+                return form;
+            })();
+            // Make sure we have the form
+            if (form) {
+                // Create a function to handle our change event
+                var processchange = function(e, paramobject) {
+                    if ((nothing===false || select.get('value') != nothing) && paramobject.lastindex != select.get('selectedIndex')) {
+                        //prevent event bubbling and detach handlers to prevent multiple submissions caused by double clicking
+                        e.halt();
+                        paramobject.eventkeypress.detach();
+                        paramobject.eventblur.detach();
+                        paramobject.eventchangeorblur.detach();
+
+                        this.submit();
+                    }
+                };
+                // Attach the change event to the keypress, blur, and click actions.
+                // We don't use the change event because IE fires it on every arrow up/down
+                // event.... usability
+                var paramobject = new Object();
+                paramobject.lastindex = select.get('selectedIndex');
+                paramobject.eventkeypress = Y.on('key', processchange, select, 'press:13', form, paramobject);
+                paramobject.eventblur = select.on('blur', processchange, form, paramobject);
+                //little hack for chrome that need onChange event instead of onClick - see MDL-23224
+                if (Y.UA.webkit) {
+                    paramobject.eventchangeorblur = select.on('change', processchange, form, paramobject);
+                } else {
+                    paramobject.eventchangeorblur = select.on('click', processchange, form, paramobject);
+                }
+            }
+        }
+    });
+};
+
+/**
+ * Attach handler to url_select
+ */
+M.util.init_url_select = function(Y, formid, selectid, nothing) {
+    YUI(M.yui.loader).use('node', function(Y) {
+        Y.on('change', function() {
+            if ((nothing == false && Y.Lang.isBoolean(nothing)) || Y.one('#'+selectid).get('value') != nothing) {
+                window.location = M.cfg.wwwroot+Y.one('#'+selectid).get('value');
+            }
+        },
+        '#'+selectid);
     });
 };
 
@@ -601,32 +665,14 @@ M.util.init_block_hider = function(Y, config) {
                     this.set('block', '#'+this.get('id'));
                     var b = this.get('block'),
                         t = b.one('.title'),
-                        a = null,
-                        hide,
-                        show;
+                        a = null;
                     if (t && (a = t.one('.block_action'))) {
-                        hide = Y.Node.create('<img />')
-                            .addClass('block-hider-hide')
-                            .setAttrs({
-                                alt:        config.tooltipVisible,
-                                src:        this.get('iconVisible'),
-                                tabindex:   0,
-                                'title':    config.tooltipVisible
-                            });
+                        var hide = Y.Node.create('<img class="block-hider-hide" tabindex="0" alt="'+config.tooltipVisible+'" title="'+config.tooltipVisible+'" />');
+                        hide.setAttribute('src', this.get('iconVisible')).on('click', this.updateState, this, true);
                         hide.on('keypress', this.updateStateKey, this, true);
-                        hide.on('click', this.updateState, this, true);
-
-                        show = Y.Node.create('<img />')
-                            .addClass('block-hider-show')
-                            .setAttrs({
-                                alt:        config.tooltipHidden,
-                                src:        this.get('iconHidden'),
-                                tabindex:   0,
-                                'title':    config.tooltipHidden
-                            });
+                        var show = Y.Node.create('<img class="block-hider-show" tabindex="0" alt="'+config.tooltipHidden+'" title="'+config.tooltipHidden+'" />');
+                        show.setAttribute('src', this.get('iconHidden')).on('click', this.updateState, this, false);
                         show.on('keypress', this.updateStateKey, this, false);
-                        show.on('click', this.updateState, this, false);
-
                         a.insert(show, 0).insert(hide, 0);
                     }
                 },
@@ -666,69 +712,6 @@ M.util.init_block_hider = function(Y, config) {
         })();
         new M.util.block_hider(config);
     });
-};
-
-/**
- * @var pending_js - The keys are the list of all pending js actions.
- * @type Object
- */
-M.util.pending_js = [];
-M.util.complete_js = [];
-
-/**
- * Register any long running javascript code with a unique identifier.
- * Should be followed with a call to js_complete with a matching
- * idenfitier when the code is complete. May also be called with no arguments
- * to test if there is any js calls pending. This is relied on by behat so that
- * it can wait for all pending updates before interacting with a page.
- * @param String uniqid - optional, if provided,
- *                        registers this identifier until js_complete is called.
- * @return boolean - True if there is any pending js.
- */
-M.util.js_pending = function(uniqid) {
-    if (uniqid !== false) {
-        M.util.pending_js.push(uniqid);
-    }
-
-    return M.util.pending_js.length;
-};
-
-// Start this asap.
-M.util.js_pending('init');
-
-/**
- * Register listeners for Y.io start/end so we can wait for them in behat.
- */
-YUI.add('moodle-core-io', function(Y) {
-    Y.on('io:start', function(id) {
-        M.util.js_pending('io:' + id);
-    });
-    Y.on('io:end', function(id) {
-        M.util.js_complete('io:' + id);
-    });
-}, '@VERSION@', {
-    condition: {
-        trigger: 'io-base',
-        when: 'after'
-    }
-});
-
-/**
- * Unregister any long running javascript code by unique identifier.
- * This function should form a matching pair with js_pending
- *
- * @param String uniqid - required, unregisters this identifier
- * @return boolean - True if there is any pending js.
- */
-M.util.js_complete = function(uniqid) {
-    // Use the Y.Array.indexOf instead of the native because some older browsers do not support
-    // the native function. Y.Array polyfills the native function if it does not exist.
-    var index = Y.Array.indexOf(M.util.pending_js, uniqid);
-    if (index >= 0) {
-        M.util.complete_js.push(M.util.pending_js.splice(index, 1));
-    }
-
-    return M.util.pending_js.length;
 };
 
 /**
@@ -874,7 +857,7 @@ M.util.add_lightbox = function(Y, node) {
         'top' : 0,
         'left' : 0,
         'backgroundColor' : 'white',
-        'textAlign' : 'center'
+        'text-align' : 'center'
     })
     .setAttribute('class', 'lightbox')
     .hide();
@@ -1000,16 +983,61 @@ function findParentNode(el, elName, elClass, elId) {
     }
     return el;
 }
+/*
+    findChildNode (start, elementName, elementClass, elementID)
+
+    Travels down the DOM hierarchy to find all child elements with the
+    specified tag name, class, and id. All conditions must be met,
+    but any can be ommitted.
+    Doesn't examine children of matches.
+*/
+function findChildNodes(start, tagName, elementClass, elementID, elementName) {
+    var children = new Array();
+    for (var i = 0; i < start.childNodes.length; i++) {
+        var classfound = false;
+        var child = start.childNodes[i];
+        if((child.nodeType == 1) &&//element node type
+                  (elementClass && (typeof(child.className)=='string'))) {
+            var childClasses = child.className.split(/\s+/);
+            for (var childClassIndex in childClasses) {
+                if (childClasses[childClassIndex]==elementClass) {
+                    classfound = true;
+                    break;
+                }
+            }
+        }
+        if(child.nodeType == 1) { //element node type
+            if  ( (!tagName || child.nodeName == tagName) &&
+                (!elementClass || classfound)&&
+                (!elementID || child.id == elementID) &&
+                (!elementName || child.name == elementName))
+            {
+                children = children.concat(child);
+            } else {
+                children = children.concat(findChildNodes(child, tagName, elementClass, elementID, elementName));
+            }
+        }
+    }
+    return children;
+}
 
 function unmaskPassword(id) {
     var pw = document.getElementById(id);
     var chb = document.getElementById(id+'unmask');
+    var IEbrowser = navigator.userAgent.toLowerCase().indexOf('msie');
+    var IEversion = 0;
+
+    if (IEbrowser != -1) {
+        var position = navigator.userAgent.indexOf("MSIE") + 5;
+        var end = navigator.userAgent.search("; Windows");
+        IEversion = parseInt(navigator.userAgent.substring(position,end));
+    }
 
     // MDL-30438 - The capability to changing the value of input type is not supported by IE8 or lower.
     // Replacing existing child with a new one, removed all yui properties for the node.  Therefore, this
     // functionality won't work in IE8 or lower.
-    // This is a temporary fixed to allow other browsers to function properly.
-    if (Y.UA.ie == 0 || Y.UA.ie >= 9) {
+    // This is a temporary fixed for 2.4 or lower branches to allow other browsers to function properly.
+    if (IEbrowser == -1 || (IEversion >= 9)) {
         if (chb.checked) {
             pw.type = "text";
         } else {
@@ -1116,53 +1144,75 @@ function insertAtCursor(myField, myValue) {
     }
 }
 
-/**
- * Increment a file name.
- *
- * @param string file name.
- * @param boolean ignoreextension do not extract the extension prior to appending the
- *                                suffix. Useful when incrementing folder names.
- * @return string the incremented file name.
- */
-function increment_filename(filename, ignoreextension) {
-    var extension = '';
-    var basename = filename;
 
-    // Split the file name into the basename + extension.
-    if (!ignoreextension) {
-        var dotpos = filename.lastIndexOf('.');
-        if (dotpos !== -1) {
-            basename = filename.substr(0, dotpos);
-            extension = filename.substr(dotpos, filename.length);
+/*
+        Call instead of setting window.onload directly or setting body onload=.
+        Adds your function to a chain of functions rather than overwriting anything
+        that exists.
+*/
+function addonload(fn) {
+    var oldhandler=window.onload;
+    window.onload=function() {
+        if(oldhandler) oldhandler();
+            fn();
+    }
+}
+/**
+ * Replacement for getElementsByClassName in browsers that aren't cool enough
+ *
+ * Relying on the built-in getElementsByClassName is far, far faster than
+ * using YUI.
+ *
+ * Note: the third argument used to be an object with odd behaviour. It now
+ * acts like the 'name' in the HTML5 spec, though the old behaviour is still
+ * mimicked if you pass an object.
+ *
+ * @param {Node} oElm The top-level node for searching. To search a whole
+ *                    document, use `document`.
+ * @param {String} strTagName filter by tag names
+ * @param {String} name same as HTML5 spec
+ */
+function getElementsByClassName(oElm, strTagName, name) {
+    // for backwards compatibility
+    if(typeof name == "object") {
+        var names = new Array();
+        for(var i=0; i<name.length; i++) names.push(names[i]);
+        name = names.join('');
+    }
+    // use native implementation if possible
+    if (oElm.getElementsByClassName && Array.filter) {
+        if (strTagName == '*') {
+            return oElm.getElementsByClassName(name);
+        } else {
+            return Array.filter(oElm.getElementsByClassName(name), function(el) {
+                return el.nodeName.toLowerCase() == strTagName.toLowerCase();
+            });
         }
     }
-
-    // Look to see if the name already has (NN) at the end of it.
-    var number = 0;
-    var hasnumber = basename.match(/^(.*) \((\d+)\)$/);
-    if (hasnumber !== null) {
-        // Note the current number & remove it from the basename.
-        number = parseInt(hasnumber[2], 10);
-        basename = hasnumber[1];
+    // native implementation unavailable, fall back to slow method
+    var arrElements = (strTagName == "*" && oElm.all)? oElm.all : oElm.getElementsByTagName(strTagName);
+    var arrReturnElements = new Array();
+    var arrRegExpClassNames = new Array();
+    var names = name.split(' ');
+    for(var i=0; i<names.length; i++) {
+        arrRegExpClassNames.push(new RegExp("(^|\\s)" + names[i].replace(/\-/g, "\\-") + "(\\s|$)"));
     }
-
-    number++;
-    var newname = basename + ' (' + number + ')' + extension;
-    return newname;
-}
-
-/**
- * Return whether we are in right to left mode or not.
- *
- * @return boolean
- */
-function right_to_left() {
-    var body = Y.one('body');
-    var rtl = false;
-    if (body && body.hasClass('dir-rtl')) {
-        rtl = true;
+    var oElement;
+    var bMatchesAll;
+    for(var j=0; j<arrElements.length; j++) {
+        oElement = arrElements[j];
+        bMatchesAll = true;
+        for(var k=0; k<arrRegExpClassNames.length; k++) {
+            if(!arrRegExpClassNames[k].test(oElement.className)) {
+                bMatchesAll = false;
+                break;
+            }
+        }
+        if(bMatchesAll) {
+            arrReturnElements.push(oElement);
+        }
     }
-    return rtl;
+    return (arrReturnElements)
 }
 
 function openpopup(event, args) {
@@ -1181,10 +1231,10 @@ function openpopup(event, args) {
         args.name = '_blank';
     } else if (args.name.match(nameregex)) {
         // Cleans window name because IE does not support funky ones.
-        if (M.cfg.developerdebug) {
-            alert('DEVELOPER NOTICE: Invalid \'name\' passed to openpopup(): ' + args.name);
-        }
         args.name = args.name.replace(nameregex, '_');
+        if (M.cfg.developerdebug) {
+            alert('DEVELOPER NOTICE: Invalid \'name\' passed to openpopup()');
+        }
     }
 
     var fullurl = args.url;
@@ -1244,6 +1294,23 @@ function close_window(e) {
 }
 
 /**
+ * Used in a couple of modules to hide navigation areas when using AJAX
+ */
+
+function show_item(itemid) {
+    var item = document.getElementById(itemid);
+    if (item) {
+        item.style.display = "";
+    }
+}
+
+function destroy_item(itemid) {
+    var item = document.getElementById(itemid);
+    if (item) {
+        item.parentNode.removeChild(item);
+    }
+}
+/**
  * Tranfer keyboard focus to the HTML element with the given id, if it exists.
  * @param controlid the control id.
  */
@@ -1297,89 +1364,49 @@ function stripHTML(str) {
     return ret;
 }
 
-function updateProgressBar(id, percent, msg, estimate) {
-    var progressIndicator = Y.one('#' + id);
-    if (!progressIndicator) {
-        return;
-    }
-
-    var progressBar = progressIndicator.one('.bar'),
-        statusIndicator = progressIndicator.one('h2'),
-        estimateIndicator = progressIndicator.one('p');
-
-    statusIndicator.set('innerHTML', Y.Escape.html(msg));
-    progressBar.set('innerHTML', Y.Escape.html('' + percent + '%'));
-    if (percent === 100) {
-        progressIndicator.addClass('progress-success');
-        estimateIndicator.set('innerHTML', null);
+Number.prototype.fixed=function(n){
+    with(Math)
+        return round(Number(this)*pow(10,n))/pow(10,n);
+};
+function update_progress_bar (id, width, pt, msg, es){
+    var percent = pt;
+    var status = document.getElementById("status_"+id);
+    var percent_indicator = document.getElementById("pt_"+id);
+    var progress_bar = document.getElementById("progress_"+id);
+    var time_es = document.getElementById("time_"+id);
+    status.innerHTML = msg;
+    percent_indicator.innerHTML = percent.fixed(2) + '%';
+    if(percent == 100) {
+        progress_bar.style.background = "green";
+        time_es.style.display = "none";
     } else {
-        if (estimate) {
-            estimateIndicator.set('innerHTML', Y.Escape.html(estimate));
-        } else {
-            estimateIndicator.set('innerHTML', null);
+        progress_bar.style.background = "#FFCC66";
+        if (es == '?'){
+            time_es.innerHTML = "";
+        }else {
+            time_es.innerHTML = es.fixed(2)+" sec";
+            time_es.style.display
+                = "block";
         }
-        progressIndicator.removeClass('progress-success');
     }
-    progressBar.setAttribute('aria-valuenow', percent);
-    progressBar.setStyle('width', percent + '%');
+    progress_bar.style.width = width + "px";
+
 }
+
 
 // ===== Deprecated core Javascript functions for Moodle ====
 //       DO NOT USE!!!!!!!
 // Do not put this stuff in separate file because it only adds extra load on servers!
 
 /**
- * @method show_item
- * @deprecated since Moodle 2.7.
- * @see Y.Node.show
+ * Used in a couple of modules to hide navigation areas when using AJAX
  */
-function show_item() {
-    throw new Error('show_item can not be used any more. Please use Y.Node.show.');
-}
-
-/**
- * @method destroy_item
- * @deprecated since Moodle 2.7.
- * @see Y.Node.destroy
- */
-function destroy_item() {
-    throw new Error('destroy_item can not be used any more. Please use Y.Node.destroy.');
-}
-
-/**
- * @method hide_item
- * @deprecated since Moodle 2.7.
- * @see Y.Node.hide
- */
-function hide_item() {
-    throw new Error('hide_item can not be used any more. Please use Y.Node.hide.');
-}
-
-/**
- * @method addonload
- * @deprecated since Moodle 2.7 - please do not use this function any more.
- */
-function addonload() {
-    throw new Error('addonload can not be used any more.');
-}
-
-/**
- * @method getElementsByClassName
- * @deprecated Since Moodle 2.7 - please do not use this function any more.
- * @see Y.one
- * @see Y.all
- */
-function getElementsByClassName() {
-    throw new Error('getElementsByClassName can not be used any more. Please use Y.one or Y.all.');
-}
-
-/**
- * @method findChildNodes
- * @deprecated since Moodle 2.7 - please do not use this function any more.
- * @see Y.all
- */
-function findChildNodes() {
-    throw new Error('findChildNodes can not be used any more. Please use Y.all.');
+function hide_item(itemid) {
+    // use class='hiddenifjs' instead
+    var item = document.getElementById(itemid);
+    if (item) {
+        item.style.display = "none";
+    }
 }
 
 M.util.help_popups = {
@@ -1417,6 +1444,134 @@ M.util.help_popups = {
         openpopup(e, args);
     }
 }
+
+M.util.help_icon = {
+    Y : null,
+    instance : null,
+    initialised : false,
+    setup : function(Y) {
+        if (this.initialised) {
+            // Exit early if we have already completed setup
+            return;
+        }
+        this.Y = Y;
+        Y.one('body').delegate('click', this.display, 'span.helplink a.tooltip', this);
+        this.initialised = true;
+    },
+    add : function(Y, properties) {
+        this.setup(Y);
+    },
+    display : function(event) {
+        event.preventDefault();
+        if (M.util.help_icon.instance === null) {
+            var Y = M.util.help_icon.Y;
+            Y.use('overlay', 'io-base', 'event-mouseenter', 'node', 'event-key', 'escape', function(Y) {
+                var help_content_overlay = {
+                    helplink : null,
+                    overlay : null,
+                    init : function() {
+
+                        var strclose = Y.Escape.html(M.str.form.close);
+                        var footerbtn = Y.Node.create('<button class="closebtn">'+strclose+'</button>');
+                        // Create an overlay from markup
+                        this.overlay = new Y.Overlay({
+                            footerContent: footerbtn,
+                            bodyContent: '',
+                            id: 'helppopupbox',
+                            width:'400px',
+                            visible : false,
+                            constrain : true
+                        });
+                        this.overlay.render(Y.one(document.body));
+
+                        footerbtn.on('click', this.close, this);
+
+                        var boundingBox = this.overlay.get("boundingBox");
+
+                        //  Hide the menu if the user clicks outside of its content
+                        boundingBox.get("ownerDocument").on("mousedown", function (event) {
+                            var oTarget = event.target;
+                            var menuButton = this.helplink;
+
+                            if (!oTarget.compareTo(menuButton) &&
+                                !menuButton.contains(oTarget) &&
+                                !oTarget.compareTo(boundingBox) &&
+                                !boundingBox.contains(oTarget)) {
+                                this.overlay.hide();
+                            }
+                        }, this);
+                    },
+
+                    close : function(e) {
+                        e.preventDefault();
+                        this.helplink.focus();
+                        this.overlay.hide();
+                    },
+
+                    display : function(event) {
+                        var overlayPosition;
+                        this.helplink = event.target.ancestor('span.helplink a', true);
+                        if (Y.one('html').get('dir') === 'rtl') {
+                            overlayPosition = [Y.WidgetPositionAlign.TR, Y.WidgetPositionAlign.LC];
+                        } else {
+                            overlayPosition = [Y.WidgetPositionAlign.TL, Y.WidgetPositionAlign.RC];
+                        }
+
+                        this.overlay.set('bodyContent', Y.Node.create('<img src="'+M.cfg.loadingicon+'" class="spinner" />'));
+                        this.overlay.set("align", {node:this.helplink, points: overlayPosition});
+
+                        var cfg = {
+                            method: 'get',
+                            context : this,
+                            data : {
+                                ajax : 1
+                            },
+                            on: {
+                                success: function(id, o, node) {
+                                    this.display_callback(o.responseText);
+                                },
+                                failure: function(id, o, node) {
+                                    var debuginfo = o.statusText;
+                                    if (M.cfg.developerdebug) {
+                                        o.statusText += ' (' + ajaxurl + ')';
+                                    }
+                                    this.display_callback('bodyContent',debuginfo);
+                                }
+                            }
+                        };
+
+                        Y.io(this.helplink.get('href'), cfg);
+                        this.overlay.show();
+                    },
+
+                    display_callback : function(content) {
+                        var contentnode, heading;
+                        contentnode = Y.Node.create('<div role="alert">' + content + '</div>');
+                        this.overlay.set('bodyContent', contentnode);
+                        heading = contentnode.one('h1');
+                        if (heading) {
+                            heading.set('tabIndex', 0);
+                            heading.focus();
+                        }
+                    },
+
+                    hideContent : function() {
+                        help = this;
+                        help.overlay.hide();
+                    }
+                };
+                help_content_overlay.init();
+                M.util.help_icon.instance = help_content_overlay;
+                M.util.help_icon.instance.display(event);
+            });
+        } else {
+            M.util.help_icon.instance.display(event);
+        }
+    },
+    init : function(Y) {
+        this.Y = Y;
+    }
+};
 
 /**
  * Custom menu namespace
@@ -1699,7 +1854,6 @@ M.util.load_flowplayer = function() {
             loaded = true;
 
             var controls = {
-                    url: M.cfg.wwwroot + '/lib/flowplayer/flowplayer.controls-3.2.16.swf.php',
                     autoHide: true
             }
             /* TODO: add CSS color overrides for the flv flow player */
@@ -1707,9 +1861,9 @@ M.util.load_flowplayer = function() {
             for(var i=0; i<M.util.video_players.length; i++) {
                 var video = M.util.video_players[i];
                 if (video.width > 0 && video.height > 0) {
-                    var src = {src: M.cfg.wwwroot + '/lib/flowplayer/flowplayer-3.2.18.swf.php', width: video.width, height: video.height};
+                    var src = {src: M.cfg.wwwroot + '/lib/flowplayer/flowplayer-3.2.14.swf', width: video.width, height: video.height};
                 } else {
-                    var src = M.cfg.wwwroot + '/lib/flowplayer/flowplayer-3.2.18.swf.php';
+                    var src = M.cfg.wwwroot + '/lib/flowplayer/flowplayer-3.2.14.swf';
                 }
                 flowplayer(video.id, src, {
                     plugins: {controls: controls},
@@ -1745,7 +1899,6 @@ M.util.load_flowplayer = function() {
                 return;
             }
             var controls = {
-                    url: M.cfg.wwwroot + '/lib/flowplayer/flowplayer.controls-3.2.16.swf.php',
                     autoHide: false,
                     fullscreen: false,
                     next: false,
@@ -1810,17 +1963,17 @@ M.util.load_flowplayer = function() {
                     controls.height = 25;
                     controls.time = true;
                 }
-                flowplayer(audio.id, M.cfg.wwwroot + '/lib/flowplayer/flowplayer-3.2.18.swf.php', {
-                    plugins: {controls: controls, audio: {url: M.cfg.wwwroot + '/lib/flowplayer/flowplayer.audio-3.2.11.swf.php'}},
+                flowplayer(audio.id, M.cfg.wwwroot + '/lib/flowplayer/flowplayer-3.2.14.swf', {
+                    plugins: {controls: controls, audio: {url: M.cfg.wwwroot + '/lib/flowplayer/flowplayer.audio-3.2.10.swf'}},
                     clip: {url: audio.fileurl, provider: "audio", autoPlay: false}
                 });
             }
         }
 
         if (M.cfg.jsrev == -1) {
-            var jsurl = M.cfg.wwwroot + '/lib/flowplayer/flowplayer-3.2.13.js';
+            var jsurl = M.cfg.wwwroot + '/lib/flowplayer/flowplayer-3.2.11.js';
         } else {
-            var jsurl = M.cfg.wwwroot + '/lib/javascript.php?jsfile=/lib/flowplayer/flowplayer-3.2.13.min.js&rev=' + M.cfg.jsrev;
+            var jsurl = M.cfg.wwwroot + '/lib/javascript.php?jsfile=/lib/flowplayer/flowplayer-3.2.11.min.js&rev=' + M.cfg.jsrev;
         }
         var fileref = document.createElement('script');
         fileref.setAttribute('type','text/javascript');
@@ -1829,20 +1982,4 @@ M.util.load_flowplayer = function() {
         fileref.onreadystatechange = embed_function;
         document.getElementsByTagName('head')[0].appendChild(fileref);
     }
-};
-
-/**
- * Initiates the listeners for skiplink interaction
- *
- * @param {YUI} Y
- */
-M.util.init_skiplink = function(Y) {
-    Y.one(Y.config.doc.body).delegate('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        var node = Y.one(this.getAttribute('href'));
-        node.setAttribute('tabindex', '-1');
-        node.focus();
-        return true;
-    }, 'a.skip');
 };

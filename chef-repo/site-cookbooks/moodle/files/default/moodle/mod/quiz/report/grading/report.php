@@ -89,9 +89,9 @@ class quiz_grading_report extends quiz_default_report {
         $showidnumbers = has_capability('quiz/grading:viewidnumber', $this->context);
 
         // Validate order.
-        if (!in_array($order, array('random', 'date', 'studentfirstname', 'studentlastname', 'idnumber'))) {
+        if (!in_array($order, array('random', 'date', 'student', 'idnumber'))) {
             $order = self::DEFAULT_ORDER;
-        } else if (!$shownames && ($order == 'studentfirstname' || $order == 'studentlastname')) {
+        } else if (!$shownames && $order == 'student') {
             $order = self::DEFAULT_ORDER;
         } else if (!$showidnumbers && $order == 'idnumber') {
             $order = self::DEFAULT_ORDER;
@@ -123,9 +123,9 @@ class quiz_grading_report extends quiz_default_report {
                     $this->currentgroup, '', false);
         }
 
-        $hasquestions = quiz_has_questions($quiz->id);
+        $questionsinquiz = quiz_questions_in_quiz($quiz->questions);
         $counts = null;
-        if ($slot && $hasquestions) {
+        if ($slot && $questionsinquiz) {
             // Make sure there is something to do.
             $statecounts = $this->get_question_state_summary(array($slot));
             foreach ($statecounts as $record) {
@@ -144,7 +144,7 @@ class quiz_grading_report extends quiz_default_report {
         $this->print_header_and_tabs($cm, $course, $quiz, 'grading');
 
         // What sort of page to display?
-        if (!$hasquestions) {
+        if (!$questionsinquiz) {
             echo quiz_no_questions_message($quiz, $cm, $this->context);
 
         } else if (!$slot) {
@@ -190,10 +190,8 @@ class quiz_grading_report extends quiz_default_report {
         $params[] = quiz_attempt::FINISHED;
         $params[] = $this->quiz->id;
 
-        $fields = 'quiza.*, u.idnumber, ';
-        $fields .= get_all_user_name_fields(true, 'u');
         $attemptsbyid = $DB->get_records_sql("
-                SELECT $fields
+                SELECT quiza.*, u.firstname, u.lastname, u.idnumber
                 FROM {quiz_attempts} quiza
                 JOIN {user} u ON u.id = quiza.userid
                 WHERE quiza.uniqueid $asql AND quiza.state = ? AND quiza.quiz = ?",
@@ -276,7 +274,7 @@ class quiz_grading_report extends quiz_default_report {
             groups_print_activity_menu($this->cm, $this->list_questions_url());
         }
 
-        echo $OUTPUT->heading(get_string('questionsthatneedgrading', 'quiz_grading'), 3);
+        echo $OUTPUT->heading(get_string('questionsthatneedgrading', 'quiz_grading'));
         if ($includeauto) {
             $linktext = get_string('hideautomaticallygraded', 'quiz_grading');
         } else {
@@ -316,7 +314,7 @@ class quiz_grading_report extends quiz_default_report {
         }
 
         if (empty($data)) {
-            echo $OUTPUT->notification(get_string('nothingfound', 'quiz_grading'));
+            echo $OUTPUT->heading(get_string('nothingfound', 'quiz_grading'));
             return;
         }
 
@@ -375,7 +373,7 @@ class quiz_grading_report extends quiz_default_report {
         $a = new stdClass();
         $a->number = $this->questions[$slot]->number;
         $a->questionname = format_string($counts->name);
-        echo $OUTPUT->heading(get_string('gradingquestionx', 'quiz_grading', $a), 3);
+        echo $OUTPUT->heading(get_string('gradingquestionx', 'quiz_grading', $a));
         echo html_writer::tag('p', html_writer::link($this->list_questions_url(),
                 get_string('backtothelistofquestions', 'quiz_grading')),
                 array('class' => 'mdl-align'));
@@ -395,6 +393,7 @@ class quiz_grading_report extends quiz_default_report {
         }
 
         // Display the form with one section for each attempt.
+        $usehtmleditor = can_use_html_editor();
         $sesskey = sesskey();
         $qubaidlist = implode(',', $qubaids);
         echo html_writer::start_tag('form', array('method' => 'post',
@@ -462,7 +461,7 @@ class quiz_grading_report extends quiz_default_report {
 
         foreach ($qubaids as $qubaid) {
             foreach ($slots as $slot) {
-                if (!question_engine::is_manual_grade_in_range($qubaid, $slot)) {
+                if (!question_behaviour::is_manual_grade_in_range($qubaid, $slot)) {
                     return false;
                 }
             }
@@ -475,41 +474,20 @@ class quiz_grading_report extends quiz_default_report {
         global $DB;
 
         $qubaids = optional_param('qubaids', null, PARAM_SEQUENCE);
-        $assumedslotforevents = optional_param('slot', null, PARAM_INT);
-
         if (!$qubaids) {
             return;
         }
 
         $qubaids = clean_param_array(explode(',', $qubaids), PARAM_INT);
         $attempts = $this->load_attempts_by_usage_ids($qubaids);
-        $events = array();
 
         $transaction = $DB->start_delegated_transaction();
         foreach ($qubaids as $qubaid) {
             $attempt = $attempts[$qubaid];
             $attemptobj = new quiz_attempt($attempt, $this->quiz, $this->cm, $this->course);
             $attemptobj->process_submitted_actions(time());
-
-            // Add the event we will trigger later.
-            $params = array(
-                'objectid' => $attemptobj->get_question_attempt($assumedslotforevents)->get_question()->id,
-                'courseid' => $attemptobj->get_courseid(),
-                'context' => context_module::instance($attemptobj->get_cmid()),
-                'other' => array(
-                    'quizid' => $attemptobj->get_quizid(),
-                    'attemptid' => $attemptobj->get_attemptid(),
-                    'slot' => $assumedslotforevents
-                )
-            );
-            $events[] = \mod_quiz\event\question_manually_graded::create($params);
         }
         $transaction->allow_commit();
-
-        // Trigger events for all the questions we manually marked.
-        foreach ($events as $event) {
-            $event->trigger();
-        }
     }
 
     /**
@@ -569,17 +547,10 @@ class quiz_grading_report extends quiz_default_report {
                     WHERE sortqas.questionattemptid = qa.id
                         AND sortqas.state $statetest
                     )";
-        } else if ($orderby == 'studentfirstname' || $orderby == 'studentlastname' || $orderby == 'idnumber') {
+        } else if ($orderby == 'student' || $orderby == 'idnumber') {
             $qubaids->from .= " JOIN {user} u ON quiza.userid = u.id ";
-            // For name sorting, map orderby form value to
-            // actual column names; 'idnumber' maps naturally
-            switch ($orderby) {
-                case "studentlastname":
-                    $orderby = "u.lastname, u.firstname";
-                    break;
-                case "studentfirstname":
-                    $orderby = "u.firstname, u.lastname";
-                    break;
+            if ($orderby == 'student') {
+                $orderby = $DB->sql_fullname('u.firstname', 'u.lastname');
             }
         }
 

@@ -32,8 +32,13 @@ require_once($CFG->dirroot.'/mod/quiz/override_form.php');
 $cmid = required_param('cmid', PARAM_INT);
 $mode = optional_param('mode', '', PARAM_ALPHA); // One of 'user' or 'group', default is 'group'.
 
-list($course, $cm) = get_course_and_cm_from_cmid($cmid, 'quiz');
-$quiz = $DB->get_record('quiz', array('id' => $cm->instance), '*', MUST_EXIST);
+if (! $cm = get_coursemodule_from_id('quiz', $cmid)) {
+    print_error('invalidcoursemodule');
+}
+if (! $quiz = $DB->get_record('quiz', array('id' => $cm->instance))) {
+    print_error('invalidcoursemodule');
+}
+$course = $DB->get_record('course', array('id'=>$cm->course), '*', MUST_EXIST);
 
 // Get the course groups.
 $groups = groups_get_all_groups($cm->course);
@@ -57,7 +62,7 @@ $PAGE->set_url($url);
 
 require_login($course, false, $cm);
 
-$context = context_module::instance($cm->id);
+$context = get_context_instance(CONTEXT_MODULE, $cm->id);
 
 // Check the user has the required capabilities to list overrides.
 require_capability('mod/quiz:manageoverrides', $context);
@@ -67,7 +72,6 @@ $PAGE->set_pagelayout('admin');
 $PAGE->set_title(get_string('overrides', 'quiz'));
 $PAGE->set_heading($course->fullname);
 echo $OUTPUT->header();
-echo $OUTPUT->heading(format_string($quiz->name, true, array('context' => $context)));
 
 // Delete orphaned group overrides.
 $sql = 'SELECT o.id
@@ -86,22 +90,20 @@ if (!empty($orphaned)) {
 if ($groupmode) {
     $colname = get_string('group');
     $sql = 'SELECT o.*, g.name
-                FROM {quiz_overrides} o
-                JOIN {groups} g ON o.groupid = g.id
-                WHERE o.quiz = :quizid
+                FROM {quiz_overrides} o JOIN {groups} g
+                ON o.groupid = g.id
+                WHERE o.quiz = ?
                 ORDER BY g.name';
-    $params = array('quizid' => $quiz->id);
 } else {
     $colname = get_string('user');
-    list($sort, $params) = users_order_by_sql('u');
-    $sql = 'SELECT o.*, ' . get_all_user_name_fields(true, 'u') . '
-            FROM {quiz_overrides} o
-            JOIN {user} u ON o.userid = u.id
-            WHERE o.quiz = :quizid
-            ORDER BY ' . $sort;
-    $params['quizid'] = $quiz->id;
+    $sql = 'SELECT o.*, u.firstname, u.lastname
+                FROM {quiz_overrides} o JOIN {user} u
+                ON o.userid = u.id
+                WHERE o.quiz = ?
+                ORDER BY u.lastname, u.firstname';
 }
 
+$params = array($quiz->id);
 $overrides = $DB->get_records_sql($sql, $params);
 
 // Initialise table.
@@ -133,8 +135,9 @@ foreach ($overrides as $override) {
         if (!has_capability('mod/quiz:attempt', $context, $override->userid)) {
             // User not allowed to take the quiz.
             $active = false;
-        } else if (!\core_availability\info_module::is_user_visible($cm, $override->userid)) {
-            // User cannot access the module.
+        } else if (!empty($CFG->enablegroupmembersonly) && $cm->groupmembersonly &&
+                !groups_has_membership($cm, $override->userid)) {
+            // User does not belong to the current grouping.
             $active = false;
         }
     }
@@ -261,9 +264,17 @@ if ($groupmode) {
 } else {
     $users = array();
     // See if there are any students in the quiz.
-    $users = get_users_by_capability($context, 'mod/quiz:attempt', 'u.id');
-    $info = new \core_availability\info_module($cm);
-    $users = $info->filter_user_list($users);
+    if (!empty($CFG->enablegroupmembersonly) && $cm->groupmembersonly) {
+        // Restrict to grouping.
+        $limitgroups = groups_get_all_groups($cm->course, 0, $cm->groupingid);
+        if (!empty($limitgroups)) {
+            $users = get_users_by_capability($context, 'mod/quiz:attempt', 'u.id',
+                    '', '', 1, array_keys($limitgroups)); // Limit to one user for speed.
+        }
+    } else {
+        // Limit to one user for speed.
+        $users = get_users_by_capability($context, 'mod/quiz:attempt', 'u.id');
+    }
 
     if (empty($users)) {
         // There are no students.
@@ -272,7 +283,7 @@ if ($groupmode) {
     }
     echo $OUTPUT->single_button($overrideediturl->out(true,
             array('action' => 'adduser', 'cmid' => $cm->id)),
-            get_string('addnewuseroverride', 'quiz'), 'get', $options);
+            get_string('addnewuseroverride', 'quiz'), 'post', $options);
 }
 echo html_writer::end_tag('div');
 echo html_writer::end_tag('div');

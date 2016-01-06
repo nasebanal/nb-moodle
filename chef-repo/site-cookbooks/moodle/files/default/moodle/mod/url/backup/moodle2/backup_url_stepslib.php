@@ -18,7 +18,8 @@
 /**
  * Define all the backup steps that will be used by the backup_url_activity_task
  *
- * @package    mod_url
+ * @package    mod
+ * @subpackage url
  * @copyright  2010 onwards Andrew Davis
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

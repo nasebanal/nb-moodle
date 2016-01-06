@@ -1,4 +1,5 @@
 <?php
+
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -17,15 +18,15 @@
 /**
  * Strings for component 'table', language 'en', branch 'MOODLE_20_STABLE'
  *
- * @package   core
+ * @package   table
  * @copyright 1999 onwards Martin Dougiamas  {@link http://moodle.com}
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-$string['downloadas'] = 'Download table data as {$a->formatsmenu} {$a->downloadbutton}';
-$string['downloadcsv'] = 'Comma separated values text file';
-$string['downloadexcel'] = 'Excel spreadsheet';
-$string['downloadods'] = 'OpenDocument spreadsheet';
+$string['downloadas'] = 'Download table data as';
+$string['downloadcsv'] = 'a comma separated values text file';
+$string['downloadexcel'] = 'a Microsoft Excel spreadsheet';
+$string['downloadods'] = 'an OpenDocument Spreadsheet (ODS)';
 $string['downloadoptions'] = 'Select download options';
-$string['downloadtsv'] = 'Tab separated values text file';
-$string['downloadxhtml'] = 'Unpaged XHTML document';
+$string['downloadtsv'] = 'a tab separated values text file';
+$string['downloadxhtml'] = 'an unpaged XHTML document';

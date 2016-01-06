@@ -19,7 +19,7 @@
  *
  * @author Andreas Grabs
  * @license http://www.gnu.org/copyleft/gpl.html GNU Public License
- * @package mod_feedback
+ * @package feedback
  */
 
 require_once("../../config.php");
@@ -48,6 +48,7 @@ if ($id !== false) {
 $PAGE->set_url($url);
 
 // set up some general variables
+$usehtmleditor = can_use_html_editor();
 
 
 if (($formdata = data_submitted()) AND !confirm_sesskey()) {
@@ -66,7 +67,9 @@ if (! $feedback = $DB->get_record("feedback", array("id"=>$cm->instance))) {
     print_error('invalidcoursemodule');
 }
 
-$context = context_module::instance($cm->id);
+if (!$context = get_context_instance(CONTEXT_MODULE, $cm->id)) {
+        print_error('badcontext');
+}
 
 require_login($course, true, $cm);
 
@@ -121,16 +124,13 @@ if ($item->id) {
 } else {
     $PAGE->navbar->add(get_string('add_item', 'feedback'));
 }
-$PAGE->set_heading($course->fullname);
-$PAGE->set_title($feedback->name);
+$PAGE->set_heading(format_string($course->fullname));
+$PAGE->set_title(format_string($feedback->name));
 echo $OUTPUT->header();
-
-// Print the main part of the page.
-echo $OUTPUT->heading(format_string($feedback->name));
-
 /// print the tabs
 require('tabs.php');
-
+/// Print the main part of the page
+echo $OUTPUT->heading(format_text($feedback->name));
 //print errormsg
 if (isset($error)) {
     echo $error;

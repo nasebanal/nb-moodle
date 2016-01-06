@@ -1,4 +1,5 @@
 <?php
+
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -17,7 +18,7 @@
 /**
  * Script to let a user edit the properties of a particular RSS feed.
  *
- * @package   block_rss_client
+ * @package   moodlecore
  * @copyright 2009 Tim Hunt
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -31,8 +32,8 @@ if (isguestuser()) {
 }
 
 $returnurl = optional_param('returnurl', '', PARAM_LOCALURL);
-$courseid = optional_param('courseid', 0, PARAM_INT);
-$rssid = required_param('rssid', PARAM_INT);
+$courseid = optional_param('courseid', 0, PARAM_INTEGER);
+$rssid = required_param('rssid', PARAM_INTEGER);
 
 if ($courseid = SITEID) {
     $courseid = 0;
@@ -42,7 +43,7 @@ if ($courseid) {
     $PAGE->set_course($course);
     $context = $PAGE->context;
 } else {
-    $context = context_system::instance();
+    $context = get_context_instance(CONTEXT_SYSTEM);
     $PAGE->set_context($context);
 }
 

@@ -18,7 +18,8 @@
 /**
  * Imports lesson pages
  *
- * @package mod_lesson
+ * @package    mod
+ * @subpackage lesson
  * @copyright 1999 onwards Martin Dougiamas  {@link http://moodle.com}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  **/
@@ -34,12 +35,12 @@ $pageid = optional_param('pageid', '', PARAM_INT); // Page ID
 
 $PAGE->set_url('/mod/lesson/import.php', array('id'=>$id, 'pageid'=>$pageid));
 
-$cm = get_coursemodule_from_id('lesson', $id, 0, false, MUST_EXIST);
+$cm = get_coursemodule_from_id('lesson', $id, 0, false, MUST_EXIST);;
 $course = $DB->get_record('course', array('id' => $cm->course), '*', MUST_EXIST);
 $lesson = new lesson($DB->get_record('lesson', array('id' => $cm->instance), '*', MUST_EXIST));
 
 require_login($course, false, $cm);
-$context = context_module::instance($cm->id);
+$context = get_context_instance(CONTEXT_MODULE, $cm->id);
 require_capability('mod/lesson:edit', $context);
 
 $strimportquestions = get_string("importquestions", "lesson");
@@ -56,10 +57,10 @@ $mform->set_data($data);
 
     $PAGE->navbar->add($strimportquestions);
     $PAGE->set_title($strimportquestions);
-    $PAGE->set_heading($course->fullname);
+    $PAGE->set_heading($strimportquestions);
     echo $OUTPUT->header();
-    echo $OUTPUT->heading(format_string($lesson->name), 2);
-    echo $OUTPUT->heading_with_help($strimportquestions, 'importquestions', 'lesson', '', '', 3);
+
+echo $OUTPUT->heading_with_help($strimportquestions, 'importquestions', 'lesson' );
 
 if ($data = $mform->get_data()) {
 
@@ -80,8 +81,6 @@ if ($data = $mform->get_data()) {
             }
     require_once($formatclassfile);
     $format = new $formatclass();
-
-    $format->set_importcontext($context);
 
     // Do anything before that we need to
     if (! $format->importpreprocess()) {

@@ -58,7 +58,6 @@ class edit_grade_form extends moodleform {
         if ($grade_item->gradetype == GRADE_TYPE_VALUE) {
             // numeric grade
             $mform->addElement('text', 'finalgrade', get_string('finalgrade', 'grades'));
-            $mform->setType('finalgrade', PARAM_RAW);
             $mform->addHelpButton('finalgrade', 'finalgrade', 'grades');
             $mform->disabledIf('finalgrade', 'overridden', 'notchecked');
 
@@ -85,7 +84,11 @@ class edit_grade_form extends moodleform {
             $mform->disabledIf('finalgrade', 'overridden', 'notchecked');
         }
 
-        $mform->addElement('advcheckbox', 'excluded', get_string('excluded', 'grades'));
+        if ($grade_category and $grade_category->aggregation == GRADE_AGGREGATE_SUM) {
+            $mform->addElement('advcheckbox', 'excluded', get_string('excluded', 'grades'), '<small>('.get_string('warningexcludedsum', 'grades').')</small>');
+        } else {
+            $mform->addElement('advcheckbox', 'excluded', get_string('excluded', 'grades'));
+        }
         $mform->addHelpButton('excluded', 'excluded', 'grades');
 
         /// hiding
@@ -136,7 +139,7 @@ class edit_grade_form extends moodleform {
     function definition_after_data() {
         global $CFG, $COURSE, $DB;
 
-        $context = context_course::instance($COURSE->id);
+        $context = get_context_instance(CONTEXT_COURSE, $COURSE->id);
 
         $mform =& $this->_form;
         $grade_item = $this->_customdata['grade_item'];

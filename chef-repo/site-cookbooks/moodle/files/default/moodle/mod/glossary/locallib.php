@@ -19,7 +19,7 @@
  * Library of functions and constants for module glossary
  * outside of what is required for the core moodle api
  *
- * @package   mod_glossary
+ * @package   mod-glossary
  * @copyright 1999 onwards Martin Dougiamas  {@link http://moodle.com}
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -72,7 +72,7 @@ class glossary_full_portfolio_caller extends portfolio_module_caller_base {
 
         $this->exportdata = array('entries' => $entries, 'aliases' => $aliases, 'categoryentries' => $categoryentries);
         $fs = get_file_storage();
-        $context = context_module::instance($this->cm->id);
+        $context = get_context_instance(CONTEXT_MODULE, $this->cm->id);
         $this->multifiles = array();
         foreach (array_keys($entries) as $entry) {
             $this->keyedfiles[$entry] = array_merge(
@@ -186,7 +186,7 @@ class glossary_full_portfolio_caller extends portfolio_module_caller_base {
      * @return boolean
      */
     public function check_permissions() {
-        return has_capability('mod/glossary:export', context_module::instance($this->cm->id));
+        return has_capability('mod/glossary:export', get_context_instance(CONTEXT_MODULE, $this->cm->id));
     }
 
     /**
@@ -211,7 +211,7 @@ class glossary_full_portfolio_caller extends portfolio_module_caller_base {
 /**
  * class to export a single glossary entry
  *
- * @package   mod_glossary
+ * @package   mod-glossary
  * @copyright 1999 onwards Martin Dougiamas  {@link http://moodle.com}
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -254,10 +254,10 @@ class glossary_entry_portfolio_caller extends portfolio_module_caller_base {
             JOIN {glossary_categories} c
             ON c.id = ec.categoryid
             WHERE ec.entryid = ?', array($this->entryid));
-        $context = context_module::instance($this->cm->id);
+        $context = get_context_instance(CONTEXT_MODULE, $this->cm->id);
         if ($this->entry->sourceglossaryid == $this->cm->instance) {
             if ($maincm = get_coursemodule_from_instance('glossary', $this->entry->glossaryid)) {
-                $context = context_module::instance($maincm->id);
+                $context = get_context_instance(CONTEXT_MODULE, $maincm->id);
             }
         }
         $this->aliases = $DB->get_record('glossary_alias', array('entryid'=>$this->entryid));
@@ -289,7 +289,7 @@ class glossary_entry_portfolio_caller extends portfolio_module_caller_base {
      * @return boolean
      */
     public function check_permissions() {
-        $context = context_module::instance($this->cm->id);
+        $context = get_context_instance(CONTEXT_MODULE, $this->cm->id);
         return has_capability('mod/glossary:exportentry', $context)
             || ($this->entry->userid == $this->user->id && has_capability('mod/glossary:exportownentry', $context));
     }
@@ -395,7 +395,7 @@ class glossary_entry_portfolio_caller extends portfolio_module_caller_base {
     public static function entry_content($course, $cm, $glossary, $entry, $aliases, $format) {
         global $OUTPUT, $DB;
         $entry = clone $entry;
-        $context = context_module::instance($cm->id);
+        $context = get_context_instance(CONTEXT_MODULE, $cm->id);
         $options = portfolio_format_text_options();
         $options->trusted = $entry->definitiontrust;
         $options->context = $context;
@@ -433,7 +433,7 @@ class glossary_entry_portfolio_caller extends portfolio_module_caller_base {
             if (!$maincm = get_coursemodule_from_instance('glossary', $entry->glossaryid)) {
                 return '';
             }
-            $filecontext = context_module::instance($maincm->id);
+            $filecontext = get_context_instance(CONTEXT_MODULE, $maincm->id);
 
         } else {
             $filecontext = $context;

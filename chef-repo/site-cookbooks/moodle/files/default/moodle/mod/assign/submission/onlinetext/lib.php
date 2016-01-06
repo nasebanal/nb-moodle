@@ -1,4 +1,4 @@
-<?php
+<?PHP
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -35,7 +35,7 @@ defined('MOODLE_INTERNAL') || die();
  * @return bool false if file not found, does not return if found - just send the file
  */
 function assignsubmission_onlinetext_pluginfile($course, $cm, context $context, $filearea, $args, $forcedownload) {
-    global $DB, $CFG;
+    global $USER, $DB;
 
     if ($context->contextlevel != CONTEXT_MODULE) {
         return false;
@@ -43,28 +43,19 @@ function assignsubmission_onlinetext_pluginfile($course, $cm, context $context, 
 
     require_login($course, false, $cm);
     $itemid = (int)array_shift($args);
-    $record = $DB->get_record('assign_submission',
-                              array('id'=>$itemid),
-                              'userid, assignment, groupid',
-                              MUST_EXIST);
+    $record = $DB->get_record('assign_submission', array('id'=>$itemid), 'userid, assignment', MUST_EXIST);
     $userid = $record->userid;
-    $groupid = $record->groupid;
 
-    require_once($CFG->dirroot . '/mod/assign/locallib.php');
-
-    $assign = new assign($context, $cm, $course);
-
-    if ($assign->get_instance()->id != $record->assignment) {
+    if (!$assign = $DB->get_record('assign', array('id'=>$cm->instance))) {
         return false;
     }
 
-    if ($assign->get_instance()->teamsubmission &&
-        !$assign->can_view_group_submission($groupid)) {
+    if ($assign->id != $record->assignment) {
         return false;
     }
 
-    if (!$assign->get_instance()->teamsubmission &&
-        !$assign->can_view_submission($userid)) {
+    // check is users submission or has grading permission
+    if ($USER->id != $userid and !has_capability('mod/assign:grade', $context)) {
         return false;
     }
 
@@ -73,10 +64,8 @@ function assignsubmission_onlinetext_pluginfile($course, $cm, context $context, 
     $fullpath = "/{$context->id}/assignsubmission_onlinetext/$filearea/$itemid/$relativepath";
 
     $fs = get_file_storage();
-    if (!($file = $fs->get_file_by_hash(sha1($fullpath))) || $file->is_directory()) {
+    if (!$file = $fs->get_file_by_hash(sha1($fullpath)) or $file->is_directory()) {
         return false;
     }
-
-    // Download MUST be forced - security!
-    send_stored_file($file, 0, 0, true);
+    send_stored_file($file, 0, 0, true); // download MUST be forced - security!
 }

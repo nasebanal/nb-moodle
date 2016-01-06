@@ -33,23 +33,11 @@ defined('MOODLE_INTERNAL') || die();
  * @return texteditor object
  */
 function editors_get_preferred_editor($format = NULL) {
-    global $USER, $CFG;
-
-    if (!empty($CFG->adminsetuppending)) {
-        // Must not use other editors before install completed!
-        return get_texteditor('textarea');
-    }
+    global $USER;
 
     $enabled = editors_get_enabled();
 
-    $preference = get_user_preferences('htmleditor', '', $USER);
-
-    if (isset($enabled[$preference])) {
-        // Edit the list of editors so the users preferred editor is first in the list.
-        $editor = $enabled[$preference];
-        unset($enabled[$preference]);
-        array_unshift($enabled, $editor);
-    }
+    $preventhtml = (count($enabled) > 1 and empty($USER->htmleditor));
 
     // now find some plugin that supports format and is available
     $editor = false;
@@ -58,11 +46,27 @@ function editors_get_preferred_editor($format = NULL) {
             // bad luck, this editor is not compatible
             continue;
         }
+        if ($preventhtml and $format == FORMAT_HTML and $e->get_preferred_format() == FORMAT_HTML) {
+            // this is really not what we want but we could use it if nothing better found
+            $editor = $e;
+            continue;
+        }
         if (!$supports = $e->get_supported_formats()) {
             // buggy editor!
             continue;
         }
-        if (is_null($format) || in_array($format, $supports)) {
+        if (is_null($format)) {
+            // format does not matter
+            if ($preventhtml and $e->get_preferred_format() == FORMAT_HTML) {
+                // this is really not what we want but we could use it if nothing better found
+                $editor = $e;
+                continue;
+            } else {
+                $editor = $e;
+                break;
+            }
+        }
+        if (in_array($format, $supports)) {
             // editor supports this format, yay!
             $editor = $e;
             break;
@@ -83,7 +87,22 @@ function editors_get_preferred_editor($format = NULL) {
 function editors_get_preferred_format() {
     global $USER;
 
-    $editor = editors_get_preferred_editor();
+    $editors = editors_get_enabled();
+    if (count($editors) == 1) {
+        $editor = reset($editors);
+        return $editor->get_preferred_format();
+    }
+
+    foreach ($editors as $editor) {
+        if (empty($USER->htmleditor) and $editor->get_preferred_format() == FORMAT_HTML) {
+            // we do not prefer this one
+            continue;
+        }
+        return $editor->get_preferred_format();
+    }
+
+    // user did not want html editor, but there is no other choice, sorry
+    $editor = reset($editors);
     return $editor->get_preferred_format();
 }
 
@@ -95,7 +114,7 @@ function editors_get_enabled() {
     global $CFG;
 
     if (empty($CFG->texteditors)) {
-        $CFG->texteditors = 'atto,tinymce,textarea';
+        $CFG->texteditors = 'tinymce,textarea';
     }
     $active = array();
     foreach(explode(',', $CFG->texteditors) as $e) {
@@ -139,7 +158,7 @@ function get_texteditor($editorname) {
  */
 function editors_get_available() {
     $editors = array();
-    foreach (core_component::get_plugin_list('editor') as $editorname => $dir) {
+    foreach (get_plugin_list('editor') as $editorname => $dir) {
         $editors[$editorname] = get_string('pluginname', 'editor_'.$editorname);
     }
     return $editors;
@@ -153,7 +172,7 @@ function editors_head_setup() {
     global $CFG;
 
     if (empty($CFG->texteditors)) {
-        $CFG->texteditors = 'atto,tinymce,textarea';
+        $CFG->texteditors = 'tinymce,textarea';
     }
     $active = explode(',', $CFG->texteditors);
 
@@ -202,28 +221,6 @@ abstract class texteditor {
     public abstract function supports_repositories();
 
     /**
-     * @var string $text The text set to the editor in the form.
-     * @since 3.0
-     */
-    protected $text = '';
-
-    /**
-     * Set the text set for this form field. Will be called before "use_editor".
-     * @param string $text The text for the form field.
-     */
-    public function set_text($text) {
-        $this->text = $text;
-    }
-
-    /**
-     * Get the text set for this form field. Can be called from "use_editor".
-     * @return string
-     */
-    public function get_text() {
-        return $this->text;
-    }
-
-    /**
      * Add required JS needed for editor
      * @param string $elementid id of text area to be converted to editor
      * @param array $options
@@ -238,4 +235,30 @@ abstract class texteditor {
      */
     public function head_setup() {
     }
+}
+
+//=== TO BE DEPRECATED in 2.1 =====================
+
+/**
+ * Does the user want and can edit using rich text html editor?
+ * @todo Deprecate: eradicate completely, replace with something else in the future
+ * @return bool
+ */
+function can_use_html_editor() {
+    global $USER;
+
+    $editors = editors_get_enabled();
+    if (count($editors) > 1) {
+        if (empty($USER->htmleditor)) {
+            return false;
+        }
+    }
+
+    foreach ($editors as $editor) {
+        if ($editor->get_preferred_format() == FORMAT_HTML) {
+            return true;
+        }
+    }
+
+    return false;
 }

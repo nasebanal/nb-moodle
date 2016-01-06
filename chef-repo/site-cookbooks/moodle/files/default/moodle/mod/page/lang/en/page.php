@@ -18,7 +18,7 @@
 /**
  * Strings for component 'page', language 'en', branch 'MOODLE_20_STABLE'
  *
- * @package   mod_page
+ * @package   page
  * @copyright 1999 onwards Martin Dougiamas  {@link http://moodle.com}
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -26,7 +26,7 @@
 $string['configdisplayoptions'] = 'Select all options that should be available, existing settings are not modified. Hold CTRL key to select multiple fields.';
 $string['content'] = 'Page content';
 $string['contentheader'] = 'Content';
-$string['createpage'] = 'Create a new page resource';
+$string['createpage'] = 'Create a new page';
 $string['displayoptions'] = 'Available display options';
 $string['displayselect'] = 'Display';
 $string['displayselectexplain'] = 'Select display type.';
@@ -46,7 +46,8 @@ A page may be used
 * To embed several videos or sound files together with some explanatory text';
 $string['modulename_link'] = 'mod/page/view';
 $string['modulenameplural'] = 'Pages';
-$string['optionsheader'] = 'Display options';
+$string['neverseen'] = 'Never seen';
+$string['optionsheader'] = 'Options';
 $string['page-mod-page-x'] = 'Any page module page';
 $string['page:addinstance'] = 'Add a new page resource';
 $string['page:view'] = 'View page content';

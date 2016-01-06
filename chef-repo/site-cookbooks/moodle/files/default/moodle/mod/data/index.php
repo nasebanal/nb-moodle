@@ -20,7 +20,7 @@
  *
  * @copyright 1990 Martin Dougiamas  http://dougiamas.com
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @package mod_data
+ * @package mod-data
  */
 
 require_once("../../config.php");
@@ -37,15 +37,11 @@ if (!$course = $DB->get_record('course', array('id'=>$id))) {
 require_course_login($course);
 $PAGE->set_pagelayout('incourse');
 
-$context = context_course::instance($course->id);
+$context = get_context_instance(CONTEXT_COURSE, $course->id);
 
-$params = array(
-    'context' => context_course::instance($course->id)
-);
-$event = \mod_data\event\course_module_instance_list_viewed::create($params);
-$event->add_record_snapshot('course', $course);
-$event->trigger();
+add_to_log($course->id, "data", "view all", "index.php?id=$course->id", "");
 
+$strsectionname  = get_string('sectionname', 'format_'.$course->format);
 $strname = get_string('name');
 $strdata = get_string('modulename','data');
 $strdataplural  = get_string('modulenameplural','data');
@@ -54,13 +50,15 @@ $PAGE->navbar->add($strdata, new moodle_url('/mod/data/index.php', array('id'=>$
 $PAGE->set_title($strdata);
 $PAGE->set_heading($course->fullname);
 echo $OUTPUT->header();
-echo $OUTPUT->heading($strdataplural, 2);
 
 if (! $datas = get_all_instances_in_course("data", $course)) {
     notice(get_string('thereareno', 'moodle',$strdataplural) , "$CFG->wwwroot/course/view.php?id=$course->id");
 }
 
 $usesections = course_format_uses_sections($course->format);
+if ($usesections) {
+    $sections = get_all_sections($course->id);
+}
 
 $timenow  = time();
 $strname  = get_string('name');
@@ -71,7 +69,6 @@ $strnumnotapproved = get_string('numnotapproved', 'data');
 $table = new html_table();
 
 if ($usesections) {
-    $strsectionname = get_string('sectionname', 'format_'.$course->format);
     $table->head  = array ($strsectionname, $strname, $strdescription, $strentries, $strnumnotapproved);
     $table->align = array ('center', 'center', 'center', 'center', 'center');
 } else {
@@ -123,7 +120,7 @@ foreach ($datas as $data) {
     if ($usesections) {
         if ($data->section !== $currentsection) {
             if ($data->section) {
-                $printsection = get_section_name($course, $data->section);
+                $printsection = get_section_name($course, $sections[$data->section]);
             }
             if ($currentsection !== '') {
                 $table->data[] = 'hr';

@@ -17,13 +17,14 @@
 /**
  * Version information
  *
- * @package    auth_none
+ * @package    auth
+ * @subpackage none
  * @copyright  2011 Petr Skoda (http://skodak.org)
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2015111600;        // The current plugin version (Date: YYYYMMDDXX)
-$plugin->requires  = 2015111000;        // Requires this Moodle version
+$plugin->version   = 2012061700;        // The current plugin version (Date: YYYYMMDDXX)
+$plugin->requires  = 2012061700;        // Requires this Moodle version
 $plugin->component = 'auth_none';       // Full name of the plugin (used for diagnostics)

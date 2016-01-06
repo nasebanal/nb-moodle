@@ -14,6 +14,15 @@ directory node['moodle']['working_dir'] do
 end
 
 
+## Change owner
+
+bash "Change owner" do
+	code <<-EOC
+chown apache:apache /var/www/
+	EOC
+end
+
+
 ## Prepare Moodle directory
 
 remote_directory node['moodle']['install_dir'] do

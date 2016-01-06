@@ -16,7 +16,8 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * @package assignment_offline
+ * @package assignment
+ * @subpackage offline subplugin
  * @copyright 2011 onwards Aparup Banerjee (nebgor)
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

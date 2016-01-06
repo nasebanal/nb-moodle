@@ -59,18 +59,17 @@ M.core_comment = {
                     }, this);
                 }
                 scope.toggle_textarea(false);
+                CommentHelper.confirmoverlay = new Y.Overlay({
+bodyContent: '<div class="comment-delete-confirm"><a href="#" id="confirmdelete-'+this.client_id+'">'+M.str.moodle.yes+'</a> <a href="#" id="canceldelete-'+this.client_id+'">'+M.str.moodle.no+'</a></div>',
+                                        visible: false
+                                        });
+                CommentHelper.confirmoverlay.render(document.body);
             },
             post: function() {
                 var ta = Y.one('#dlg-content-'+this.client_id);
                 var scope = this;
                 var value = ta.get('value');
-                if (value && value != M.util.get_string('addcomment', 'moodle')) {
-                    ta.set('disabled', true);
-                    ta.setStyles({
-                        'backgroundImage': 'url(' + M.util.image_url('i/loading_small', 'core') + ')',
-                        'backgroundRepeat': 'no-repeat',
-                        'backgroundPosition': 'center center'
-                    });
+                if (value && value != M.str.moodle.addcomment) {
                     var params = {'content': value};
                     this.request({
                         action: 'add',
@@ -81,24 +80,22 @@ M.core_comment = {
                             var cid = scope.client_id;
                             var ta = Y.one('#dlg-content-'+cid);
                             ta.set('value', '');
-                            ta.set('disabled', false);
-                            ta.setStyle('backgroundImage', 'none');
                             scope.toggle_textarea(false);
                             var container = Y.one('#comment-list-'+cid);
                             var result = scope.render([obj], true);
                             var newcomment = Y.Node.create(result.html);
                             container.appendChild(newcomment);
                             var ids = result.ids;
-                            var linkText = Y.one('#comment-link-text-' + cid);
-                            if (linkText) {
-                                linkText.set('innerHTML', M.util.get_string('commentscount', 'moodle', obj.count));
+                            var linktext = Y.one('#comment-link-text-'+cid);
+                            if (linktext) {
+                                linktext.set('innerHTML', M.str.moodle.comments + ' ('+obj.count+')');
                             }
                             for(var i in ids) {
                                 var attributes = {
                                     color: { to: '#06e' },
                                     backgroundColor: { to: '#FFE390' }
                                 };
-                                var anim = new Y.YUI2.util.ColorAnim(ids[i], attributes);
+                                var anim = new YAHOO.util.ColorAnim(ids[i], attributes);
                                 anim.animate();
                             }
                             scope.register_pagination();
@@ -109,7 +106,7 @@ M.core_comment = {
                     var attributes = {
                         backgroundColor: { from: '#FFE390', to:'#FFFFFF' }
                     };
-                    var anim = new Y.YUI2.util.ColorAnim('dlg-content-'+cid, attributes);
+                    var anim = new YAHOO.util.ColorAnim('dlg-content-'+cid, attributes);
                     anim.animate();
                 }
             },
@@ -186,7 +183,7 @@ M.core_comment = {
                         val = val.replace('___name___', list[i].fullname);
                     }
                     if (list[i]['delete']||newcmt) {
-                        list[i].content = '<div class="comment-delete"><a href="#" id ="comment-delete-'+this.client_id+'-'+list[i].id+'" title="'+M.util.get_string('deletecomment', 'moodle')+'"><img alt="" src="'+M.util.image_url('t/delete', 'core')+'" /></a></div>' + list[i].content;
+                        list[i].content = '<div class="comment-delete"><a href="#" id ="comment-delete-'+this.client_id+'-'+list[i].id+'" title="'+M.str.moodle.deletecomment+'"><img alt="" src="'+M.util.image_url('t/delete', 'core')+'" /></a></div>' + list[i].content;
                     }
                     val = val.replace('___time___', list[i].time);
                     val = val.replace('___picture___', list[i].avatar);
@@ -209,9 +206,9 @@ M.core_comment = {
                     scope: scope,
                     params: params,
                     callback: function(id, ret, args) {
-                        var linkText = Y.one('#comment-link-text-' + scope.client_id);
-                        if (ret.count && linkText) {
-                            linkText.set('innerHTML', M.util.get_string('commentscount', 'moodle', ret.count));
+                        var linktext = Y.one('#comment-link-text-'+scope.client_id);
+                        if (ret.count && linktext) {
+                            linktext.set('innerHTML', M.str.moodle.comments + ' ('+ret.count+')');
                         }
                         var container = Y.one('#comment-list-'+scope.client_id);
                         var pagination = Y.one('#comment-pagination-'+scope.client_id);
@@ -223,7 +220,7 @@ M.core_comment = {
                         }
                         if (ret.error == 'require_login') {
                             var result = {};
-                            result.html = M.util.get_string('commentsrequirelogin', 'moodle');
+                            result.html = M.str.moodle.commentsrequirelogin;
                         } else {
                             var result = scope.render(ret.list);
                         }
@@ -239,16 +236,11 @@ M.core_comment = {
             },
 
             dodelete: function(id) { // note: delete is a reserved word in javascript, chrome and safary do not like it at all here!
-                var scope = this,
-                    cid = scope.client_id,
-                    params = {'commentid': id};
+                var scope = this;
+                var params = {'commentid': id};
+                scope.cancel_delete();
                 function remove_dom(type, anim, cmt) {
                     cmt.remove();
-                    var linkText = Y.one('#comment-link-text-' + cid),
-                        comments = Y.all('#comment-list-' + cid + ' li');
-                    if (linkText && comments) {
-                        linkText.set('innerHTML', M.util.get_string('commentscount', 'moodle', comments.size()));
-                    }
                 }
                 this.request({
                     action: 'delete',
@@ -262,7 +254,7 @@ M.core_comment = {
                         };
                         var cmt = Y.one('#'+htmlid);
                         cmt.setStyle('overflow', 'hidden');
-                        var anim = new Y.YUI2.util.Anim(htmlid, attributes, 1, Y.YUI2.util.Easing.easeOut);
+                        var anim = new YAHOO.util.Anim(htmlid, attributes, 1, YAHOO.util.Easing.easeOut);
                         anim.onComplete.subscribe(remove_dom, cmt, this);
                         anim.animate();
                     }
@@ -302,22 +294,36 @@ M.core_comment = {
                         if (commentid[1]) {
                             Y.Event.purgeElement('#'+theid, false, 'click');
                         }
-                        node.on('click', function(e) {
+                        node.on('click', function(e, node) {
                             e.preventDefault();
-                            if (commentid[1]) {
-                                scope.dodelete(commentid[1]);
+                            var width = CommentHelper.confirmoverlay.bodyNode.getStyle('width');
+                            var re = new RegExp("(\\d+).*", "i");
+                            var result = width.match(re);
+                            if (result[1]) {
+                                width = Number(result[1]);
+                            } else {
+                                width = 0;
                             }
-                        });
-                        // Also handle space/enter key.
-                        node.on('key', function(e) {
-                            e.preventDefault();
-                            if (commentid[1]) {
-                                scope.dodelete(commentid[1]);
-                            }
-                        }, '13,32');
-                        // 13 and 32 are the keycodes for space and enter.
+                            //CommentHelper.confirmoverlay.set('xy', [e.pageX-(width/2), e.pageY]);
+                            CommentHelper.confirmoverlay.set('xy', [e.pageX-width-5, e.pageY]);
+                            CommentHelper.confirmoverlay.set('visible', true);
+                            Y.one('#canceldelete-'+scope.client_id).on('click', function(e) {
+                                e.preventDefault();
+                                scope.cancel_delete();
+                                });
+                            Y.Event.purgeElement('#confirmdelete-'+scope.client_id, false, 'click');
+                            Y.one('#confirmdelete-'+scope.client_id).on('click', function(e) {
+                                e.preventDefault();
+                                if (commentid[1]) {
+                                    scope.dodelete(commentid[1]);
+                                }
+                            });
+                        }, scope, node);
                     }
                 );
+            },
+            cancel_delete: function() {
+                CommentHelper.confirmoverlay.set('visible', false);
             },
             register_pagination: function() {
                 var scope = this;
@@ -368,7 +374,7 @@ M.core_comment = {
                 if (ta) {
                     //toggle_textarea.apply(ta, [false]);
                     //// reset textarea size
-                    ta.on('focus', function() {
+                    ta.on('click', function() {
                         this.toggle_textarea(true);
                     }, this);
                     //ta.onkeypress = function() {
@@ -388,13 +394,13 @@ M.core_comment = {
                     return false;
                 }
                 if (focus) {
-                    if (t.get('value') == M.util.get_string('addcomment', 'moodle')) {
+                    if (t.get('value') == M.str.moodle.addcomment) {
                         t.set('value', '');
                         t.setStyle('color', 'black');
                     }
                 }else{
                     if (t.get('value') == '') {
-                        t.set('value', M.util.get_string('addcomment', 'moodle'));
+                        t.set('value', M.str.moodle.addcomment);
                         t.setStyle('color','grey');
                         t.set('rows', 2);
                     }
@@ -439,7 +445,7 @@ M.core_comment = {
                     return;
                 }
                 var args = {};
-                args.message = M.util.get_string('confirmdeletecomments', 'admin');
+                args.message = M.str.admin.confirmdeletecomments;
                 args.callback = function() {
                     var url = M.cfg.wwwroot + '/comment/index.php';
 

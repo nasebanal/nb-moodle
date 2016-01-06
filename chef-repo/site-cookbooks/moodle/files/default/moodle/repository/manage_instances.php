@@ -19,7 +19,7 @@
 /**
  * This file is used to manage repositories
  *
- * @since Moodle 2.0
+ * @since 2.0
  * @package    core
  * @subpackage repository
  * @copyright  2009 Dongsheng Cai <dongsheng@moodle.com>
@@ -30,7 +30,7 @@ require_once(dirname(dirname(__FILE__)) . '/config.php');
 require_once($CFG->dirroot . '/repository/lib.php');
 
 $edit    = optional_param('edit', 0, PARAM_INT);
-$new     = optional_param('new', '', PARAM_ALPHANUMEXT);
+$new     = optional_param('new', '', PARAM_FORMAT);
 $delete  = optional_param('delete', 0, PARAM_INT);
 $sure    = optional_param('sure', '', PARAM_ALPHA);
 $contextid = optional_param('contextid', 0, PARAM_INT);
@@ -65,11 +65,10 @@ if ($usercourseid != SITEID) {
     $url->param('usercourseid', $usercourseid);
 }
 
-$context = context::instance_by_id($contextid);
+$context = get_context_instance_by_id($contextid);
 
 $PAGE->set_url($url);
 $PAGE->set_context($context);
-$PAGE->set_pagelayout('standard');
 
 /// Security: make sure we're allowed to do this operation
 if ($context->contextlevel == CONTEXT_COURSE) {
@@ -85,7 +84,7 @@ if ($context->contextlevel == CONTEXT_COURSE) {
 
 } else if ($context->contextlevel == CONTEXT_USER) {
     require_login();
-    $pagename = get_string('manageinstances', 'repository');
+    $pagename = get_string("personalrepositories",'repository');
     //is the user looking at its own repository instances
     if ($USER->id != $context->instanceid){
         print_error('notyourinstances', 'repository');
@@ -97,7 +96,7 @@ if ($context->contextlevel == CONTEXT_COURSE) {
 }
 
 /// Security: we cannot perform any action if the type is not visible or if the context has been disabled
-if (!empty($new) && empty($edit)){
+if (!empty($new)){
     $type = repository::get_type_by_typename($new);
 } else if (!empty($edit)){
     $instance = repository::get_instance($edit);
@@ -105,6 +104,14 @@ if (!empty($new) && empty($edit)){
 } else if (!empty($delete)){
     $instance = repository::get_instance($delete);
     $type = repository::get_type_by_id($instance->options['typeid']);
+}
+
+// The context passed MUST match the context of the repository. And as both have to be
+// similar, this also ensures that the context is either a user one, or a course one.
+if (!empty($instance)) {
+    if ($instance->instance->contextid != $context->id) {
+        print_error('invalidcontext');
+    }
 }
 
 if (isset($type)) {
@@ -119,36 +126,39 @@ if (isset($type)) {
     }
 }
 
-// We have an instance when we are going to edit, or delete. Several checks need to be done!
-if (!empty($instance)) {
-    // The context passed MUST match the context of the repository. And as both have to be
-    // similar, this also ensures that the context is either a user one, or a course one.
-    if ($instance->instance->contextid != $context->id) {
-        print_error('invalidcontext');
-    }
-    if ($instance->readonly) {
-        // Cannot edit, or delete a readonly instance.
-        throw new repository_exception('readonlyinstance', 'repository');
-    } else if (!$instance->can_be_edited_by_user()) {
-        // The user has to have the right to edit the instance.
-        throw new repository_exception('nopermissiontoaccess', 'repository');
-    }
-}
-
-// Create navigation links.
+/// Create navigation links
 if (!empty($course)) {
-    $pageheading = $course->fullname;
+    $PAGE->navbar->add($pagename);
+    $fullname = $course->fullname;
 } else {
-    $pageheading = $pagename;
+    $fullname = fullname($user);
+    $strrepos = get_string('repositories', 'repository');
+    $PAGE->navbar->add($fullname, new moodle_url('/user/view.php', array('id'=>$user->id)));
+    $PAGE->navbar->add($strrepos);
 }
 
-// Display page header.
-$PAGE->set_title($pagename);
-$PAGE->set_heading($pageheading);
+$title = $pagename;
+
+/// Display page header
+$PAGE->set_title($title);
+$PAGE->set_heading($fullname);
+
+if ($context->contextlevel == CONTEXT_USER) {
+    if ( !$course = $DB->get_record('course', array('id'=>$usercourseid))) {
+        print_error('invalidcourseid');
+    }
+}
 
 $return = true;
 if (!empty($edit) || !empty($new)) {
     if (!empty($edit)) {
+        $instance = repository::get_instance($edit);
+        //if you try to edit an instance set as readonly, display an error message
+        if ($instance->readonly) {
+            throw new repository_exception('readonlyinstance', 'repository');
+        }
+        // Check if we can read the content of the repository, if not exception is thrown.
+        $instance->check_capability();
         $instancetype = repository::get_type_by_id($instance->options['typeid']);
         $classname = 'repository_' . $instancetype->get_typename();
         $configs  = $instance->get_instance_option_names();
@@ -180,7 +190,7 @@ if (!empty($edit) || !empty($new)) {
             }
             $success = $instance->set_option($settings);
         } else {
-            $success = repository::static_function($plugin, 'create', $plugin, 0, context::instance_by_id($contextid), $fromform);
+            $success = repository::static_function($plugin, 'create', $plugin, 0, get_context_instance_by_id($contextid), $fromform);
             $data = data_submitted();
         }
         if ($success) {
@@ -199,6 +209,14 @@ if (!empty($edit) || !empty($new)) {
         $return = false;
     }
 } else if (!empty($delete)) {
+    // echo $OUTPUT->header();
+    $instance = repository::get_instance($delete);
+     //if you try to delete an instance set as readonly, display an error message
+    if ($instance->readonly) {
+        throw new repository_exception('readonlyinstance', 'repository');
+    }
+    // Check if we can read the content of the repository, if not exception is thrown.
+    $instance->check_capability();
     if ($sure) {
         if (!confirm_sesskey()) {
             print_error('confirmsesskeybad', '', $baseurl);

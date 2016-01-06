@@ -54,11 +54,11 @@ $course = $DB->get_record('course', array('id' => $courseid), '*', MUST_EXIST);
 if (in_array($class, array('resource'))) {
     $cm = get_coursemodule_from_id(null, $id, $course->id, false, MUST_EXIST);
     require_login($course, false, $cm);
-    $modcontext = context_module::instance($cm->id);
+    $modcontext = get_context_instance(CONTEXT_MODULE, $cm->id);
 } else {
     require_login($course);
 }
-$coursecontext = context_course::instance($course->id);
+$coursecontext = get_context_instance(CONTEXT_COURSE, $course->id);
 require_sesskey();
 
 echo $OUTPUT->header(); // send headers
@@ -88,15 +88,20 @@ switch($requestmethod) {
                         break;
 
                     case 'move':
-                        require_capability('moodle/course:movesections', $coursecontext);
+                        require_capability('moodle/course:update', $coursecontext);
                         move_section_to($course, $id, $value);
                         // See if format wants to do something about it
-                        $response = course_get_format($course)->ajax_section_move();
-                        if ($response !== null) {
-                            echo json_encode($response);
+                        $libfile = $CFG->dirroot.'/course/format/'.$course->format.'/lib.php';
+                        $functionname = 'callback_'.$course->format.'_ajax_section_move';
+                        if (!function_exists($functionname) && file_exists($libfile)) {
+                            require_once $libfile;
+                        }
+                        if (function_exists($functionname)) {
+                            echo json_encode($functionname($course));
                         }
                         break;
                 }
+                rebuild_course_cache($course->id);
                 break;
 
             case 'resource':
@@ -104,25 +109,11 @@ switch($requestmethod) {
                     case 'visible':
                         require_capability('moodle/course:activityvisibility', $modcontext);
                         set_coursemodule_visible($cm->id, $value);
-                        \core\event\course_module_updated::create_from_cm($cm, $modcontext)->trigger();
-                        break;
-
-                    case 'duplicate':
-                        require_capability('moodle/course:manageactivities', $coursecontext);
-                        require_capability('moodle/backup:backuptargetimport', $coursecontext);
-                        require_capability('moodle/restore:restoretargetimport', $coursecontext);
-                        if (!course_allowed_module($course, $cm->modname)) {
-                            throw new moodle_exception('No permission to create that activity');
-                        }
-                        $sr = optional_param('sr', null, PARAM_INT);
-                        $result = mod_duplicate_activity($course, $cm, $sr);
-                        echo json_encode($result);
                         break;
 
                     case 'groupmode':
                         require_capability('moodle/course:manageactivities', $modcontext);
                         set_coursemodule_groupmode($cm->id, $value);
-                        \core\event\course_module_updated::create_from_cm($cm, $modcontext)->trigger();
                         break;
 
                     case 'indent':
@@ -130,7 +121,6 @@ switch($requestmethod) {
                         $cm->indent = $value;
                         if ($cm->indent >= 0) {
                             $DB->update_record('course_modules', $cm);
-                            rebuild_course_cache($cm->course);
                         }
                         break;
 
@@ -147,8 +137,8 @@ switch($requestmethod) {
                             $beforemod = NULL;
                         }
 
-                        $isvisible = moveto_module($cm, $section, $beforemod);
-                        echo json_encode(array('visible' => (bool) $isvisible));
+                        moveto_module($cm, $section, $beforemod);
+                        echo json_encode(array('visible' => $cm->visible));
                         break;
                     case 'gettitle':
                         require_capability('moodle/course:manageactivities', $modcontext);
@@ -173,11 +163,8 @@ switch($requestmethod) {
                             $module->name = clean_param($title, PARAM_CLEANHTML);
                         }
 
-                        if (strval($module->name) !== '') {
+                        if (!empty($module->name)) {
                             $DB->update_record($cm->modname, $module);
-                            $cm->name = $module->name;
-                            \core\event\course_module_updated::create_from_cm($cm, $modcontext)->trigger();
-                            rebuild_course_cache($cm->course);
                         } else {
                             $module->name = $cm->name;
                         }
@@ -194,6 +181,7 @@ switch($requestmethod) {
                         echo json_encode(array('instancename' => html_entity_decode(format_string($module->name, true,  $stringoptions))));
                         break;
                 }
+                rebuild_course_cache($course->id);
                 break;
 
             case 'course':
@@ -211,7 +199,46 @@ switch($requestmethod) {
         switch ($class) {
             case 'resource':
                 require_capability('moodle/course:manageactivities', $modcontext);
-                course_delete_module($cm->id);
+                $modlib = "$CFG->dirroot/mod/$cm->modname/lib.php";
+
+                if (file_exists($modlib)) {
+                    include_once($modlib);
+                } else {
+                    throw new moodle_exception("Ajax rest.php: This module is missing mod/$cm->modname/lib.php");
+                }
+                $deleteinstancefunction = $cm->modname."_delete_instance";
+
+                // Run the module's cleanup funtion.
+                if (!$deleteinstancefunction($cm->instance)) {
+                    throw new moodle_exception("Ajax rest.php: Could not delete the $cm->modname $cm->name (instance)");
+                    die;
+                }
+
+                // remove all module files in case modules forget to do that
+                $fs = get_file_storage();
+                $fs->delete_area_files($modcontext->id);
+
+                if (!delete_course_module($cm->id)) {
+                    throw new moodle_exception("Ajax rest.php: Could not delete the $cm->modname $cm->name (coursemodule)");
+                }
+                // Remove the course_modules entry.
+                if (!delete_mod_from_section($cm->id, $cm->section)) {
+                    throw new moodle_exception("Ajax rest.php: Could not delete the $cm->modname $cm->name from section");
+                }
+
+                // Trigger a mod_deleted event with information about this module.
+                $eventdata = new stdClass();
+                $eventdata->modulename = $cm->modname;
+                $eventdata->cmid       = $cm->id;
+                $eventdata->courseid   = $course->id;
+                $eventdata->userid     = $USER->id;
+                events_trigger('mod_deleted', $eventdata);
+
+                rebuild_course_cache($course->id);
+
+                add_to_log($courseid, "course", "delete mod",
+                           "view.php?id=$courseid",
+                           "$cm->modname $cm->instance", $cm->id);
                 break;
         }
         break;

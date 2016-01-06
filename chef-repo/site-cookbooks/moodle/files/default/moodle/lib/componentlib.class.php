@@ -67,14 +67,14 @@
  * To install one component:
  * <code>
  *     require_once($CFG->libdir.'/componentlib.class.php');
- *     if ($cd = new component_installer('https://download.moodle.org', 'langpack/2.0',
+ *     if ($cd = new component_installer('http://download.moodle.org', 'langpack/2.0',
  *                                       'es.zip', 'languages.md5', 'lang')) {
  *         $status = $cd->install(); //returns COMPONENT_(ERROR | UPTODATE | INSTALLED)
  *         switch ($status) {
  *             case COMPONENT_ERROR:
  *                 if ($cd->get_error() == 'remotedownloaderror') {
  *                     $a = new stdClass();
- *                     $a->url = 'https://download.moodle.org/langpack/2.0/es.zip';
+ *                     $a->url = 'http://download.moodle.org/langpack/2.0/es.zip';
  *                     $a->dest= $CFG->dataroot.'/lang';
  *                     print_error($cd->get_error(), 'error', '', $a);
  *                 } else {
@@ -220,12 +220,12 @@ class component_installer {
         $this->requisitesok = false;
 
     /// Check that everything we need is present
-        if (empty($this->sourcebase) || empty($this->zipfilename)) {
+        if (empty($this->sourcebase) || empty($this->zippath) || empty($this->zipfilename)) {
             $this->errorstring='missingrequiredfield';
             return false;
         }
     /// Check for correct sourcebase (this will be out in the future)
-        if (!PHPUNIT_TEST and $this->sourcebase != 'https://download.moodle.org') {
+        if ($this->sourcebase != 'http://download.moodle.org') {
             $this->errorstring='wrongsourcebase';
             return false;
         }
@@ -286,12 +286,7 @@ class component_installer {
              return COMPONENT_ERROR;
         }
     /// Download zip file and save it to temp
-        if ($this->zippath) {
-            $source = $this->sourcebase.'/'.$this->zippath.'/'.$this->zipfilename;
-        } else {
-            $source = $this->sourcebase.'/'.$this->zipfilename;
-        }
-
+        $source = $this->sourcebase.'/'.$this->zippath.'/'.$this->zipfilename;
         $zipfile= $CFG->tempdir.'/'.$this->zipfilename;
 
         if($contents = download_file_content($source)) {
@@ -323,11 +318,8 @@ class component_installer {
     /// Move current revision to a safe place
         $destinationdir = $CFG->dataroot.'/'.$this->destpath;
         $destinationcomponent = $destinationdir.'/'.$this->componentname;
-        @remove_dir($destinationcomponent.'_old');     // Deleting a possible old version.
-
-        // Moving to a safe place.
-        @rename($destinationcomponent, $destinationcomponent.'_old');
-
+        @remove_dir($destinationcomponent.'_old');     //Deleting possible old components before
+        @rename ($destinationcomponent, $destinationcomponent.'_old');  //Moving to a safe place
     /// Unzip new version
         if (!unzip_file($zipfile, $destinationdir, false)) {
         /// Error so, go back to the older
@@ -482,11 +474,7 @@ class component_installer {
         $comp_arr = array();
 
     /// Define and retrieve the full md5 file
-        if ($this->zippath) {
-            $source = $this->sourcebase.'/'.$this->zippath.'/'.$this->md5filename;
-        } else {
-            $source = $this->sourcebase.'/'.$this->md5filename;
-        }
+        $source = $this->sourcebase.'/'.$this->zippath.'/'.$this->md5filename;
 
     /// Check if we have downloaded the md5 file before (per request cache)
         if (!empty($this->cachedmd5components[$source])) {
@@ -677,9 +665,9 @@ class lang_installer {
     public function lang_pack_url($langcode = '') {
 
         if (empty($langcode)) {
-            return 'https://download.moodle.org/langpack/'.$this->version.'/';
+            return 'http://download.moodle.org/langpack/'.$this->version.'/';
         } else {
-            return 'https://download.moodle.org/download.php/langpack/'.$this->version.'/'.$langcode.'.zip';
+            return 'http://download.moodle.org/download.php/langpack/'.$this->version.'/'.$langcode.'.zip';
         }
     }
 
@@ -689,7 +677,7 @@ class lang_installer {
      * @return array|bool false if can not download
      */
     public function get_remote_list_of_languages() {
-        $source = 'https://download.moodle.org/langpack/' . $this->version . '/languages.md5';
+        $source = 'http://download.moodle.org/langpack/' . $this->version . '/languages.md5';
         $availablelangs = array();
 
         if ($content = download_file_content($source)) {
@@ -781,7 +769,7 @@ class lang_installer {
     protected function install_language_pack($langcode) {
 
         // initialise new component installer to process this language
-        $installer = new component_installer('https://download.moodle.org', 'download.php/direct/langpack/' . $this->version,
+        $installer = new component_installer('http://download.moodle.org', 'download.php/direct/langpack/' . $this->version,
             $langcode . '.zip', 'languages.md5', 'lang');
 
         if (!$installer->requisitesok) {

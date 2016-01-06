@@ -17,11 +17,13 @@
 /**
  * Admin Bookmarks Block page.
  *
- * @package    block_admin_bookmarks
+ * @package    block
+ * @subpackage admin_bookmarks
  * @copyright  2011 Moodle
  * @author     2006 vinkmar
  *             2011 Rossiani Wijaya (updated)
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ *
  */
 
 /**
@@ -59,7 +61,7 @@ class block_admin_bookmarks extends block_base {
      * @return array
      */
     function applicable_formats() {
-        if (has_capability('moodle/site:config', context_system::instance())) {
+        if (has_capability('moodle/site:config', get_context_instance(CONTEXT_SYSTEM))) {
             return array('all' => true);
         } else {
             return array('site' => true);
@@ -105,7 +107,7 @@ class block_admin_bookmarks extends block_base {
 
         $this->content->footer = '';
         $this->page->settingsnav->initialise();
-        $node = $this->page->settingsnav->get('root', navigation_node::TYPE_SITE_ADMIN);
+        $node = $this->page->settingsnav->get('root', navigation_node::TYPE_SETTING);
         if (!$node || !$node->contains_active_node()) {
             return $this->content;
         }
@@ -123,15 +125,6 @@ class block_admin_bookmarks extends block_base {
         }
 
         return $this->content;
-    }
-
-    /**
-     * Returns the role that best describes the admin bookmarks block.
-     *
-     * @return string
-     */
-    public function get_aria_role() {
-        return 'navigation';
     }
 }
 

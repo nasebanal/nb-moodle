@@ -30,7 +30,7 @@ require('../config.php');
 require_once($CFG->libdir.'/filelib.php');
 require_once($CFG->libdir.'/adminlib.php');
 require_once($CFG->dirroot.'/repository/lib.php');
-$PAGE->set_context(context_system::instance());
+$PAGE->set_context(get_system_context());
 require_login();
 if (isguestuser()) {
     print_error('noguest');
@@ -41,7 +41,7 @@ $action  = required_param('action', PARAM_ALPHA);
 $draftid = required_param('itemid', PARAM_INT);
 $filepath = optional_param('filepath', '/', PARAM_PATH);
 
-$user_context = context_user::instance($USER->id);
+$user_context = get_context_instance(CONTEXT_USER, $USER->id);
 
 echo $OUTPUT->header(); // send headers
 
@@ -181,8 +181,8 @@ switch ($action) {
 
         $zipper = get_file_packer('application/zip');
         $fs = get_file_storage();
-        $area = file_get_draft_area_info($draftid, $filepath);
-        if ($area['filecount'] == 0 && $area['foldercount'] == 0) {
+        $area = file_get_draft_area_info($draftid);
+        if ($area['filecount'] == 0) {
             echo json_encode(false);
             die;
         }
@@ -218,7 +218,15 @@ switch ($action) {
         $file = $fs->get_file($user_context->id, 'user', 'draft', $draftid, $filepath, $filename);
 
         // Find unused name for directory to extract the archive.
-        $temppath = $fs->get_unused_dirname($user_context->id, 'user', 'draft', $draftid, $filepath. pathinfo($filename, PATHINFO_FILENAME). '/');
+        $temppath = $filepath. pathinfo($filename, PATHINFO_FILENAME). '/';
+        if ($fs->file_exists($user_context->id, 'user', 'draft', $draftid, $temppath, '.')) {
+            for ($i=0; $i<1000; $i++) {
+                if (!$fs->file_exists($user_context->id, 'user', 'draft', $draftid, rtrim($temppath, '/'). " ($i)/", '.')) {
+                    $temppath = rtrim($temppath, '/'). " ($i)/";
+                    break;
+                }
+            }
+        }
         $donotremovedirs = array();
         $doremovedirs = array($temppath);
         // Extract archive and move all files from $temppath to $filepath
@@ -285,7 +293,7 @@ switch ($action) {
             if (isset($source->original)) {
                 $reffiles = $fs->search_references($source->original);
                 foreach ($reffiles as $reffile) {
-                    $refcontext = context::instance_by_id($reffile->get_contextid());
+                    $refcontext = get_context_instance_by_id($reffile->get_contextid());
                     $fileinfo = $browser->get_file_info($refcontext, $reffile->get_component(), $reffile->get_filearea(), $reffile->get_itemid(), $reffile->get_filepath(), $reffile->get_filename());
                     if (empty($fileinfo)) {
                         $return['references'][] = get_string('undisclosedreference', 'repository');

@@ -18,7 +18,7 @@
 /**
  * This file is responsible for producing the survey reports
  *
- * @package   mod_survey
+ * @package   mod-survey
  * @copyright 1999 onwards Martin Dougiamas  {@link http://moodle.com}
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -63,7 +63,7 @@
 
     require_login($course, false, $cm);
 
-    $context = context_module::instance($cm->id);
+    $context = get_context_instance(CONTEXT_MODULE, $cm->id);
 
     require_capability('mod/survey:readresponses', $context);
 
@@ -92,6 +92,8 @@
     $strseemoredetail = get_string("seemoredetail", "survey");
     $strnotes = get_string("notes", "survey");
 
+    add_to_log($course->id, "survey", "view report", "report.php?id=$cm->id", "$survey->id", $cm->id);
+
     switch ($action) {
         case 'download':
             $PAGE->navbar->add(get_string('downloadresults', 'survey'));
@@ -118,7 +120,6 @@
     $PAGE->set_title("$course->shortname: ".format_string($survey->name));
     $PAGE->set_heading($course->fullname);
     echo $OUTPUT->header();
-    echo $OUTPUT->heading($survey->name);
 
 /// Check to see if groups are being used in this survey
     if ($groupmode = groups_get_activity_groupmode($cm)) {   // Groups are being used
@@ -128,16 +129,6 @@
     } else {
         $currentgroup = 0;
     }
-
-    $params = array(
-        'objectid' => $survey->id,
-        'context' => $context,
-        'courseid' => $course->id,
-        'relateduserid' => $student,
-        'other' => array('action' => $action, 'groupid' => $currentgroup)
-    );
-    $event = \mod_survey\event\report_viewed::create($params);
-    $event->trigger();
 
     if ($currentgroup) {
         $users = get_users_by_capability($context, 'mod/survey:participate', '', '', '', '', $currentgroup, null, false);
@@ -186,7 +177,7 @@
     switch ($action) {
 
       case "summary":
-        echo $OUTPUT->heading($strsummary, 3);
+        echo $OUTPUT->heading($strsummary);
 
         if (survey_count_responses($survey->id, $currentgroup, $groupingid)) {
             echo "<div class='reportsummary'><a href=\"report.php?action=scales&amp;id=$id\">";
@@ -198,7 +189,7 @@
         break;
 
       case "scales":
-        echo $OUTPUT->heading($strscales, 3);
+        echo $OUTPUT->heading($strscales);
 
         if (! $results = survey_get_responses($survey->id, $currentgroup, $groupingid) ) {
             echo $OUTPUT->notification(get_string("nobodyyet","survey"));
@@ -239,16 +230,16 @@
 
             if ($scale = $DB->get_records("survey_questions", array("multi"=>$qid))) {
                 $scale = array_pop($scale);
-                echo $OUTPUT->heading("$scale->text - $strselectedquestions", 3);
+                echo $OUTPUT->heading("$scale->text - $strselectedquestions");
             } else {
-                echo $OUTPUT->heading($strselectedquestions, 3);
+                echo $OUTPUT->heading($strselectedquestions);
             }
 
         } else {        // get all top-level questions
             $questions = $DB->get_records_list("survey_questions", "id", explode(',',$survey->questions));
             $questionorder = explode(",", $survey->questions);
 
-            echo $OUTPUT->heading($strallquestions, 3);
+            echo $OUTPUT->heading($strallquestions);
         }
 
         if (! $results = survey_get_responses($survey->id, $currentgroup, $groupingid) ) {
@@ -273,10 +264,12 @@
                 $question->text = get_string($question->text, "survey");
 
                 if ($question->multi) {
-                    echo $OUTPUT->heading($question->text . ':', 4);
+                    echo "<h3>$question->text:</h3>";
 
-                    $subquestions = survey_get_subquestions($question);
-                    foreach ($subquestions as $subquestion) {
+                    $subquestions = $DB->get_records_list("survey_questions", "id", explode(',', $question->multi));
+                    $subquestionorder = explode(",", $question->multi);
+                    foreach ($subquestionorder as $key => $val) {
+                        $subquestion = $subquestions[$val];
                         if ($subquestion->type > 0) {
                             echo "<p class=\"centerpara\">";
                             echo "<a title=\"$strseemoredetail\" href=\"report.php?action=question&amp;id=$id&amp;qid=$subquestion->id\">";
@@ -301,7 +294,7 @@
                         foreach ($aaa as $a) {
                             $contents .= "<tr>";
                             $contents .= '<td class="fullnamecell">'.fullname($a).'</td>';
-                            $contents .= '<td valign="top">'.s($a->answer1).'</td>';
+                            $contents .= '<td valign="top">'.$a->answer1.'</td>';
                             $contents .= "</tr>";
                         }
                     }
@@ -326,7 +319,7 @@
 
         $answers =  explode(",", get_string($question->options, "survey"));
 
-        echo $OUTPUT->heading("$strquestion: $question->text", 3);
+        echo $OUTPUT->heading("$strquestion: $question->text");
 
 
         $strname = get_string("name", "survey");
@@ -356,7 +349,7 @@
                        $OUTPUT->user_picture($a, array('courseid'=>$course->id)),
                        "<a href=\"report.php?id=$id&amp;action=student&amp;student=$a->userid\">".fullname($a)."</a>",
                        userdate($a->time),
-                       s($answer1), s($answer2));
+                       $answer1, $answer2);
 
             }
         }
@@ -367,7 +360,7 @@
 
       case "students":
 
-         echo $OUTPUT->heading(get_string("analysisof", "survey", get_string('participants')), 3);
+         echo $OUTPUT->heading(get_string("analysisof", "survey", get_string('participants')));
 
          if (! $results = survey_get_responses($survey->id, $currentgroup, $groupingid) ) {
              echo $OUTPUT->notification(get_string("nobodyyet","survey"));
@@ -382,7 +375,7 @@
              print_error('invaliduserid');
          }
 
-         echo $OUTPUT->heading(get_string("analysisof", "survey", fullname($user)), 3);
+         echo $OUTPUT->heading(get_string("analysisof", "survey", fullname($user)));
 
          if ($notes != '' and confirm_sesskey()) {
              if (survey_get_analysis($survey->id, $user->id)) {
@@ -479,32 +472,26 @@
          break;
 
       case "download":
-        echo $OUTPUT->heading($strdownload, 3);
+        echo $OUTPUT->heading($strdownload);
 
         require_capability('mod/survey:download', $context);
 
-        $numusers = survey_count_responses($survey->id, $currentgroup, $groupingid);
-        if ($numusers > 0) {
-            echo html_writer::tag('p', get_string("downloadinfo", "survey"), array('class' => 'centerpara'));
+        echo '<p class="centerpara">'.get_string("downloadinfo", "survey").'</p>';
 
-            echo $OUTPUT->container_start('reportbuttons');
-            $options = array();
-            $options["id"] = "$cm->id";
-            $options["group"] = $currentgroup;
+        echo $OUTPUT->container_start('reportbuttons');
+        $options = array();
+        $options["id"] = "$cm->id";
+        $options["group"] = $currentgroup;
 
-            $options["type"] = "ods";
-            echo $OUTPUT->single_button(new moodle_url("download.php", $options), get_string("downloadods"));
+        $options["type"] = "ods";
+        echo $OUTPUT->single_button(new moodle_url("download.php", $options), get_string("downloadods"));
 
-            $options["type"] = "xls";
-            echo $OUTPUT->single_button(new moodle_url("download.php", $options), get_string("downloadexcel"));
+        $options["type"] = "xls";
+        echo $OUTPUT->single_button(new moodle_url("download.php", $options), get_string("downloadexcel"));
 
-            $options["type"] = "txt";
-            echo $OUTPUT->single_button(new moodle_url("download.php", $options), get_string("downloadtext"));
-            echo $OUTPUT->container_end();
-
-        } else {
-             echo html_writer::tag('p', get_string("nobodyyet", "survey"), array('class' => 'centerpara'));
-        }
+        $options["type"] = "txt";
+        echo $OUTPUT->single_button(new moodle_url("download.php", $options), get_string("downloadtext"));
+        echo $OUTPUT->container_end();
 
         break;
 

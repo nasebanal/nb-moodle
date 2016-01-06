@@ -16,12 +16,31 @@
 /**
  * Iplookup utility functions
  *
- * @package    core_iplookup
+ * @package    core
+ * @subpackage iplookup
  * @copyright  2008 Petr Skoda (http://skodak.org)
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 M.core_iplookup = {};
+
+M.core_iplookup.init = function(Y, latitude, longitude) {
+    if (GBrowserIsCompatible()) {
+        var map = new GMap2(document.getElementById("map"));
+        map.addControl(new GSmallMapControl());
+        map.addControl(new GMapTypeControl());
+        var point = new GLatLng(latitude, longitude);
+        map.setCenter(point, 4);
+        map.addOverlay(new GMarker(point));
+        map.setMapType(G_HYBRID_MAP);
+
+        Y.on('unload', function() {
+            if (GBrowserIsCompatible()) {
+                GUnload();
+            }
+        }, document.body);
+    }
+};
 
 M.core_iplookup.init3 = function(Y, latitude, longitude, ip) {
     var ipLatlng = new google.maps.LatLng(latitude, longitude);

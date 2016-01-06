@@ -17,9 +17,10 @@
 /**
  * Matching question definition class.
  *
- * @package   qtype_match
- * @copyright 2009 The Open University
- * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @package    qtype
+ * @subpackage match
+ * @copyright  2009 The Open University
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 
@@ -29,8 +30,8 @@ defined('MOODLE_INTERNAL') || die();
 /**
  * Represents a matching question.
  *
- * @copyright 2009 The Open University
- * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @copyright  2009 The Open University
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class qtype_match_question extends question_graded_automatically_with_countback {
     /** @var boolean Whether the question stems should be shuffled. */
@@ -71,25 +72,6 @@ class qtype_match_question extends question_graded_automatically_with_countback 
     public function apply_attempt_state(question_attempt_step $step) {
         $this->stemorder = explode(',', $step->get_qt_var('_stemorder'));
         $this->set_choiceorder(explode(',', $step->get_qt_var('_choiceorder')));
-
-        // Add any missing subquestions. Sometimes people edit questions after they
-        // have been attempted which breaks things.
-        foreach ($this->stemorder as $stemid) {
-            if (!isset($this->stems[$stemid])) {
-                $this->stems[$stemid] = html_writer::span(
-                        get_string('deletedsubquestion', 'qtype_match'), 'notifyproblem');
-                $this->stemformat[$stemid] = FORMAT_HTML;
-                $this->right[$stemid] = 0;
-            }
-        }
-
-        // Add any missing choices. Sometimes people edit questions after they
-        // have been attempted which breaks things.
-        foreach ($this->choiceorder as $choiceid) {
-            if (!isset($this->choices[$choiceid])) {
-                $this->choices[$choiceid] = get_string('deletedchoice', 'qtype_match');
-            }
-        }
     }
 
     /**
@@ -99,8 +81,8 @@ class qtype_match_question extends question_graded_automatically_with_countback 
      */
     protected function set_choiceorder($choiceorder) {
         $this->choiceorder = array();
-        foreach ($choiceorder as $key => $choiceid) {
-            $this->choiceorder[$key + 1] = $choiceid;
+        foreach ($choiceorder as $key => $value) {
+            $this->choiceorder[$key + 1] = $value;
         }
     }
 
@@ -134,34 +116,25 @@ class qtype_match_question extends question_graded_automatically_with_countback 
     }
 
     public function classify_response(array $response) {
-        $selectedchoicekeys = array();
+        $selectedchoices = array();
         foreach ($this->stemorder as $key => $stemid) {
             if (array_key_exists($this->field($key), $response) && $response[$this->field($key)]) {
-                $selectedchoicekeys[$stemid] = $this->choiceorder[$response[$this->field($key)]];
+                $selectedchoices[$stemid] = $this->choiceorder[$response[$this->field($key)]];
             } else {
-                $selectedchoicekeys[$stemid] = 0;
+                $selectedchoices[$stemid] = 0;
             }
         }
 
         $parts = array();
         foreach ($this->stems as $stemid => $stem) {
-            if ($this->right[$stemid] == 0 || !isset($selectedchoicekeys[$stemid])) {
-                // Choice for a deleted subquestion, ignore. (See apply_attempt_state.)
-                continue;
-            }
-            $selectedchoicekey = $selectedchoicekeys[$stemid];
-            if (empty($selectedchoicekey)) {
+            if (empty($selectedchoices[$stemid])) {
                 $parts[$stemid] = question_classified_response::no_response();
                 continue;
             }
-            $choice = $this->choices[$selectedchoicekey];
-            if ($choice == get_string('deletedchoice', 'qtype_match')) {
-                // Deleted choice, ignore. (See apply_attempt_state.)
-                continue;
-            }
+            $choice = $this->choices[$selectedchoices[$stemid]];
             $parts[$stemid] = new question_classified_response(
-                    $selectedchoicekey, $choice,
-                    ($selectedchoicekey == $this->right[$stemid]) / count($this->stems));
+                    $selectedchoices[$stemid], $choice,
+                    ($selectedchoices[$stemid] == $this->right[$stemid]) / count($this->stems));
         }
         return $parts;
     }
@@ -203,7 +176,7 @@ class qtype_match_question extends question_graded_automatically_with_countback 
     public function get_expected_data() {
         $vars = array();
         foreach ($this->stemorder as $key => $notused) {
-            $vars[$this->field($key)] = PARAM_INT;
+            $vars[$this->field($key)] = PARAM_INTEGER;
         }
         return $vars;
     }
@@ -214,42 +187,6 @@ class qtype_match_question extends question_graded_automatically_with_countback 
             $response[$this->field($key)] = $this->get_right_choice_for($stemid);
         }
         return $response;
-    }
-
-    public function prepare_simulated_post_data($simulatedresponse) {
-        $postdata = array();
-        $stemtostemids = array_flip(clean_param_array($this->stems, PARAM_NOTAGS));
-        $choicetochoiceno = array_flip($this->choices);
-        $choicenotochoiceselectvalue = array_flip($this->choiceorder);
-        foreach ($simulatedresponse as $stem => $choice) {
-            $choice = clean_param($choice, PARAM_NOTAGS);
-            $stemid = $stemtostemids[$stem];
-            $shuffledstemno = array_search($stemid, $this->stemorder);
-            if (empty($choice)) {
-                $choiceselectvalue = 0;
-            } else if ($choicetochoiceno[$choice]) {
-                $choiceselectvalue = $choicenotochoiceselectvalue[$choicetochoiceno[$choice]];
-            } else {
-                throw new coding_exception("Unknown choice {$choice} in matching question - {$this->name}.");
-            }
-            $postdata[$this->field($shuffledstemno)] = $choiceselectvalue;
-        }
-        return $postdata;
-    }
-
-    public function get_student_response_values_for_simulation($postdata) {
-        $simulatedresponse = array();
-        foreach ($this->stemorder as $shuffledstemno => $stemid) {
-            if (!empty($postdata[$this->field($shuffledstemno)])) {
-                $choiceselectvalue = $postdata[$this->field($shuffledstemno)];
-                $choiceno = $this->choiceorder[$choiceselectvalue];
-                $choice = clean_param($this->choices[$choiceno], PARAM_NOTAGS);
-                $stem = clean_param($this->stems[$stemid], PARAM_NOTAGS);
-                $simulatedresponse[$stem] = $choice;
-            }
-        }
-        ksort($simulatedresponse);
-        return $simulatedresponse;
     }
 
     public function get_right_choice_for($stemid) {
@@ -336,7 +273,7 @@ class qtype_match_question extends question_graded_automatically_with_countback 
 
     public function check_file_access($qa, $options, $component, $filearea, $args, $forcedownload) {
         if ($component == 'qtype_match' && $filearea == 'subquestion') {
-            $subqid = reset($args); // Itemid is sub question id.
+            $subqid = reset($args); // itemid is sub question id
             return array_key_exists($subqid, $this->stems);
 
         } else if ($component == 'question' && in_array($filearea,

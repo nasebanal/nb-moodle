@@ -40,7 +40,7 @@ if (!$course = $DB->get_record('course', array('id'=>$grouping->courseid))) {
 $courseid = $course->id;
 
 require_login($course);
-$context = context_course::instance($courseid);
+$context = get_context_instance(CONTEXT_COURSE, $courseid);
 require_capability('moodle/course:managegroups', $context);
 
 $returnurl = $CFG->wwwroot.'/group/groupings.php?id='.$courseid;
@@ -53,19 +53,13 @@ if ($frm = data_submitted() and confirm_sesskey()) {
 
     } else if (isset($frm->add) and !empty($frm->addselect)) {
         foreach ($frm->addselect as $groupid) {
-            // Ask this method not to purge the cache, we'll do it ourselves afterwards.
-            groups_assign_grouping($grouping->id, (int)$groupid, null, false);
+            groups_assign_grouping($grouping->id, (int)$groupid);
         }
-        // Invalidate the course groups cache seeing as we've changed it.
-        cache_helper::invalidate_by_definition('core', 'groupdata', array(), array($courseid));
 
     } else if (isset($frm->remove) and !empty($frm->removeselect)) {
         foreach ($frm->removeselect as $groupid) {
-            // Ask this method not to purge the cache, we'll do it ourselves afterwards.
-            groups_unassign_grouping($grouping->id, (int)$groupid, false);
+            groups_unassign_grouping($grouping->id, (int)$groupid);
         }
-        // Invalidate the course groups cache seeing as we've changed it.
-        cache_helper::invalidate_by_definition('core', 'groupdata', array(), array($courseid));
     }
 }
 
@@ -122,7 +116,7 @@ $straddgroupstogroupings = get_string('addgroupstogroupings', 'group');
 $groupingname = format_string($grouping->name);
 
 navigation_node::override_active_url(new moodle_url('/group/index.php', array('id'=>$course->id)));
-$PAGE->set_pagelayout('admin');
+$PAGE->set_pagelayout('standard');
 
 $PAGE->navbar->add($strparticipants, new moodle_url('/user/index.php', array('id'=>$courseid)));
 $PAGE->navbar->add($strgroups, new moodle_url('/group/index.php', array('id'=>$courseid)));
@@ -136,43 +130,43 @@ echo $OUTPUT->header();
 ?>
 <div id="addmembersform">
     <h3 class="main"><?php print_string('addgroupstogroupings', 'group'); echo ": $groupingname"; ?></h3>
+
     <form id="assignform" method="post" action="">
     <div>
     <input type="hidden" name="sesskey" value="<?php p(sesskey()); ?>" />
-    <table summary="" class="generaltable generalbox groupmanagementtable boxaligncenter">
+
+    <table summary="" cellpadding="5" cellspacing="0">
     <tr>
-      <td id="existingcell">
+      <td valign="top">
           <label for="removeselect"><?php print_string('existingmembers', 'group', $currentmemberscount); ?></label>
-          <div class="userselector" id="removeselect_wrapper">
+          <br />
           <select name="removeselect[]" size="20" id="removeselect" multiple="multiple"
                   onfocus="document.getElementById('assignform').add.disabled=true;
                            document.getElementById('assignform').remove.disabled=false;
                            document.getElementById('assignform').addselect.selectedIndex=-1;">
           <?php echo $currentmembersoptions ?>
-          </select></div></td>
-      <td id="buttonscell">
+          </select></td>
+      <td valign="top">
+
         <p class="arrow_button">
-            <input name="add" id="add" type="submit"
-                   value="<?php echo $OUTPUT->larrow().'&nbsp;'.get_string('add'); ?>"
-                   title="<?php print_string('add'); ?>" /><br>
-            <input name="remove" id="remove" type="submit"
-                   value="<?php echo get_string('remove').'&nbsp;'.$OUTPUT->rarrow(); ?>"
-                   title="<?php print_string('remove'); ?>" />
+            <input name="add" id="add" type="submit" value="<?php echo '&nbsp;'.$OUTPUT->larrow().' &nbsp; &nbsp; '.get_string('add'); ?>" title="<?php print_string('add'); ?>" />
+            <br />
+            <input name="remove" id="remove" type="submit" value="<?php echo '&nbsp; '.$OUTPUT->rarrow().' &nbsp; &nbsp; '.get_string('remove'); ?>" title="<?php print_string('remove'); ?>" />
         </p>
       </td>
-      <td id="potentialcell">
+      <td valign="top">
           <label for="addselect"><?php print_string('potentialmembers', 'group', $potentialmemberscount); ?></label>
-          <div class="userselector" id="addselect_wrapper">
+          <br />
           <select name="addselect[]" size="20" id="addselect" multiple="multiple"
                   onfocus="document.getElementById('assignform').add.disabled=false;
                            document.getElementById('assignform').remove.disabled=true;
                            document.getElementById('assignform').removeselect.selectedIndex=-1;">
          <?php echo $potentialmembersoptions ?>
          </select>
-          </div>
+         <br />
        </td>
     </tr>
-    <tr><td colspan="3" id="backcell">
+    <tr><td>
         <input type="submit" name="cancel" value="<?php print_string('backtogroupings', 'group'); ?>" />
     </td></tr>
     </table>

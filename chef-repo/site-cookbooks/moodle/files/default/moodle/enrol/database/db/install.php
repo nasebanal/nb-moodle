@@ -17,7 +17,8 @@
 /**
  * Database enrolment plugin installation.
  *
- * @package    enrol_database
+ * @package    enrol
+ * @subpackage database
  * @copyright  2010 Petr Skoda {@link http://skodak.org}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

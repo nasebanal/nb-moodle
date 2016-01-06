@@ -6,7 +6,7 @@
  * @author Josep Arus
  *
  * @license http://www.gnu.org/copyleft/gpl.html GNU Public License
- * @package mod_wiki
+ * @package wiki
  *
  */
 
@@ -16,7 +16,7 @@
 function wiki_print_editor_html($pageid, $content, $version = -1, $section = null, $upload = false, $deleteuploads = array()) {
     global $CFG, $OUTPUT;
 
-    $OUTPUT->heading(strtoupper(get_string('formathtml', 'wiki')), 3);
+    $OUTPUT->heading(strtoupper(get_string('formathtml', 'wiki')));
 
     $action = $CFG->wwwroot.'/mod/wiki/edit.php?pageid='.$pageid;
 

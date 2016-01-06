@@ -11,7 +11,7 @@ require_once(dirname(dirname(dirname(__FILE__))).'/config.php');
 //HTTPS is required in this page when $CFG->loginhttps enabled
 $PAGE->https_required();
 
-$PAGE->set_context(context_system::instance());
+$PAGE->set_context(get_context_instance(CONTEXT_SYSTEM));
 
 $authsequence = get_enabled_auth_plugins(true); // auths, in sequence
 if (!in_array('ldap', $authsequence, true)) {
@@ -28,7 +28,7 @@ $file = $CFG->dirroot.'/pix/spacer.gif';
 
 if ($authplugin->ntlmsso_magic($sesskey) && file_exists($file)) {
     if (!empty($authplugin->config->ntlmsso_ie_fastpath)) {
-        if (core_useragent::is_ie()) {
+        if (check_browser_version('MSIE')) {
             // $PAGE->https_required() up above takes care of what $CFG->httpswwwroot should be.
             redirect($CFG->httpswwwroot.'/auth/ldap/ntlmsso_finish.php');
         }

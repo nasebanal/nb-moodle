@@ -41,7 +41,8 @@ if (!$course = $DB->get_record('course', array('id'=>$courseid))) {
 // Make sure that the user has permissions to manage groups.
 require_login($course);
 
-$context       = context_course::instance($courseid);
+$context       = get_context_instance(CONTEXT_COURSE, $courseid);
+$systemcontext = get_context_instance(CONTEXT_SYSTEM);
 require_capability('moodle/course:managegroups', $context);
 
 $returnurl = $CFG->wwwroot.'/group/index.php?id='.$course->id;
@@ -50,17 +51,17 @@ $strgroups           = get_string('groups');
 $strparticipants     = get_string('participants');
 $strautocreategroups = get_string('autocreategroups', 'group');
 
-$PAGE->set_title($strgroups);
-$PAGE->set_heading($course->fullname. ': '.$strgroups);
-$PAGE->set_pagelayout('admin');
-navigation_node::override_active_url(new moodle_url('/group/index.php', array('id' => $courseid)));
-
 // Print the page and form
 $preview = '';
 $error = '';
 
-/// Get applicable roles - used in menus etc later on
-$rolenames = role_fix_names(get_profile_roles($context), $context, ROLENAME_ALIAS, true);
+/// Get applicable roles
+$rolenames = array();
+if ($roles = get_profile_roles($context)) {
+    foreach ($roles as $role) {
+        $rolenames[$role->id] = strip_tags(role_get_name($role, $context));   // Used in menus etc later on
+    }
+}
 
 /// Create the form
 $editform = new autogroup_form(null, array('roles' => $rolenames));
@@ -85,17 +86,7 @@ if ($editform->is_cancelled()) {
         default:
             print_error('unknoworder');
     }
-    $source = array();
-    if ($data->cohortid) {
-        $source['cohortid'] = $data->cohortid;
-    }
-    if ($data->groupingid) {
-        $source['groupingid'] = $data->groupingid;
-    }
-    if ($data->groupid) {
-        $source['groupid'] = $data->groupid;
-    }
-    $users = groups_get_potential_members($data->courseid, $data->roleid, $source, $orderby, !empty($data->notingroup));
+    $users = groups_get_potential_members($data->courseid, $data->roleid, $data->cohortid, $orderby);
     $usercnt = count($users);
 
     if ($data->allocateby == 'random') {
@@ -223,13 +214,9 @@ if ($editform->is_cancelled()) {
                 groups_add_member($groupid, $user->id);
             }
             if ($grouping) {
-                // Ask this function not to invalidate the cache, we'll do that manually once at the end.
-                groups_assign_grouping($grouping->id, $groupid, null, false);
+                groups_assign_grouping($grouping->id, $groupid);
             }
         }
-
-        // Invalidate the course groups cache seeing as we've changed it.
-        cache_helper::invalidate_by_definition('core', 'groupdata', array(), array($courseid));
 
         if ($failed) {
             foreach ($createdgroups as $groupid) {
@@ -248,6 +235,9 @@ $PAGE->navbar->add($strparticipants, new moodle_url('/user/index.php', array('id
 $PAGE->navbar->add($strgroups, new moodle_url('/group/index.php', array('id'=>$courseid)));
 $PAGE->navbar->add($strautocreategroups);
 
+/// Print header
+$PAGE->set_title($strgroups);
+$PAGE->set_heading($course->fullname. ': '.$strgroups);
 echo $OUTPUT->header();
 echo $OUTPUT->heading($strautocreategroups);
 

@@ -19,7 +19,7 @@
  *
  * @author Andreas Grabs
  * @license http://www.gnu.org/copyleft/gpl.html GNU Public License
- * @package mod_feedback
+ * @package feedback
  */
 
 require_once("../../config.php");
@@ -52,7 +52,9 @@ if (! $feedback = $DB->get_record("feedback", array("id"=>$cm->instance))) {
     print_error('invalidcoursemodule');
 }
 
-$context = context_module::instance($cm->id);
+if (!$context = get_context_instance(CONTEXT_MODULE, $cm->id)) {
+        print_error('badcontext');
+}
 
 require_login($course, true, $cm);
 
@@ -82,18 +84,18 @@ $strfeedback  = get_string("modulename", "feedback");
 
 $PAGE->navbar->add($strfeedbacks, new moodle_url('/mod/feedback/index.php', array('id'=>$course->id)));
 $PAGE->navbar->add(format_string($feedback->name));
-$PAGE->set_heading($course->fullname);
-$PAGE->set_title($feedback->name);
+$PAGE->set_heading(format_string($course->fullname));
+$PAGE->set_title(format_string($feedback->name));
 echo $OUTPUT->header();
 
 /// Print the main part of the page
 ///////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////
-echo $OUTPUT->heading(format_string($feedback->name));
+echo $OUTPUT->heading(format_text($feedback->name));
 
 echo $OUTPUT->box_start('generalbox boxaligncenter boxwidthnormal');
-echo $OUTPUT->heading(get_string('confirmusetemplate', 'feedback'), 3);
+echo $OUTPUT->heading(get_string('confirmusetemplate', 'feedback'));
 
 $mform->display();
 

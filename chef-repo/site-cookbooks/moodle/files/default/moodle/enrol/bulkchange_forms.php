@@ -1,4 +1,5 @@
 <?php
+
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -17,7 +18,8 @@
 /**
  * This file contains form for bulk changing user enrolments.
  *
- * @package    core_enrol
+ * @package    core
+ * @subpackage enrol
  * @copyright  2011 Sam Hemelryk
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -44,8 +46,8 @@ abstract class enrol_bulk_enrolment_change_form extends moodleform {
         $statusoptions = $this->get_status_options();
         $form->addElement('html', $this->get_users_table($users, $statusoptions));
         $form->addElement('select', 'status', get_string('alterstatus', 'enrol_manual'), $statusoptions, array('optional' => true));
-        $form->addElement('date_time_selector', 'timestart', get_string('altertimestart', 'enrol_manual'), array('optional' => true));
-        $form->addElement('date_time_selector', 'timeend', get_string('altertimeend', 'enrol_manual'), array('optional' => true));
+        $form->addElement('date_selector', 'timestart', get_string('altertimestart', 'enrol_manual'), array('optional' => true));
+        $form->addElement('date_selector', 'timeend', get_string('altertimeend', 'enrol_manual'), array('optional' => true));
 
         $this->add_action_buttons();
     }

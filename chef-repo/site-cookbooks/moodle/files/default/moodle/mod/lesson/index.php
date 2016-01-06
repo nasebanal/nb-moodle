@@ -18,7 +18,8 @@
 /**
  * This page lists all the instances of lesson in a particular course
  *
- * @package mod_lesson
+ * @package    mod
+ * @subpackage lesson
  * @copyright 1999 onwards Martin Dougiamas  {@link http://moodle.com}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  **/
@@ -38,13 +39,8 @@ if (!$course = $DB->get_record("course", array("id" => $id))) {
 require_login($course);
 $PAGE->set_pagelayout('incourse');
 
-// Trigger instances list viewed event.
-$params = array(
-    'context' => context_course::instance($course->id)
-);
-$event = \mod_lesson\event\course_module_instance_list_viewed::create($params);
-$event->add_record_snapshot('course', $course);
-$event->trigger();
+add_to_log($course->id, "lesson", "view all", "index.php?id=$course->id", "");
+
 
 /// Get all required strings
 
@@ -57,7 +53,6 @@ $PAGE->navbar->add($strlessons);
 $PAGE->set_title("$course->shortname: $strlessons");
 $PAGE->set_heading($course->fullname);
 echo $OUTPUT->header();
-echo $OUTPUT->heading($strlessons, 2);
 
 /// Get all the appropriate data
 
@@ -67,10 +62,14 @@ if (! $lessons = get_all_instances_in_course("lesson", $course)) {
 }
 
 $usesections = course_format_uses_sections($course->format);
+if ($usesections) {
+    $sections = get_all_sections($course->id);
+}
 
 /// Print the list of instances (your module will probably extend this)
 
 $timenow = time();
+$strsectionname  = get_string('sectionname', 'format_'.$course->format);
 $strname  = get_string("name");
 $strgrade  = get_string("grade");
 $strdeadline  = get_string("deadline", "lesson");
@@ -78,7 +77,6 @@ $strnodeadline = get_string("nodeadline", "lesson");
 $table = new html_table();
 
 if ($usesections) {
-    $strsectionname = get_string('sectionname', 'format_'.$course->format);
     $table->head  = array ($strsectionname, $strname, $strgrade, $strdeadline);
     $table->align = array ("center", "left", "center", "center");
 } else {
@@ -95,7 +93,7 @@ foreach ($lessons as $lesson) {
         $link = "<a href=\"view.php?id=$lesson->coursemodule\">".format_string($lesson->name,true)."</a>";
     }
     $cm = get_coursemodule_from_instance('lesson', $lesson->id);
-    $context = context_module::instance($cm->id);
+    $context = get_context_instance(CONTEXT_MODULE, $cm->id);
 
     if ($lesson->deadline == 0) {
         $due = $strnodeadline;
@@ -115,7 +113,7 @@ foreach ($lessons as $lesson) {
                 $grade_value = $return[$USER->id]->rawgrade;
             }
         }
-        $table->data[] = array (get_section_name($course, $lesson->section), $link, $grade_value, $due);
+        $table->data[] = array (get_section_name($course, $sections[$lesson->section]), $link, $grade_value, $due);
     } else {
         $table->data[] = array ($link, $lesson->grade, $due);
     }

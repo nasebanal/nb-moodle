@@ -47,8 +47,10 @@ if ($USER->id != $user->id and has_capability('moodle/user:viewuseractivitiesrep
 
 if (!report_completion_can_access_user_report($user, $course, true)) {
     // this should never happen
-    print_error('nocapability', 'report_completion');
+    error('Can not access user completion report');
 }
+
+add_to_log($course->id, 'course', 'report completion', "report/completion/user.php?id=$user->id&course=$course->id", $course->id);
 
 $stractivityreport = get_string('activityreport');
 
@@ -155,7 +157,7 @@ foreach ($courses as $type => $infos) {
     if (!empty($infos)) {
 
         echo '<h1 align="center">'.get_string($type, 'report_completion').'</h1>';
-        echo '<table class="generaltable boxaligncenter">';
+        echo '<table class="generalbox boxaligncenter">';
         echo '<tr class="ccheader">';
         echo '<th class="c0 header" scope="col">'.get_string('course').'</th>';
         echo '<th class="c1 header" scope="col">'.get_string('requiredcriteria', 'completion').'</th>';
@@ -173,7 +175,7 @@ foreach ($courses as $type => $infos) {
 
             // Get course info
             $c_course = $DB->get_record('course', array('id' => $c_info->course_id));
-            $course_context = context_course::instance($c_course->id, MUST_EXIST);
+            $course_context = get_context_instance(CONTEXT_COURSE, $c_course->id, MUST_EXIST);
             $course_name = format_string($c_course->fullname, true, array('context' => $course_context));
 
             // Get completions
@@ -299,6 +301,3 @@ foreach ($courses as $type => $infos) {
 
 
 echo $OUTPUT->footer();
-// Trigger a user report viewed event.
-$event = \report_completion\event\user_report_viewed::create(array('context' => $coursecontext, 'relateduserid' => $userid));
-$event->trigger();

@@ -1,4 +1,5 @@
 <?php
+
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -17,7 +18,7 @@
 /**
  * This file is responsible for serving the one theme and plugin images.
  *
- * @package   core
+ * @package   moodlecore
  * @copyright 2009 Petr Skoda (skodak)  {@link http://skodak.org}
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -36,13 +37,6 @@ if ($slashargument = min_get_slash_argument()) {
     if (substr_count($slashargument, '/') < 3) {
         image_not_found();
     }
-    if (strpos($slashargument, '_s/') === 0) {
-        // Can't use SVG
-        $slashargument = substr($slashargument, 3);
-        $usesvg = false;
-    } else {
-        $usesvg = true;
-    }
     // image must be last because it may contain "/"
     list($themename, $component, $rev, $image) = explode('/', $slashargument, 4);
     $themename = min_clean_param($themename, 'SAFEDIR');
@@ -55,11 +49,10 @@ if ($slashargument = min_get_slash_argument()) {
     $component = min_optional_param('component', 'core', 'SAFEDIR');
     $rev       = min_optional_param('rev', -1, 'INT');
     $image     = min_optional_param('image', '', 'SAFEPATH');
-    $usesvg    = (bool)min_optional_param('svg', '1', 'INT');
 }
 
 if (empty($component) or $component === 'moodle' or $component === 'core') {
-    $component = 'core';
+    $component = 'moodle';
 }
 
 if (empty($image)) {
@@ -74,25 +67,22 @@ if (file_exists("$CFG->dirroot/theme/$themename/config.php")) {
     image_not_found();
 }
 
-$candidatelocation = "$CFG->localcachedir/theme/$rev/$themename/pix/$component";
-$etag = sha1("$rev/$themename/$component/$image");
+$candidatelocation = "$CFG->cachedir/theme/$themename/pix/$component";
+$etag = sha1("$themename/$component/$rev/$image");
 
-if ($rev > 0) {
+if ($rev > -1) {
     if (file_exists("$candidatelocation/$image.error")) {
-        // This is a major speedup if there are multiple missing images,
+        // this is a major speedup if there are multiple missing images,
         // the only problem is that random requests may pollute our cache.
         image_not_found();
     }
     $cacheimage = false;
-    if ($usesvg && file_exists("$candidatelocation/$image.svg")) {
-        $cacheimage = "$candidatelocation/$image.svg";
-        $ext = 'svg';
+    if (file_exists("$candidatelocation/$image.gif")) {
+        $cacheimage = "$candidatelocation/$image.gif";
+        $ext = 'gif';
     } else if (file_exists("$candidatelocation/$image.png")) {
         $cacheimage = "$candidatelocation/$image.png";
         $ext = 'png';
-    } else if (file_exists("$candidatelocation/$image.gif")) {
-        $cacheimage = "$candidatelocation/$image.gif";
-        $ext = 'gif';
     } else if (file_exists("$candidatelocation/$image.jpg")) {
         $cacheimage = "$candidatelocation/$image.jpg";
         $ext = 'jpg';
@@ -111,7 +101,7 @@ if ($rev > 0) {
             $mimetype = get_contenttype_from_ext($ext);
             header('HTTP/1.1 304 Not Modified');
             header('Expires: '. gmdate('D, d M Y H:i:s', time() + $lifetime) .' GMT');
-            header('Cache-Control: public, max-age='.$lifetime.', no-transform');
+            header('Cache-Control: public, max-age='.$lifetime);
             header('Content-Type: '.$mimetype);
             header('Etag: "'.$etag.'"');
             die;
@@ -130,85 +120,54 @@ define('NO_UPGRADE_CHECK', true);  // Ignore upgrade check
 require("$CFG->dirroot/lib/setup.php");
 
 $theme = theme_config::load($themename);
-$themerev = theme_get_revision();
+$imagefile = $theme->resolve_image_location($image, $component);
 
-if ($themerev <= 0 or $rev != $themerev) {
-    // Do not send caching headers if they do not request current revision,
-    // we do not want to pollute browser caches with outdated images.
-    $imagefile = $theme->resolve_image_location($image, $component, $usesvg);
-    if (empty($imagefile) or !is_readable($imagefile)) {
-        image_not_found();
+$rev = theme_get_revision();
+$etag = sha1("$themename/$component/$rev/$image");
+
+if (empty($imagefile) or !is_readable($imagefile)) {
+    if ($rev > -1) {
+        if (!file_exists($candidatelocation)) {
+            @mkdir($candidatelocation, $CFG->directorypermissions, true);
+        }
+        // make note we can not find this file
+        $cacheimage = "$candidatelocation/$image.error";
+        $fp = fopen($cacheimage, 'w');
+        fclose($fp);
     }
-    send_uncached_image($imagefile);
-}
-
-make_localcache_directory('theme', false);
-
-// At this stage caching is enabled, and either:
-// * we have no cached copy of the image in any format (either SVG, or non-SVG); or
-// * we have a cached copy of the SVG, but the non-SVG was requested by the browser.
-//
-// Because of the way in which the cache return code works above:
-// * if we are allowed to return SVG, we do not need to cache the non-SVG version; however
-// * if the browser has requested the non-SVG version, we *must* cache _both_ the SVG, and the non-SVG versions.
-
-// First get all copies - including, potentially, the SVG version.
-$imagefile = $theme->resolve_image_location($image, $component, true);
-
-if (empty($imagefile) || !is_readable($imagefile)) {
-    // Unable to find a copy of the image file in any format.
-    // We write a .error file for the image now - this will be used above when searching for cached copies to prevent
-    // trying to find the image in the future.
-    if (!file_exists($candidatelocation)) {
-        @mkdir($candidatelocation, $CFG->directorypermissions, true);
-    }
-    // Make note we can not find this file.
-    $cacheimage = "$candidatelocation/$image.error";
-    $fp = fopen($cacheimage, 'w');
-    fclose($fp);
     image_not_found();
 }
 
-// The image was found, and it is readable.
-$pathinfo = pathinfo($imagefile);
+if ($rev > -1) {
+    $pathinfo = pathinfo($imagefile);
+    $cacheimage = "$candidatelocation/$image.".$pathinfo['extension'];
 
-// Attempt to cache it if necessary.
-// We don't really want to overwrite any existing cache items just for the sake of it.
-$cacheimage = "$candidatelocation/$image.{$pathinfo['extension']}";
-if (!file_exists($cacheimage)) {
-    // We don't already hold a cached copy of this image. Cache it now.
-    $cacheimage = cache_image($image, $imagefile, $candidatelocation);
-}
-
-if (!$usesvg && $pathinfo['extension'] === 'svg') {
-    // The browser has requested that a non-SVG version be returned.
-    // The version found so far is the SVG version - try and find the non-SVG version.
-    $imagefile = $theme->resolve_image_location($image, $component, false);
-    if (empty($imagefile) || !is_readable($imagefile)) {
-        // A non-SVG file could not be found at all.
-        // The browser has requested a non-SVG version, so we must return image_not_found().
-        // We must *not* write an .error file because the SVG is available.
-        image_not_found();
+    clearstatcache();
+    if (!file_exists(dirname($cacheimage))) {
+        @mkdir(dirname($cacheimage), $CFG->directorypermissions, true);
     }
 
-    // An non-SVG version of image was found - cache it.
-    // This will be used below in the image serving code.
-    $cacheimage = cache_image($image, $imagefile, $candidatelocation);
-}
-
-if (connection_aborted()) {
-    // Request was cancelled - do not send anything.
-    die;
-}
-
-// Make sure nothing failed.
-clearstatcache();
-if (file_exists($cacheimage)) {
-    // The cached copy was found, and is accessible. Serve it.
-    send_cached_image($cacheimage, $etag);
+    // Prevent serving of incomplete file from concurrent request,
+    // the rename() should be more atomic than copy().
+    ignore_user_abort(true);
+    if (@copy($imagefile, $cacheimage.'.tmp')) {
+        rename($cacheimage.'.tmp', $cacheimage);
+        @chmod($cacheimage, $CFG->filepermissions);
+        @unlink($cacheimage.'.tmp'); // just in case anything fails
+    }
+    ignore_user_abort(false);
+    if (connection_aborted()) {
+        die;
+    }
+    // make sure nothing failed
+    clearstatcache();
+    if (file_exists($cacheimage)) {
+        send_cached_image($cacheimage, $etag);
+    }
 }
 
 send_uncached_image($imagefile);
+
 
 //=================================================================================
 //=== utility functions ==
@@ -230,7 +189,7 @@ function send_cached_image($imagepath, $etag) {
     header('Last-Modified: '. gmdate('D, d M Y H:i:s', filemtime($imagepath)) .' GMT');
     header('Expires: '. gmdate('D, d M Y H:i:s', time() + $lifetime) .' GMT');
     header('Pragma: ');
-    header('Cache-Control: public, max-age='.$lifetime.', no-transform');
+    header('Cache-Control: public, max-age='.$lifetime);
     header('Accept-Ranges: none');
     header('Content-Type: '.$mimetype);
     header('Content-Length: '.filesize($imagepath));
@@ -270,12 +229,10 @@ function image_not_found() {
 
 function get_contenttype_from_ext($ext) {
     switch ($ext) {
-        case 'svg':
-            return 'image/svg+xml';
-        case 'png':
-            return 'image/png';
         case 'gif':
             return 'image/gif';
+        case 'png':
+            return 'image/png';
         case 'jpg':
         case 'jpeg':
             return 'image/jpeg';
@@ -283,33 +240,4 @@ function get_contenttype_from_ext($ext) {
             return 'image/vnd.microsoft.icon';
     }
     return 'document/unknown';
-}
-
-/**
- * Caches a given image file.
- *
- * @param string $image The name of the image that was requested.
- * @param string $imagefile The location of the image file we want to cache.
- * @param string $candidatelocation The location to cache it in.
- * @return string The path to the cached image.
- */
-function cache_image($image, $imagefile, $candidatelocation) {
-    global $CFG;
-    $pathinfo = pathinfo($imagefile);
-    $cacheimage = "$candidatelocation/$image.".$pathinfo['extension'];
-
-    clearstatcache();
-    if (!file_exists(dirname($cacheimage))) {
-        @mkdir(dirname($cacheimage), $CFG->directorypermissions, true);
-    }
-
-    // Prevent serving of incomplete file from concurrent request,
-    // the rename() should be more atomic than copy().
-    ignore_user_abort(true);
-    if (@copy($imagefile, $cacheimage.'.tmp')) {
-        rename($cacheimage.'.tmp', $cacheimage);
-        @chmod($cacheimage, $CFG->filepermissions);
-        @unlink($cacheimage.'.tmp'); // just in case anything fails
-    }
-    return $cacheimage;
 }

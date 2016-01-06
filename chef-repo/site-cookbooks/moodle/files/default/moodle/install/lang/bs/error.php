@@ -30,7 +30,6 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$string['cannotcreatedboninstall'] = '<p>Nije moguće kreirati bazu podataka.</p> <p>Određena baza podataka ne postoji i dati korisnik nema dozvolu da kreira bazu podataka.</p> <p>Site administrator bi trebao verificirati postavke baze podataka.</p>';
 $string['cannotcreatelangdir'] = 'Nije moguće kreirati direktorij jezika';
 $string['cannotcreatetempdir'] = 'Nije moguće kreirati privremeni direktorij';
 $string['cannotdownloadcomponents'] = 'Nije moguće preuzeti komponente';
@@ -40,7 +39,6 @@ $string['cannotsavemd5file'] = 'Nije moguće sačuvati md5 datoteku.';
 $string['cannotsavezipfile'] = 'Nije moguće sačuvati ZIP arhivu.';
 $string['cannotunzipfile'] = 'Nije moguće raspakovati ZIP datoteku.';
 $string['componentisuptodate'] = 'Komponenta je dostupna u svojoj najnovijoj verziji';
-$string['dmlexceptiononinstall'] = '<p>Nastala je greška u bazi podataka: [{$a->errorcode}].<br />{$a->debuginfo}</p>';
 $string['downloadedfilecheckfailed'] = 'Nije uspjela provjera preuzete datoteke';
 $string['invalidmd5'] = 'Provjerena varijabla (md5 datoteka) je pogrešna - pokušajte ponovo';
 $string['missingrequiredfield'] = 'Nedostaje neko obavezno polje';

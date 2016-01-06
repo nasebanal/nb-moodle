@@ -25,14 +25,6 @@ yum install -y httpd24.x86_64
 end
 
 
-## Change permission
-
-directory "/var/www" do
-	owner 'apache'
-	group 'apache'
-end
-
-
 ## Enable Service
 
 #service "httpd" do

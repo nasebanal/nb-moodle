@@ -90,6 +90,19 @@ class MoodleQuickForm_grading extends HTML_QuickForm_input{
     }
 
     /**
+     * set html for help button
+     *
+     * @param array $helpbuttonargs array of arguments to make a help button
+     * @param string $function function name to call to get html
+     * @deprecated since Moodle 2.0. Please do not call this function any more.
+     * @todo MDL-31047 this api will be removed.
+     * @see MoodleQuickForm::setHelpButton()
+     */
+    public function setHelpButton($helpbuttonargs, $function='helpbutton'){
+        debugging('component setHelpButton() is not used any more, please use $mform->setHelpButton() instead');
+    }
+
+    /**
      * get html for help button
      *
      * @return string html for help button
@@ -138,14 +151,11 @@ class MoodleQuickForm_grading extends HTML_QuickForm_input{
      * Function registered as rule for this element and is called when this element is being validated.
      * This is a wrapper to pass the validation to the method gradingform_instance::validate_grading_element
      *
-     * @param mixed $elementvalue value of element to be validated
+     * @param mixed $elementValue value of element to be validated
      * @param array $attributes element attributes
      * @return MoodleQuickForm_grading
      */
-    public static function _validate($elementvalue, $attributes = null) {
-        if (!$attributes['gradinginstance']->is_empty_form($elementvalue)) {
-            return $attributes['gradinginstance']->validate_grading_element($elementvalue);
-        }
-        return true;
+    static function _validate($elementValue, $attributes = null) {
+        return $attributes['gradinginstance']->validate_grading_element($elementValue);
     }
 }

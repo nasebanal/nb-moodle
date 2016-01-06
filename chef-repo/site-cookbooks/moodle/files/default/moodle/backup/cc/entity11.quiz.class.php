@@ -304,9 +304,8 @@ class cc11_quiz extends entities11 {
                 $question_type_node = ($question_moodle_type == MOODLE_QUIZ_ESSAY) ? $this->create_node_course_question_categories_question_category_question_eesay($question) : $question_type_node;
                 $question_type_node = ($question_moodle_type == MOODLE_QUIZ_SHORTANSWER) ? $this->create_node_course_question_categories_question_category_question_shortanswer($question) : $question_type_node;
 
-                $questionname = !empty($question['name']) ? self::safexml($question['name']) : self::safexml($this->truncate_text($question['title'], 255, true));
                 $replace_values = array($question['id'],
-                                        $questionname,
+                                        self::safexml($this->truncate_text($question['title'], 255, true)),
                                         self::safexml($question['title']),
                                         $question_moodle_type,
                                         self::safexml($question['feedback']),
@@ -366,12 +365,7 @@ class cc11_quiz extends entities11 {
                     $question_title = $this->update_sources($question_title, $root_path);
                     $question_title = !empty($question_title) ? str_replace("%24", "\$", $this->include_titles($question_title)) : '';
 
-                    // This attribute is not IMSCC spec, but it is included in Moodle 2.x export of IMS1.1
-                    $questionname = $xpath->query('@title', $question_item);
-                    $questionname = !empty($questionname->item(0)->nodeValue) ? $questionname->item(0)->nodeValue : '';
-
                     $questions[$question_identifier]['title'] = $question_title;
-                    $questions[$question_identifier]['name'] = $questionname;
                     $questions[$question_identifier]['identifier'] = $question_identifier;
                     $questions[$question_identifier]['moodle_type'] = $question_type['moodle'];
                     $questions[$question_identifier]['cc_type'] = $question_type['cc'];
@@ -513,90 +507,63 @@ class cc11_quiz extends entities11 {
 
         $xpath = cc112moodle::newx_path($assessment, cc112moodle::getquizns());
 
-        $correctanswersfib = array();
-        $incorrectanswersfib = array();
+        $answers_fib = array();
 
         $response_items = $xpath->query('//xmlns:item[@ident="' . $question_identifier . '"]/xmlns:resprocessing/xmlns:respcondition');
 
-        $correctrespcond = $xpath->query('//xmlns:item[@ident="' . $question_identifier . '"]/xmlns:resprocessing/xmlns:respcondition/xmlns:setvar[text()="100"]/..');
-        $correctanswers = $xpath->query('xmlns:conditionvar/xmlns:varequal', $correctrespcond->item(0));
-
-        // Correct answers.
-        foreach ($correctanswers as $correctans) {
-            $answertitle = !empty($correctans->nodeValue) ? $correctans->nodeValue : '';
-            if (empty($answertitle)) {
-                continue;
-            }
-
-            $last_answer_id++;
-
-            $correctanswersfib[$answertitle] = array(
-                'id' => $last_answer_id,
-                'title' => $answertitle,
-                'score' => 1,
-                'feedback' => '',
-                'case' => 0);
-        }
-
-        // Handle incorrect answers and feedback for all items.
         foreach ($response_items as $response_item) {
 
             $setvar = $xpath->query('xmlns:setvar', $response_item);
-            if (!empty($setvar->length) && $setvar->item(0)->nodeValue == '100') {
-                // Skip the correct answer responsecondition.
-                continue;
-            }
+            $setvar = is_object($setvar->item(0)) ? $setvar->item(0)->nodeValue : '';
 
-            $varequal = $xpath->query('xmlns:conditionvar/xmlns:varequal', $response_item);
-            if (empty($varequal->length)) {
-                // Skip respcondition elements that don't have varequal containing an answer
-                continue;
-            }
-            $answer_title = !empty($varequal->item(0)->nodeValue) ? $varequal->item(0)->nodeValue : '';
+            if ($setvar != '') {
 
-            $display_feedback = $xpath->query('xmlns:displayfeedback', $response_item);
+                $last_answer_id++;
 
-            unset($feedbacks_identifiers);
+                $answer_title = $xpath->query('xmlns:conditionvar/xmlns:varequal[@respident="' . $identifier . '"]', $response_item);
+                $answer_title = !empty($answer_title->item(0)->nodeValue) ? $answer_title->item(0)->nodeValue : '';
 
-            if (!empty($display_feedback)) {
+            $case = $xpath->query('xmlns:conditionvar/xmlns:varequal/@case', $response_item);
+            $case = is_object($case->item(0)) ? $case->item(0)->nodeValue : 'no'
+                                    ;
+            $case = strtolower($case) == 'yes' ? 1 :
+                            0;
 
-                foreach ($display_feedback as $feedback) {
+                $display_feedback = $xpath->query('xmlns:displayfeedback', $response_item);
 
-                    $feedback_identifier = $feedback->getAttributeNode('linkrefid');
-                    $feedback_identifier = !empty($feedback_identifier->nodeValue) ? $feedback_identifier->nodeValue : '';
+                unset($feedbacks_identifiers);
 
-                    if (!empty($feedback_identifier)) {
-                        $feedbacks_identifiers[] = $feedback_identifier;
+                if (!empty($display_feedback)) {
+
+                    foreach ($display_feedback as $feedback) {
+
+                        $feedback_identifier = $feedback->getAttributeNode('linkrefid');
+                        $feedback_identifier = !empty($feedback_identifier->nodeValue) ? $feedback_identifier->nodeValue : '';
+
+                        if (!empty($feedback_identifier)) {
+                            $feedbacks_identifiers[] = $feedback_identifier;
+                        }
                     }
                 }
-            }
 
-            $feedback = '';
-            $feedbacks_identifiers = empty($feedbacks_identifiers) ? '' : $feedbacks_identifiers;
+                $feedback = '';
+                $feedbacks_identifiers = empty($feedbacks_identifiers) ? '' : $feedbacks_identifiers;
 
-            if (!empty($feedbacks_identifiers)) {
-                foreach ($feedbacks_identifiers as $feedback_identifier) {
-                    $feedbacks = $xpath->query('//xmlns:item[@ident="' . $question_identifier . '"]/xmlns:itemfeedback[@ident="' . $feedback_identifier . '"]/xmlns:flow_mat/xmlns:material/xmlns:mattext');
-                    $feedback .= !empty($feedbacks->item(0)->nodeValue) ? $feedbacks->item(0)->nodeValue . ' ' : '';
+                if (!empty($feedbacks_identifiers)) {
+                    foreach ($feedbacks_identifiers as $feedback_identifier) {
+                        $feedbacks = $xpath->query('//xmlns:item[@ident="' . $question_identifier . '"]/xmlns:itemfeedback[@ident="' . $feedback_identifier . '"]/xmlns:flow_mat/xmlns:material/xmlns:mattext');
+                        $feedback .= !empty($feedbacks->item(0)->nodeValue) ? $feedbacks->item(0)->nodeValue . ' ' : '';
+                    }
                 }
-            }
 
-            if (array_key_exists($answer_title, $correctanswersfib)) {
-                // Already a correct answer, just need the feedback for the correct answer.
-                $correctanswerfib[$answer_title]['feedback'] = $feedback;
-            } else {
-                // Need to add an incorrect answer.
-                $last_answer_id++;
-                $incorrectanswersfib[] = array(
-                    'id' => $last_answer_id,
-                    'title' => $answer_title,
-                    'score' => 0,
-                    'feedback' => $feedback,
-                    'case' => 0);
+                $answers_fib[] = array('id' => $last_answer_id,
+                                       'title' => $answer_title,
+                                       'score' => $setvar,
+                                       'feedback' => $feedback,
+                                       'case' => $case);
             }
         }
 
-        $answers_fib = array_merge($correctanswersfib, $incorrectanswersfib);
         $answers_fib = empty($answers_fib) ? '' : $answers_fib;
 
         return $answers_fib;
@@ -686,9 +653,8 @@ class cc11_quiz extends entities11 {
 
         $question_cc_type = $this->get_question_type($identifier, $assessment);
         $question_cc_type = $question_cc_type['cc'];
-        $is_multiresponse = ($question_cc_type == CC_QUIZ_MULTIPLE_RESPONSE);
 
-        if ($question_cc_type == CC_QUIZ_MULTIPLE_CHOICE || $is_multiresponse || $question_cc_type == CC_QUIZ_TRUE_FALSE) {
+        if ($question_cc_type == CC_QUIZ_MULTIPLE_CHOICE || $question_cc_type == CC_QUIZ_MULTIPLE_RESPONSE || $question_cc_type == CC_QUIZ_TRUE_FALSE) {
 
             $query_answers = '//xmlns:item[@ident="' . $identifier . '"]/xmlns:presentation/xmlns:response_lid/xmlns:render_choice/xmlns:response_label';
             $query_answers_with_flow = '//xmlns:item[@ident="' . $identifier . '"]/xmlns:presentation/xmlns:flow/xmlns:response_lid/xmlns:render_choice/xmlns:response_label';
@@ -739,20 +705,6 @@ class cc11_quiz extends entities11 {
 
             if (!empty($response_items)) {
 
-                if ($is_multiresponse) {
-                    $correct_answer_score = 0;
-                    //get the correct answers count
-                    $canswers_query = "//xmlns:item[@ident='{$identifier}']//xmlns:setvar[@varname='SCORE'][.=100]/../xmlns:conditionvar//xmlns:varequal[@case='Yes'][not(parent::xmlns:not)]";
-                    $canswers = $xpath->query($canswers_query);
-                    if ($canswers->length > 0) {
-                        $correct_answer_score = round(1.0 / (float)$canswers->length, 7); //weird
-                        $correct_answers_ident = array();
-                        foreach ($canswers as $cnode) {
-                            $correct_answers_ident[$cnode->nodeValue] = true;
-                        }
-                    }
-                }
-
                 foreach ($response_items as $response_item) {
 
                     $last_answer_id++;
@@ -766,10 +718,6 @@ class cc11_quiz extends entities11 {
                     $answer_feedback = $this->get_feedback($assessment, $answer_identifier, $identifier, $question_cc_type);
 
                     $answer_score = $this->get_score($assessment, $answer_identifier, $identifier);
-
-                    if ($is_multiresponse && isset($correct_answers_ident[$answer_identifier])) {
-                        $answer_score = $correct_answer_score;
-                    }
 
                     $answers[] = array('id' => $last_answer_id,
                                        'title' => $answer_title,
@@ -809,8 +757,7 @@ class cc11_quiz extends entities11 {
             }
         }
 
-        // This method (get_score) is only used by T/F & M/C questions in CC, therefore it's either 0 or 1 in Moodle.
-        $score = empty($score) ? "0.0000000" : '1.0000000';
+        $score = empty($score) ? 0 : $score;
 
         return $score;
     }
@@ -908,30 +855,27 @@ class cc11_quiz extends entities11 {
 
         $sheet_question_categories_question = cc112moodle::loadsheet(SHEET_COURSE_QUESTION_CATEGORIES_QUESTION_CATEGORY_QUESTION_TRUE_FALSE);
 
-        $trueanswer  = null;
-        $falseanswer = null;
+        $max_score = 0;
+        $true_answer_id = 0;
+        $false_answer_id = 0;
 
         if (!empty($question['answers'])) {
 
-            // Identify the true and false answers.
             foreach ($question['answers'] as $answer) {
-                if ($answer['identifier'] == 'true') {
-                    $trueanswer = $answer;
-                } else if ($answer['identifier'] == 'false') {
-                    $falseanswer = $answer;
-                } else {
-                    // Should not happen, but just in case.
-                    throw new coding_exception("Unknown answer identifier detected " .
-                            "in true/false quiz question with id {$question['id']}.");
+                if ($answer['score'] > $max_score) {
+                    $max_score = $answer['score'];
+                    $true_answer_id = $answer['id'];
                 }
 
                 $node_course_question_categories_question_answer .= $this->create_node_course_question_categories_question_category_question_answer($answer);
             }
 
-            // Make sure the true and false answer was found.
-            if (is_null($trueanswer) || is_null($falseanswer)) {
-                throw new coding_exception("Unable to correctly identify the " .
-                        "true and false answers in the question with id {$question['id']}.");
+            foreach ($question['answers'] as $answer) {
+
+                if ($answer['id'] != $true_answer_id) {
+                    $max_score = $answer['score'];
+                    $false_answer_id = $answer['id'];
+                }
             }
         }
 
@@ -940,8 +884,8 @@ class cc11_quiz extends entities11 {
                            '[#false_answer_id#]');
 
         $replace_values = array($node_course_question_categories_question_answer,
-                                $trueanswer['id'],
-                                $falseanswer['id']);
+                                $true_answer_id,
+                                $false_answer_id);
 
         $node_question_categories_question = str_replace($find_tags, $replace_values, $sheet_question_categories_question);
 

@@ -45,7 +45,7 @@ class backup_check_testcase extends advanced_testcase {
 
         $this->resetAfterTest(true);
 
-        $course = $this->getDataGenerator()->create_course(array(), array('createsections' => true));
+        $course = $this->getDataGenerator()->create_course();
         $page = $this->getDataGenerator()->create_module('page', array('course'=>$course->id), array('section'=>3));
         $coursemodule = $DB->get_record('course_modules', array('id'=>$page->cmid));
 

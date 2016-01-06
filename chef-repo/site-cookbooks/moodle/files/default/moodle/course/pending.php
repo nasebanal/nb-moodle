@@ -36,7 +36,7 @@ require_once($CFG->dirroot . '/course/lib.php');
 require_once($CFG->dirroot . '/course/request_form.php');
 
 require_login();
-require_capability('moodle/site:approvecourse', context_system::instance());
+require_capability('moodle/site:approvecourse', get_context_instance(CONTEXT_SYSTEM));
 
 $approve = optional_param('approve', 0, PARAM_INT);
 $reject = optional_param('reject', 0, PARAM_INT);
@@ -96,15 +96,13 @@ if (empty($pending)) {
     echo $OUTPUT->heading(get_string('nopendingcourses'));
 } else {
     echo $OUTPUT->heading(get_string('coursespending'));
-    $role = $DB->get_record('role', array('id' => $CFG->creatornewroleid), '*', MUST_EXIST);
-    echo $OUTPUT->notification(get_string('courserequestwarning', 'core', role_get_name($role)), 'notifyproblem');
 
 /// Build a table of all the requests.
     $table = new html_table();
     $table->attributes['class'] = 'pendingcourserequests generaltable';
     $table->align = array('center', 'center', 'center', 'center', 'center', 'center');
-    $table->head = array(get_string('shortnamecourse'), get_string('fullnamecourse'), get_string('requestedby'),
-            get_string('summary'), get_string('category'), get_string('requestreason'), get_string('action'));
+    $table->head = array(get_string('shortnamecourse'), get_string('fullnamecourse'),
+            get_string('requestedby'), get_string('summary'), get_string('requestreason'), get_string('action'));
 
     foreach ($pending as $course) {
         $course = new course_request($course);
@@ -112,14 +110,11 @@ if (empty($pending)) {
         // Check here for shortname collisions and warn about them.
         $course->check_shortname_collision();
 
-        $category = $course->get_category();
-
         $row = array();
         $row[] = format_string($course->shortname);
         $row[] = format_string($course->fullname);
         $row[] = fullname($course->get_requester());
-        $row[] = format_text($course->summary, $course->summaryformat);
-        $row[] = $category->get_formatted_name();
+        $row[] = $course->summary;
         $row[] = format_string($course->reason);
         $row[] = $OUTPUT->single_button(new moodle_url($baseurl, array('approve' => $course->id, 'sesskey' => sesskey())), get_string('approve'), 'get') .
                  $OUTPUT->single_button(new moodle_url($baseurl, array('reject' => $course->id)), get_string('rejectdots'), 'get');

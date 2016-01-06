@@ -1,26 +1,4 @@
 <?php
-// This file is part of Moodle - http://moodle.org/
-//
-// Moodle is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// Moodle is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
-
-/**
- * Site main menu block.
- *
- * @package    block_site_main_menu
- * @copyright  1999 onwards Martin Dougiamas (http://dougiamas.com)
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
 
 class block_site_main_menu extends block_list {
     function init() {
@@ -47,67 +25,56 @@ class block_site_main_menu extends block_list {
             return $this->content;
         }
 
-        $course = get_site();
+        $course = $this->page->course;
         require_once($CFG->dirroot.'/course/lib.php');
-        $context = context_course::instance($course->id);
+        $context = get_context_instance(CONTEXT_COURSE, $course->id);
         $isediting = $this->page->user_is_editing() && has_capability('moodle/course:manageactivities', $context);
+        $modinfo = get_fast_modinfo($course);
 
 /// extra fast view mode
         if (!$isediting) {
-            $modinfo = get_fast_modinfo($course);
             if (!empty($modinfo->sections[0])) {
+                $options = array('overflowdiv'=>true);
                 foreach($modinfo->sections[0] as $cmid) {
                     $cm = $modinfo->cms[$cmid];
                     if (!$cm->uservisible) {
                         continue;
                     }
 
-                    if ($cm->indent > 0) {
-                        $indent = '<div class="mod-indent mod-indent-'.$cm->indent.'"></div>';
-                    } else {
-                        $indent = '';
-                    }
+                    list($content, $instancename) =
+                            get_print_section_cm_text($cm, $course);
 
-                    if (!empty($cm->url)) {
-                        $attrs = array();
-                        $attrs['title'] = $cm->modfullname;
-                        $attrs['class'] = $cm->extraclasses . ' activity-action';
-                        if ($cm->onclick) {
-                            // Get on-click attribute value if specified and decode the onclick - it
-                            // has already been encoded for display.
-                            $attrs['onclick'] = htmlspecialchars_decode($cm->onclick);
-                        }
-                        if (!$cm->visible) {
-                            $attrs['class'] .= ' dimmed';
-                        }
-                        $icon = '<img src="' . $cm->get_icon_url() . '" class="icon" alt="" />';
-                        $content = html_writer::link($cm->url, $icon . $cm->get_formatted_name(), $attrs);
+                    if (!($url = $cm->get_url())) {
+                        $this->content->items[] = $content;
+                        $this->content->icons[] = '';
                     } else {
-                        $content = $cm->get_formatted_content(array('overflowdiv' => true, 'noclean' => true));
+                        $linkcss = $cm->visible ? '' : ' class="dimmed" ';
+                        //Accessibility: incidental image - should be empty Alt text
+                        $icon = '<img src="' . $cm->get_icon_url() . '" class="icon" alt="" />&nbsp;';
+                        $this->content->items[] = '<a title="'.$cm->modplural.'" '.$linkcss.' '.$cm->extra.
+                                ' href="' . $url . '">' . $icon . $instancename . '</a>';
                     }
-
-                    $this->content->items[] = $indent.html_writer::div($content, 'main-menu-content');
                 }
             }
             return $this->content;
         }
 
-        // Slow & hacky editing mode.
-        /** @var core_course_renderer $courserenderer */
-        $courserenderer = $this->page->get_renderer('core', 'course');
+/// slow & hacky editing mode
         $ismoving = ismoving($course->id);
-        course_create_sections_if_missing($course, 0);
-        $modinfo = get_fast_modinfo($course);
-        $section = $modinfo->get_section_info(0);
+        $section  = get_course_section(0, $course->id);
+
+        get_all_mods($course->id, $mods, $modnames, $modnamesplural, $modnamesused);
+
+        $groupbuttons = $course->groupmode;
+        $groupbuttonslink = (!$course->groupmodeforce);
 
         if ($ismoving) {
             $strmovehere = get_string('movehere');
             $strmovefull = strip_tags(get_string('movefull', '', "'$USER->activitycopyname'"));
             $strcancel= get_string('cancel');
             $stractivityclipboard = $USER->activitycopyname;
-        } else {
-            $strmove = get_string('move');
         }
+    /// Casting $course->modinfo to string prevents one notice when the field is null
         $editbuttons = '';
 
         if ($ismoving) {
@@ -115,31 +82,28 @@ class block_site_main_menu extends block_list {
             $this->content->items[] = $USER->activitycopyname.'&nbsp;(<a href="'.$CFG->wwwroot.'/course/mod.php?cancelcopy=true&amp;sesskey='.sesskey().'">'.$strcancel.'</a>)';
         }
 
-        if (!empty($modinfo->sections[0])) {
+        if (!empty($section->sequence)) {
+            $sectionmods = explode(',', $section->sequence);
             $options = array('overflowdiv'=>true);
-            foreach ($modinfo->sections[0] as $modnumber) {
-                $mod = $modinfo->cms[$modnumber];
-                if (!$mod->uservisible) {
+            foreach ($sectionmods as $modnumber) {
+                if (empty($mods[$modnumber])) {
                     continue;
                 }
+                $mod = $mods[$modnumber];
                 if (!$ismoving) {
-                    $actions = course_get_cm_edit_actions($mod, $mod->indent);
+                    if ($groupbuttons) {
+                        if (! $mod->groupmodelink = $groupbuttonslink) {
+                            $mod->groupmode = $course->groupmode;
+                        }
 
-                    // Prepend list of actions with the 'move' action.
-                    $actions = array('move' => new action_menu_link_primary(
-                        new moodle_url('/course/mod.php', array('sesskey' => sesskey(), 'copy' => $mod->id)),
-                        new pix_icon('t/move', $strmove, 'moodle', array('class' => 'iconsmall', 'title' => '')),
-                        $strmove
-                    )) + $actions;
-
-                    $editbuttons = html_writer::tag('div',
-                        $courserenderer->course_section_cm_edit_actions($actions, $mod, array('donotenhance' => true)),
-                        array('class' => 'buttons')
-                    );
+                    } else {
+                        $mod->groupmode = false;
+                    }
+                    $editbuttons = '<div class="buttons">'.make_editing_buttons($mod, true, true).'</div>';
                 } else {
                     $editbuttons = '';
                 }
-                if ($mod->visible || has_capability('moodle/course:viewhiddenactivities', $mod->context)) {
+                if ($mod->visible || has_capability('moodle/course:viewhiddenactivities', $context)) {
                     if ($ismoving) {
                         if ($mod->id == $USER->activitycopy) {
                             continue;
@@ -148,32 +112,19 @@ class block_site_main_menu extends block_list {
                             '<img style="height:16px; width:80px; border:0px" src="'.$OUTPUT->pix_url('movehere') . '" alt="'.$strmovehere.'" /></a>';
                         $this->content->icons[] = '';
                     }
-                    if ($mod->indent > 0) {
-                        $indent = '<div class="mod-indent mod-indent-'.$mod->indent.'"></div>';
-                    } else {
-                        $indent = '';
-                    }
-                    $url = $mod->url;
-                    if (!$url) {
-                        $content = $mod->get_formatted_content(array('overflowdiv' => true, 'noclean' => true));
+                    list($content, $instancename) =
+                            get_print_section_cm_text($modinfo->cms[$modnumber], $course);
+                    $linkcss = $mod->visible ? '' : ' class="dimmed" ';
+
+                    if (!($url = $mod->get_url())) {
+                        $this->content->items[] = $content . $editbuttons;
+                        $this->content->icons[] = '';
                     } else {
                         //Accessibility: incidental image - should be empty Alt text
-                        $attrs = array();
-                        $attrs['title'] = $mod->modfullname;
-                        $attrs['class'] = $mod->extraclasses . ' activity-action';
-                        if ($mod->onclick) {
-                            // Get on-click attribute value if specified and decode the onclick - it
-                            // has already been encoded for display.
-                            $attrs['onclick'] = htmlspecialchars_decode($mod->onclick);
-                        }
-                        if (!$mod->visible) {
-                            $attrs['class'] .= ' dimmed';
-                        }
-
-                        $icon = '<img src="' . $mod->get_icon_url() . '" class="icon" alt="" />';
-                        $content = html_writer::link($url, $icon . $mod->get_formatted_name(), $attrs);
+                        $icon = '<img src="' . $mod->get_icon_url() . '" class="icon" alt="" />&nbsp;';
+                        $this->content->items[] = '<a title="' . $mod->modfullname . '" ' . $linkcss . ' ' . $mod->extra .
+                            ' href="' . $url . '">' . $icon . $instancename . '</a>' . $editbuttons;
                     }
-                    $this->content->items[] = $indent.html_writer::div($content . $editbuttons, 'main-menu-content');
                 }
             }
         }
@@ -184,8 +135,11 @@ class block_site_main_menu extends block_list {
             $this->content->icons[] = '';
         }
 
-        $this->content->footer = $courserenderer->course_section_add_cm_control($course,
-                0, null, array('inblock' => true));
+        if (!empty($modnames)) {
+            $this->content->footer = print_section_add_menus($course, 0, $modnames, true, true);
+        } else {
+            $this->content->footer = '';
+        }
 
         return $this->content;
     }

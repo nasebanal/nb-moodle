@@ -17,7 +17,8 @@
 /**
  * Strings for component 'assignment_offline', language 'en', branch 'master'
  *
- * @package    assignment_offline
+ * @package    assignment
+ * @subpackage offline
  * @copyright  2011 onwards Eloy Lafuente (stronk7) {@link http://stronk7.com}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

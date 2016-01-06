@@ -16,9 +16,10 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * @package   mod_workshop
- * @copyright 2010 onwards Eloy Lafuente (stronk7) {@link http://stronk7.com}
- * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @package    mod
+ * @subpackage workshop
+ * @copyright  2010 onwards Eloy Lafuente (stronk7) {@link http://stronk7.com}
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
@@ -54,7 +55,7 @@ class restore_workshop_activity_task extends restore_activity_task {
         $contents = array();
 
         $contents[] = new restore_decode_content('workshop',
-                          array('intro', 'instructauthors', 'instructreviewers', 'conclusion'), 'workshop');
+                          array('intro', 'instructauthors', 'instructreviewers'), 'workshop');
         $contents[] = new restore_decode_content('workshop_submissions',
                           array('content', 'feedbackauthor'), 'workshop_submission');
         $contents[] = new restore_decode_content('workshop_assessments',

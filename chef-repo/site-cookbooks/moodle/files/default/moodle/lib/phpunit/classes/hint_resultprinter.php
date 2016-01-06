@@ -45,7 +45,7 @@ class Hint_ResultPrinter extends PHPUnit_TextUI_ResultPrinter {
             }
         }
         // Fallback if something goes wrong.
-        parent::__construct(null, false, self::COLOR_DEFAULT, false);
+        parent::__construct(null, false, false, false);
     }
 
     protected function printDefectTrace(PHPUnit_Framework_TestFailure $defect) {
@@ -106,11 +106,9 @@ class Hint_ResultPrinter extends PHPUnit_TextUI_ResultPrinter {
 
         if (!$executable) {
             $executable = 'phpunit';
-            if (testing_is_cygwin()) {
+            if (phpunit_bootstrap_is_cygwin()) {
                 $file = str_replace('\\', '/', $file);
-                if (!testing_is_mingw()) {
-                    $executable = 'phpunit.bat';
-                }
+                $executable = 'phpunit.bat';
             }
         }
 
@@ -135,7 +133,7 @@ class Hacky_TextUI_Command_reader extends PHPUnit_TextUI_Command {
         $verbose = isset($config['verbose']) ? $config['verbose'] : false;
         $verbose = isset($arguments['verbose']) ? $arguments['verbose'] : $verbose;
 
-        $colors = isset($config['colors']) ? $config['colors'] : Hint_ResultPrinter::COLOR_DEFAULT;
+        $colors = isset($config['colors']) ? $config['colors'] : false;
         $colors = isset($arguments['colors']) ? $arguments['colors'] : $colors;
 
         $debug = isset($config['debug']) ? $config['debug'] : false;

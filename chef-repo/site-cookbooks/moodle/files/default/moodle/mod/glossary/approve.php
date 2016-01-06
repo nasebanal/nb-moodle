@@ -5,11 +5,10 @@ require_once("lib.php");
 
 $eid = required_param('eid', PARAM_INT);    // Entry ID
 
-$newstate = optional_param('newstate', 1, PARAM_BOOL);
 $mode = optional_param('mode', 'approval', PARAM_ALPHA);
 $hook = optional_param('hook', 'ALL', PARAM_CLEAN);
 
-$url = new moodle_url('/mod/glossary/approve.php', array('eid' => $eid, 'mode' => $mode, 'hook' => $hook, 'newstate' => $newstate));
+$url = new moodle_url('/mod/glossary/approve.php', array('eid'=>$eid,'mode'=>$mode, 'hook'=>$hook));
 $PAGE->set_url($url);
 
 $entry = $DB->get_record('glossary_entries', array('id'=> $eid), '*', MUST_EXIST);
@@ -19,30 +18,15 @@ $course = $DB->get_record('course', array('id'=> $cm->course), '*', MUST_EXIST);
 
 require_login($course, false, $cm);
 
-$context = context_module::instance($cm->id);
+$context = get_context_instance(CONTEXT_MODULE, $cm->id);
 require_capability('mod/glossary:approve', $context);
 
-if (($newstate != $entry->approved) && confirm_sesskey()) {
+if (!$entry->approved and confirm_sesskey()) {
     $newentry = new stdClass();
     $newentry->id           = $entry->id;
-    $newentry->approved     = $newstate;
+    $newentry->approved     = 1;
     $newentry->timemodified = time(); // wee need this date here to speed up recent activity, TODO: use timestamp in approved field instead in 2.0
     $DB->update_record("glossary_entries", $newentry);
-
-    // Trigger event about entry approval/disapproval.
-    $params = array(
-        'context' => $context,
-        'objectid' => $entry->id
-    );
-    if ($newstate) {
-        $event = \mod_glossary\event\entry_approved::create($params);
-    } else {
-        $event = \mod_glossary\event\entry_disapproved::create($params);
-    }
-    $entry->approved = $newstate ? 1 : 0;
-    $entry->timemodified = $newentry->timemodified;
-    $event->add_record_snapshot('glossary_entries', $entry);
-    $event->trigger();
 
     // Update completion state
     $completion = new completion_info($course);
@@ -50,10 +34,7 @@ if (($newstate != $entry->approved) && confirm_sesskey()) {
         $completion->update_state($cm, COMPLETION_COMPLETE, $entry->userid);
     }
 
-    // Reset caches.
-    if ($entry->usedynalink) {
-        \mod_glossary\local\concept_cache::reset_glossary($glossary);
-    }
+    add_to_log($course->id, "glossary", "approve entry", "showentry.php?id=$cm->id&amp;eid=$eid", "$eid", $cm->id);
 }
 
 redirect("view.php?id=$cm->id&amp;mode=$mode&amp;hook=$hook");

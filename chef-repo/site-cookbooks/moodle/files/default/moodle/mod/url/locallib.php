@@ -18,7 +18,8 @@
 /**
  * Private url module utility functions
  *
- * @package    mod_url
+ * @package    mod
+ * @subpackage url
  * @copyright  2009 Petr Skoda  {@link http://skodak.org}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -163,12 +164,17 @@ function url_print_header($url, $cm, $course) {
  * @param object $url
  * @param object $cm
  * @param object $course
- * @param bool $notused This variable is no longer used.
+ * @param bool $ignoresettings print even if not specified in modedit
  * @return void
  */
-function url_print_heading($url, $cm, $course, $notused = false) {
+function url_print_heading($url, $cm, $course, $ignoresettings=false) {
     global $OUTPUT;
-    echo $OUTPUT->heading(format_string($url->name), 2);
+
+    $options = empty($url->displayoptions) ? array() : unserialize($url->displayoptions);
+
+    if ($ignoresettings or !empty($options['printheading'])) {
+        echo $OUTPUT->heading(format_string($url->name), 2, 'main', 'urlheading');
+    }
 }
 
 /**
@@ -214,15 +220,15 @@ function url_display_frame($url, $cm, $course) {
 
     } else {
         $config = get_config('url');
-        $context = context_module::instance($cm->id);
+        $context = get_context_instance(CONTEXT_MODULE, $cm->id);
         $exteurl = url_get_full_url($url, $cm, $course, $config);
         $navurl = "$CFG->wwwroot/mod/url/view.php?id=$cm->id&amp;frameset=top";
-        $coursecontext = context_course::instance($course->id);
+        $coursecontext = get_context_instance(CONTEXT_COURSE, $course->id);
         $courseshortname = format_string($course->shortname, true, array('context' => $coursecontext));
         $title = strip_tags($courseshortname.': '.format_string($url->name));
         $framesize = $config->framesize;
         $modulename = s(get_string('modulename','url'));
-        $contentframetitle = s(format_string($url->name));
+        $contentframetitle = format_string($url->name);
         $dir = get_string('thisdirection', 'langconfig');
 
         $extframe = <<<EOF
@@ -421,8 +427,8 @@ function url_get_variable_options($config) {
         'userfullname'    => get_string('fullnameuser'),
         'useremail'       => get_string('email'),
         'usericq'         => get_string('icqnumber'),
-        'userphone1'      => get_string('phone1'),
-        'userphone2'      => get_string('phone2'),
+        'userphone1'      => get_string('phone').' 1',
+        'userphone2'      => get_string('phone2').' 2',
         'userinstitution' => get_string('institution'),
         'userdepartment'  => get_string('department'),
         'useraddress'     => get_string('address'),
@@ -432,10 +438,10 @@ function url_get_variable_options($config) {
     );
 
     if ($config->rolesinparams) {
-        $roles = role_fix_names(get_all_roles());
+        $roles = get_all_roles();
         $roleoptions = array();
         foreach ($roles as $role) {
-            $roleoptions['course'.$role->shortname] = get_string('yourwordforx', '', $role->localname);
+            $roleoptions['course'.$role->shortname] = get_string('yourwordforx', '', $role->name);
         }
         $options[get_string('roles')] = $roleoptions;
     }
@@ -456,7 +462,7 @@ function url_get_variable_values($url, $cm, $course, $config) {
 
     $site = get_site();
 
-    $coursecontext = context_course::instance($course->id);
+    $coursecontext = get_context_instance(CONTEXT_COURSE, $course->id);
 
     $values = array (
         'courseid'        => $course->id,
@@ -490,8 +496,7 @@ function url_get_variable_values($url, $cm, $course, $config) {
         $values['userdepartment']  = $USER->department;
         $values['useraddress']     = $USER->address;
         $values['usercity']        = $USER->city;
-        $now = new DateTime('now', core_date::get_user_timezone_object());
-        $values['usertimezone']    = $now->getOffset() / 3600.0; // Value in hours for BC.
+        $values['usertimezone']    = get_user_timezone_offset();
         $values['userurl']         = $USER->url;
     }
 
@@ -504,8 +509,9 @@ function url_get_variable_values($url, $cm, $course, $config) {
 
     //hmm, this is pretty fragile and slow, why do we need it here??
     if ($config->rolesinparams) {
-        $coursecontext = context_course::instance($course->id);
-        $roles = role_fix_names(get_all_roles($coursecontext), $coursecontext, ROLENAME_ALIAS);
+        $roles = get_all_roles();
+        $coursecontext = get_context_instance(CONTEXT_COURSE, $course->id);
+        $roles = role_fix_names($roles, $coursecontext, ROLENAME_ALIAS);
         foreach ($roles as $role) {
             $values['course'.$role->shortname] = $role->localname;
         }
@@ -535,26 +541,21 @@ function url_get_encrypted_parameter($url, $config) {
 /**
  * Optimised mimetype detection from general URL
  * @param $fullurl
- * @param int $size of the icon.
- * @return string|null mimetype or null when the filetype is not relevant.
+ * @return string mimetype
  */
-function url_guess_icon($fullurl, $size = null) {
+function url_guess_icon($fullurl) {
     global $CFG;
     require_once("$CFG->libdir/filelib.php");
 
     if (substr_count($fullurl, '/') < 3 or substr($fullurl, -1) === '/') {
-        // Most probably default directory - index.php, index.html, etc. Return null because
-        // we want to use the default module icon instead of the HTML file icon.
-        return null;
+        // most probably default directory - index.php, index.html, etc.
+        return file_extension_icon('.htm');
     }
 
-    $icon = file_extension_icon($fullurl, $size);
-    $htmlicon = file_extension_icon('.htm', $size);
-    $unknownicon = file_extension_icon('', $size);
+    $icon = file_extension_icon($fullurl);
 
-    // We do not want to return those icon types, the module icon is more appropriate.
-    if ($icon === $unknownicon || $icon === $htmlicon) {
-        return null;
+    if ($icon === file_extension_icon('')) {
+        return file_extension_icon('.htm');
     }
 
     return $icon;

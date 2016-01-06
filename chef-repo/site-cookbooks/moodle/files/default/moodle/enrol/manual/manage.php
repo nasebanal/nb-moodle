@@ -17,7 +17,8 @@
 /**
  * Manual user enrolment UI.
  *
- * @package    enrol_manual
+ * @package    enrol
+ * @subpackage manual
  * @copyright  2010 Petr Skoda {@link http://skodak.org}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -28,24 +29,16 @@ require_once($CFG->dirroot.'/enrol/manual/locallib.php');
 $enrolid      = required_param('enrolid', PARAM_INT);
 $roleid       = optional_param('roleid', -1, PARAM_INT);
 $extendperiod = optional_param('extendperiod', 0, PARAM_INT);
-$extendbase   = optional_param('extendbase', 0, PARAM_INT);
+$extendbase   = optional_param('extendbase', 3, PARAM_INT);
 
 $instance = $DB->get_record('enrol', array('id'=>$enrolid, 'enrol'=>'manual'), '*', MUST_EXIST);
 $course = $DB->get_record('course', array('id'=>$instance->courseid), '*', MUST_EXIST);
-$context = context_course::instance($course->id, MUST_EXIST);
+$context = get_context_instance(CONTEXT_COURSE, $course->id, MUST_EXIST);
 
 require_login($course);
-$canenrol = has_capability('enrol/manual:enrol', $context);
-$canunenrol = has_capability('enrol/manual:unenrol', $context);
-
-// Note: manage capability not used here because it is used for editing
-// of existing enrolments which is not possible here.
-
-if (!$canenrol and !$canunenrol) {
-    // No need to invent new error strings here...
-    require_capability('enrol/manual:enrol', $context);
-    require_capability('enrol/manual:unenrol', $context);
-}
+require_capability('enrol/manual:enrol', $context);
+require_capability('enrol/manual:manage', $context);
+require_capability('enrol/manual:unenrol', $context);
 
 if ($roleid < 0) {
     $roleid = $instance->roleid;
@@ -54,7 +47,7 @@ $roles = get_assignable_roles($context);
 $roles = array('0'=>get_string('none')) + $roles;
 
 if (!isset($roles[$roleid])) {
-    // Weird - security always first!
+    // weird - security always first!
     $roleid = 0;
 }
 
@@ -83,45 +76,33 @@ for ($i=1; $i<=365; $i++) {
     $seconds = $i * 86400;
     $periodmenu[$seconds] = get_string('numdays', '', $i);
 }
-// Work out the apropriate default settings.
+// Work out the apropriate default setting.
 if ($extendperiod) {
     $defaultperiod = $extendperiod;
 } else {
     $defaultperiod = $instance->enrolperiod;
 }
-if (empty($extendbase)) {
-    if (!$extendbase = get_config('enrol_manual', 'enrolstart')) {
-        // Default to now if there is no system setting.
-        $extendbase = 4;
-    }
-}
 
 // Build the list of options for the starting from dropdown.
-$now = time();
-$today = make_timestamp(date('Y', $now), date('m', $now), date('d', $now), 0, 0, 0);
-$dateformat = get_string('strftimedatefullshort');
+$timeformat = get_string('strftimedatefullshort');
+$today = time();
+$today = make_timestamp(date('Y', $today), date('m', $today), date('d', $today), 0, 0, 0);
 
-// Enrolment start.
+// enrolment start
 $basemenu = array();
 if ($course->startdate > 0) {
-    $basemenu[2] = get_string('coursestart') . ' (' . userdate($course->startdate, $dateformat) . ')';
+    $basemenu[2] = get_string('coursestart') . ' (' . userdate($course->startdate, $timeformat) . ')';
 }
-$basemenu[3] = get_string('today') . ' (' . userdate($today, $dateformat) . ')';
-$basemenu[4] = get_string('now', 'enrol_manual') . ' (' . userdate($now, get_string('strftimedatetimeshort')) . ')';
+$basemenu[3] = get_string('today') . ' (' . userdate($today, $timeformat) . ')' ;
 
-// Process add and removes.
-if ($canenrol && optional_param('add', false, PARAM_BOOL) && confirm_sesskey()) {
+// process add and removes
+if (optional_param('add', false, PARAM_BOOL) && confirm_sesskey()) {
     $userstoassign = $potentialuserselector->get_selected_users();
     if (!empty($userstoassign)) {
         foreach($userstoassign as $adduser) {
             switch($extendbase) {
                 case 2:
                     $timestart = $course->startdate;
-                    break;
-                case 4:
-                    // We mimic get_enrolled_sql round(time(), -2) but always floor as we want users to always access their
-                    // courses once they are enrolled.
-                    $timestart = intval(substr($now, 0, 8) . '00') - 1;
                     break;
                 case 3:
                 default:
@@ -135,6 +116,7 @@ if ($canenrol && optional_param('add', false, PARAM_BOOL) && confirm_sesskey()) 
                 $timeend = $timestart + $extendperiod;
             }
             $enrol_manual->enrol_user($instance, $adduser->id, $roleid, $timestart, $timeend);
+            add_to_log($course->id, 'course', 'enrol', '../enrol/users.php?id='.$course->id, $course->id); //there should be userid somewhere!
         }
 
         $potentialuserselector->invalidate_selected_users();
@@ -144,12 +126,13 @@ if ($canenrol && optional_param('add', false, PARAM_BOOL) && confirm_sesskey()) 
     }
 }
 
-// Process incoming role unassignments.
-if ($canunenrol && optional_param('remove', false, PARAM_BOOL) && confirm_sesskey()) {
+// Process incoming role unassignments
+if (optional_param('remove', false, PARAM_BOOL) && confirm_sesskey()) {
     $userstounassign = $currentuserselector->get_selected_users();
     if (!empty($userstounassign)) {
         foreach($userstounassign as $removeuser) {
             $enrol_manual->unenrol_user($instance, $removeuser->id);
+            add_to_log($course->id, 'course', 'unenrol', '../enrol/users.php?id='.$course->id, $course->id); //there should be userid somewhere!
         }
 
         $potentialuserselector->invalidate_selected_users();
@@ -163,9 +146,6 @@ if ($canunenrol && optional_param('remove', false, PARAM_BOOL) && confirm_sesske
 echo $OUTPUT->header();
 echo $OUTPUT->heading($instancename);
 
-$addenabled = $canenrol ? '' : 'disabled="disabled"';
-$removeenabled = $canunenrol ? '' : 'disabled="disabled"';
-
 ?>
 <form id="assignform" method="post" action="<?php echo $PAGE->url ?>"><div>
   <input type="hidden" name="sesskey" value="<?php echo sesskey() ?>" />
@@ -178,7 +158,7 @@ $removeenabled = $canunenrol ? '' : 'disabled="disabled"';
       </td>
       <td id="buttonscell">
           <div id="addcontrols">
-              <input name="add" <?php echo $addenabled; ?> id="add" type="submit" value="<?php echo $OUTPUT->larrow().'&nbsp;'.get_string('add'); ?>" title="<?php print_string('add'); ?>" /><br />
+              <input name="add" id="add" type="submit" value="<?php echo $OUTPUT->larrow().'&nbsp;'.get_string('add'); ?>" title="<?php print_string('add'); ?>" /><br />
 
               <div class="enroloptions">
 
@@ -195,7 +175,7 @@ $removeenabled = $canunenrol ? '' : 'disabled="disabled"';
           </div>
 
           <div id="removecontrols">
-              <input name="remove" id="remove" <?php echo $removeenabled; ?> type="submit" value="<?php echo get_string('remove').'&nbsp;'.$OUTPUT->rarrow(); ?>" title="<?php print_string('remove'); ?>" />
+              <input name="remove" id="remove" type="submit" value="<?php echo get_string('remove').'&nbsp;'.$OUTPUT->rarrow(); ?>" title="<?php print_string('remove'); ?>" />
           </div>
       </td>
       <td id="potentialcell">

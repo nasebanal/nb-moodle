@@ -32,7 +32,7 @@ function xmldb_data_upgrade($oldversion) {
     // Moodle v2.3.0 release upgrade line
     // Put any upgrade step following this
 
-    if ($oldversion < 2012112901) {
+    if ($oldversion < 2012061701) {
         // Check if there is a directory containing any old presets.
         $olddatadir = $CFG->dataroot . '/data';
         $oldpresetdir = "$olddatadir/preset";
@@ -40,7 +40,7 @@ function xmldb_data_upgrade($oldversion) {
             // Get directory contents.
             $userfolders = new DirectoryIterator($oldpresetdir);
             // Store the system context, these are site wide presets.
-            $context = context_system::instance();
+            $context = get_system_context();
             // Create file storage object.
             $fs = get_file_storage();
             // Create array of accepted files.
@@ -117,56 +117,10 @@ function xmldb_data_upgrade($oldversion) {
             @rmdir("$olddatadir");
         }
 
-        upgrade_mod_savepoint(true, 2012112901, 'data');
-    }
-
-    // Moodle v2.4.0 release upgrade line
-    // Put any upgrade step following this
-
-
-    // Moodle v2.5.0 release upgrade line.
-    // Put any upgrade step following this.
-
-
-    // Moodle v2.6.0 release upgrade line.
-    // Put any upgrade step following this.
-
-    // Moodle v2.7.0 release upgrade line.
-    // Put any upgrade step following this.
-
-    // Moodle v2.8.0 release upgrade line.
-    // Put any upgrade step following this.
-
-    if ($oldversion < 2015030900) {
-        // Define field required to be added to data_fields.
-        $table = new xmldb_table('data_fields');
-        $field = new xmldb_field('required', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'description');
-
-        // Conditionally launch add field required.
-        if (!$dbman->field_exists($table, $field)) {
-            $dbman->add_field($table, $field);
-        }
-
-        upgrade_mod_savepoint(true, 2015030900, 'data');
-    }
-
-    // Moodle v2.9.0 release upgrade line.
-    // Put any upgrade step following this.
-
-    if ($oldversion < 2015092200) {
-
-        // Define field manageapproved to be added to data.
-        $table = new xmldb_table('data');
-        $field = new xmldb_field('manageapproved', XMLDB_TYPE_INTEGER, '4', null, XMLDB_NOTNULL, null, '1', 'approval');
-
-        // Conditionally launch add field manageapproved.
-        if (!$dbman->field_exists($table, $field)) {
-            $dbman->add_field($table, $field);
-        }
-
-        // Data savepoint reached.
-        upgrade_mod_savepoint(true, 2015092200, 'data');
+        upgrade_mod_savepoint(true, 2012061701, 'data');
     }
 
     return true;
 }
+
+

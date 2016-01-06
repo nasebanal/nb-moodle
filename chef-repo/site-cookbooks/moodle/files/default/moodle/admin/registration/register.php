@@ -39,8 +39,6 @@ require_once($CFG->dirroot . '/' . $CFG->admin . '/registration/forms.php');
 require_once($CFG->dirroot . '/webservice/lib.php');
 require_once($CFG->dirroot . '/' . $CFG->admin . '/registration/lib.php');
 
-require_sesskey();
-
 $huburl = required_param('huburl', PARAM_URL);
 $huburl = rtrim($huburl, "/");
 
@@ -68,7 +66,7 @@ if (!empty($fromform) and confirm_sesskey()) {
     // Set to -1 all optional data marked as "don't send" by the admin.
     // The function get_site_info() will not calculate the optional data if config is set to -1.
     $inputnames = array('courses', 'users', 'roleassignments', 'posts', 'questions', 'resources',
-        'badges', 'issuedbadges', 'modulenumberaverage', 'participantnumberaverage');
+        'modulenumberaverage', 'participantnumberaverage');
     foreach ($inputnames as $inputname) {
         if (empty($fromform->{$inputname})) {
             $fromform->{$inputname} = -1;
@@ -97,8 +95,6 @@ if (!empty($fromform) and confirm_sesskey()) {
     set_config('site_postsnumber_' . $cleanhuburl, $fromform->posts, 'hub');
     set_config('site_questionsnumber_' . $cleanhuburl, $fromform->questions, 'hub');
     set_config('site_resourcesnumber_' . $cleanhuburl, $fromform->resources, 'hub');
-    set_config('site_badges_' . $cleanhuburl, $fromform->badges, 'hub');
-    set_config('site_issuedbadges_' . $cleanhuburl, $fromform->issuedbadges, 'hub');
     set_config('site_modulenumberaverage_' . $cleanhuburl, $fromform->modulenumberaverage, 'hub');
     set_config('site_participantnumberaverage_' . $cleanhuburl, $fromform->participantnumberaverage, 'hub');
 }
@@ -118,7 +114,6 @@ if ($update and confirm_sesskey()) {
     $xmlrpcclient = new webservice_xmlrpc_client($serverurl, $registeredhub->token);
     try {
         $result = $xmlrpcclient->call($function, $params);
-        $registrationmanager->update_registeredhub($registeredhub); // To update timemodified.
     } catch (Exception $e) {
         $error = $OUTPUT->notification(get_string('errorregistration', 'hub', $e->getMessage()));
     }
@@ -138,8 +133,6 @@ if (!empty($fromform) and empty($update) and confirm_sesskey()) {
         $fromform->posts = $siteinfo['posts'];
         $fromform->questions = $siteinfo['questions'];
         $fromform->resources = $siteinfo['resources'];
-        $fromform->badges = $siteinfo['badges'];
-        $fromform->issuedbadges = $siteinfo['issuedbadges'];
         $fromform->modulenumberaverage = $siteinfo['modulenumberaverage'];
         $fromform->participantnumberaverage = $siteinfo['participantnumberaverage'];
         $fromform->street = $siteinfo['street'];
@@ -178,20 +171,8 @@ if (!empty($error)) {
     echo $error;
 }
 
-// Some Moodle.org registration explanation.
+//some Moodle.org resitration explanation
 if ($huburl == HUB_MOODLEORGHUBURL) {
-    if (!empty($registeredhub->token)) {
-        if ($registeredhub->timemodified == 0) {
-            $registrationmessage = get_string('pleaserefreshregistrationunknown', 'admin');
-        } else {
-            $lastupdated = userdate($registeredhub->timemodified, get_string('strftimedate', 'langconfig'));
-            $registrationmessage = get_string('pleaserefreshregistration', 'admin', $lastupdated);
-        }
-    } else {
-        $registrationmessage = get_string('registrationwarning', 'admin');
-    }
-    echo $OUTPUT->notification($registrationmessage);
-
     echo $OUTPUT->heading(get_string('registerwithmoodleorg', 'admin'));
     $renderer = $PAGE->get_renderer('core', 'register');
     echo $renderer->moodleorg_registration_message();

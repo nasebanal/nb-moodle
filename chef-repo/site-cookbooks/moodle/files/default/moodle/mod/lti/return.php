@@ -17,7 +17,8 @@
 /**
  * Handle the return back to Moodle from the tool provider
  *
- * @package mod_lti
+ * @package    mod
+ * @subpackage lti
  * @copyright  Copyright (c) 2011 Moodlerooms Inc. (http://www.moodlerooms.com)
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @author     Chris Scribner
@@ -28,28 +29,18 @@ require_once($CFG->dirroot.'/mod/lti/lib.php');
 require_once($CFG->dirroot.'/mod/lti/locallib.php');
 
 $courseid = required_param('course', PARAM_INT);
-$instanceid = optional_param('instanceid', 0, PARAM_INT);
+$instanceid = required_param('instanceid', PARAM_INT);
 
-$errormsg = optional_param('lti_errormsg', '', PARAM_TEXT);
-$msg = optional_param('lti_msg', '', PARAM_TEXT);
+$errormsg = optional_param('lti_errormsg', '', PARAM_RAW);
 $unsigned = optional_param('unsigned', '0', PARAM_INT);
 
 $launchcontainer = optional_param('launch_container', LTI_LAUNCH_CONTAINER_WINDOW, PARAM_INT);
 
-$course = $DB->get_record('course', array('id' => $courseid), '*', MUST_EXIST);
-$lti = null;
-$context = null;
-if (!empty($instanceid)) {
-    $lti = $DB->get_record('lti', array('id' => $instanceid), '*', MUST_EXIST);
-    $cm = get_coursemodule_from_instance('lti', $lti->id, $lti->course, false, MUST_EXIST);
-    $context = context_module::instance($cm->id);
-}
-
+$course = $DB->get_record('course', array('id' => $courseid));
 
 require_login($course);
-require_sesskey();
 
-if (!empty($errormsg) || !empty($msg)) {
+if (!empty($errormsg)) {
     $url = new moodle_url('/mod/lti/return.php', array('course' => $courseid));
     $PAGE->set_url($url);
 
@@ -57,7 +48,7 @@ if (!empty($errormsg) || !empty($msg)) {
     $PAGE->set_title($pagetitle);
     $PAGE->set_heading($course->fullname);
 
-    // Avoid frame-in-frame action.
+    //Avoid frame-in-frame action
     if ($launchcontainer == LTI_LAUNCH_CONTAINER_EMBED || $launchcontainer == LTI_LAUNCH_CONTAINER_EMBED_NO_BLOCKS) {
         $PAGE->set_pagelayout('embedded');
     } else {
@@ -65,52 +56,36 @@ if (!empty($errormsg) || !empty($msg)) {
     }
 
     echo $OUTPUT->header();
-    if (!empty($lti) and !empty($context)) {
-        echo $OUTPUT->heading(format_string($lti->name, true, array('context' => $context)));
-    }
-}
 
-if (!empty($errormsg)) {
     echo get_string('lti_launch_error', 'lti');
 
-    p($errormsg);
+    echo htmlspecialchars($errormsg);
 
-    if ($unsigned == 1) {
+    $canaddtools = has_capability('mod/lti:addcoursetool', get_context_instance(CONTEXT_COURSE, $courseid));
 
-        $contextcourse = context_course::instance($courseid);
+    if ($unsigned == 1 && $canaddtools) {
         echo '<br /><br />';
+
         $links = new stdClass();
+        $coursetooleditor = new moodle_url('/mod/lti/instructor_edit_tool_type.php', array('course' => $courseid, 'action' => 'add'));
+        $links->course_tool_editor = $coursetooleditor->out(false);
 
-        if (has_capability('mod/lti:addcoursetool', $contextcourse)) {
-            $coursetooleditor = new moodle_url('/mod/lti/instructor_edit_tool_type.php',
-                array('course' => $courseid, 'action' => 'add', 'sesskey' => sesskey()));
-            $links->course_tool_editor = $coursetooleditor->out(false);
+        $adminrequesturl = new moodle_url('/mod/lti/request_tool.php', array('instanceid' => $instanceid));
+        $links->admin_request_url = $adminrequesturl->out(false);
 
-            echo get_string('lti_launch_error_unsigned_help', 'lti', $links);
-        }
+        echo get_string('lti_launch_error_unsigned_help', 'lti', $links);
 
-        if (!empty($lti) && has_capability('mod/lti:requesttooladd', $contextcourse)) {
-            $adminrequesturl = new moodle_url('/mod/lti/request_tool.php', array('instanceid' => $lti->id, 'sesskey' => sesskey()));
-            $links->admin_request_url = $adminrequesturl->out(false);
-
-            echo get_string('lti_launch_error_tool_request', 'lti', $links);
-        }
+        echo get_string('lti_launch_error_tool_request', 'lti', $links);
     }
 
     echo $OUTPUT->footer();
-} else if (!empty($msg)) {
-
-    p($msg);
-
-    echo $OUTPUT->footer();
-
 } else {
     $courseurl = new moodle_url('/course/view.php', array('id' => $courseid));
     $url = $courseurl->out();
 
-    // Avoid frame-in-frame action.
+    //Avoid frame-in-frame action
     if ($launchcontainer == LTI_LAUNCH_CONTAINER_EMBED || $launchcontainer == LTI_LAUNCH_CONTAINER_EMBED_NO_BLOCKS) {
-        // Output a page containing some script to break out of frames and redirect them.
+        //Output a page containing some script to break out of frames and redirect them
 
         echo '<html><body>';
 
@@ -137,7 +112,7 @@ if (!empty($errormsg)) {
 
         echo '</body></html>';
     } else {
-        // If no error, take them back to the course.
+        //If no error, take them back to the course
         redirect($url);
     }
 }

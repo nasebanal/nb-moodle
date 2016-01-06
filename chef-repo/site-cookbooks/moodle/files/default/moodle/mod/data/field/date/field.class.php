@@ -34,24 +34,16 @@ class data_field_date extends data_field_base {
     var $month = 0;
     var $year  = 0;
 
-    function display_add_field($recordid = 0, $formdata = null) {
+    function display_add_field($recordid=0) {
         global $DB, $OUTPUT;
 
-        if ($formdata) {
-            $fieldname = 'field_' . $this->field->id . '_day';
-            $day   = $formdata->$fieldname;
-            $fieldname = 'field_' . $this->field->id . '_month';
-            $month   = $formdata->$fieldname;
-            $fieldname = 'field_' . $this->field->id . '_year';
-            $year   = $formdata->$fieldname;
-            $content = make_timestamp($year, $month, $day, 12, 0, 0, 0, false);
-        } else if ($recordid) {
+        if ($recordid) {
             $content = (int)$DB->get_field('data_content', 'content', array('fieldid'=>$this->field->id, 'recordid'=>$recordid));
         } else {
             $content = time();
         }
 
-        $str = '<div title="'.s($this->field->description).'" class="mod-data-input">';
+        $str = '<div title="'.s($this->field->description).'">';
         $dayselector = html_writer::select_time('days', 'field_'.$this->field->id.'_day', $content);
         $monthselector = html_writer::select_time('months', 'field_'.$this->field->id.'_month', $content);
         $yearselector = html_writer::select_time('years', 'field_'.$this->field->id.'_year', $content);
@@ -136,3 +128,5 @@ class data_field_date extends data_field_base {
 
 
 }
+
+

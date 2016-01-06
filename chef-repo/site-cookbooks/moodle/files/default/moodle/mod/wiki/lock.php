@@ -18,9 +18,9 @@
 /**
  * This file contains all necessary code to execute a lock renewal based on an ajax call
  *
- * @package mod_wiki
- * @copyright 2009 Marc Alier, Jordi Piguillem marc.alier@upc.edu
- * @copyright 2009 Universitat Politecnica de Catalunya http://www.upc.edu
+ * @package mod-wiki-2.0
+ * @copyrigth 2009 Marc Alier, Jordi Piguillem marc.alier@upc.edu
+ * @copyrigth 2009 Universitat Politecnica de Catalunya http://www.upc.edu
  *
  * @author Jordi Piguillem
  * @author Marc Alier
@@ -68,9 +68,8 @@ if (!empty($section) && !$sectioncontent = wiki_get_section_page($page, $section
 
 require_login($course, false, $cm);
 
-if (!wiki_user_can_edit($subwiki)) {
-    print_error('cannoteditpage', 'wiki');
-}
+$context = get_context_instance(CONTEXT_MODULE, $cm->id);
+require_capability('mod/wiki:editpage', $context);
 
 $wikipage = new page_wiki_lock($wiki, $subwiki, $cm);
 $wikipage->set_page($page);

@@ -21,9 +21,9 @@
  * It contains the great majority of functions defined by Moodle
  * that are mandatory to develop a module.
  *
- * @package mod_wiki
- * @copyright 2009 Marc Alier, Jordi Piguillem marc.alier@upc.edu
- * @copyright 2009 Universitat Politecnica de Catalunya http://www.upc.edu
+ * @package mod-wiki-2.0
+ * @copyrigth 2009 Marc Alier, Jordi Piguillem marc.alier@upc.edu
+ * @copyrigth 2009 Universitat Politecnica de Catalunya http://www.upc.edu
  *
  * @author Jordi Piguillem
  * @author Marc Alier
@@ -145,7 +145,6 @@ function wiki_reset_userdata($data) {
     global $CFG,$DB;
     require_once($CFG->dirroot . '/mod/wiki/pagelib.php');
     require_once($CFG->dirroot . '/tag/lib.php');
-    require_once($CFG->dirroot . "/mod/wiki/locallib.php");
 
     $componentstr = get_string('modulenameplural', 'wiki');
     $status = array();
@@ -157,56 +156,32 @@ function wiki_reset_userdata($data) {
     $errors = false;
     foreach ($wikis as $wiki) {
 
-        if (!$cm = get_coursemodule_from_instance('wiki', $wiki->id)) {
-            continue;
+        // remove all comments
+        if (!empty($data->reset_wiki_comments)) {
+            if (!$cm = get_coursemodule_from_instance('wiki', $wiki->id)) {
+                continue;
+            }
+            $context = get_context_instance(CONTEXT_MODULE, $cm->id);
+            $DB->delete_records_select('comments', "contextid = ? AND commentarea='wiki_page'", array($context->id));
+            $status[] = array('component'=>$componentstr, 'item'=>get_string('deleteallcomments'), 'error'=>false);
         }
-        $context = context_module::instance($cm->id);
 
-        // Remove tags or all pages.
-        if (!empty($data->reset_wiki_pages) || !empty($data->reset_wiki_tags)) {
-
-            // Get subwiki information.
-            $subwikis = wiki_get_subwikis($wiki->id);
+        if (!empty($data->reset_wiki_tags)) {
+            # Get subwiki information #
+            $subwikis = $DB->get_records('wiki_subwikis', array('wikiid' => $wiki->id));
 
             foreach ($subwikis as $subwiki) {
-                // Get existing pages.
-                if ($pages = wiki_get_page_list($subwiki->id)) {
-                    // If the wiki page isn't selected then we are only removing tags.
-                    if (empty($data->reset_wiki_pages)) {
-                        // Go through each page and delete the tags.
-                        foreach ($pages as $page) {
-
-                            $tags = tag_get_tags_array('wiki_pages', $page->id);
-                            foreach ($tags as $tagid => $tagname) {
-                                // Delete the related tag_instances related to the wiki page.
-                                $errors = tag_delete_instance('wiki_pages', $page->id, $tagid);
-                                $status[] = array('component' => $componentstr, 'item' => get_string('tagsdeleted', 'wiki'),
-                                        'error' => $errors);
-                            }
+                if ($pages = $DB->get_records('wiki_pages', array('subwikiid' => $subwiki->id))) {
+                    foreach ($pages as $page) {
+                        $tags = tag_get_tags_array('wiki_pages', $page->id);
+                        foreach ($tags as $tagid => $tagname) {
+                            // Delete the related tag_instances related to the wiki page.
+                            $errors = tag_delete_instance('wiki_pages', $page->id, $tagid);
+                            $status[] = array('component' => $componentstr, 'item' => get_string('tagsdeleted', 'wiki'), 'error' => $errors);
                         }
-                    } else {
-                        // Otherwise we are removing pages and tags.
-                        wiki_delete_pages($context, $pages, $subwiki->id);
                     }
                 }
-                if (!empty($data->reset_wiki_pages)) {
-                    // Delete any subwikis.
-                    $DB->delete_records('wiki_subwikis', array('id' => $subwiki->id), IGNORE_MISSING);
-
-                    // Delete any attached files.
-                    $fs = get_file_storage();
-                    $fs->delete_area_files($context->id, 'mod_wiki', 'attachments');
-
-                    $status[] = array('component' => $componentstr, 'item' => get_string('deleteallpages', 'wiki'),
-                            'error' => $errors);
-                }
             }
-        }
-
-        // Remove all comments.
-        if (!empty($data->reset_wiki_comments) || !empty($data->reset_wiki_pages)) {
-            $DB->delete_records_select('comments', "contextid = ? AND commentarea='wiki_page'", array($context->id));
-            $status[] = array('component' => $componentstr, 'item' => get_string('deleteallcomments'), 'error' => false);
         }
     }
     return $status;
@@ -215,9 +190,34 @@ function wiki_reset_userdata($data) {
 
 function wiki_reset_course_form_definition(&$mform) {
     $mform->addElement('header', 'wikiheader', get_string('modulenameplural', 'wiki'));
-    $mform->addElement('advcheckbox', 'reset_wiki_pages', get_string('deleteallpages', 'wiki'));
     $mform->addElement('advcheckbox', 'reset_wiki_tags', get_string('removeallwikitags', 'wiki'));
     $mform->addElement('advcheckbox', 'reset_wiki_comments', get_string('deleteallcomments'));
+}
+
+/**
+ * Return a small object with summary information about what a
+ * user has done with a given particular instance of this module
+ * Used for user activity reports.
+ * $return->time = the time they did it
+ * $return->info = a short text description
+ *
+ * @return null
+ * @todo Finish documenting this function
+ **/
+function wiki_user_outline($course, $user, $mod, $wiki) {
+    $return = NULL;
+    return $return;
+}
+
+/**
+ * Print a detailed representation of what a user has done with
+ * a given particular instance of this module, for user activity reports.
+ *
+ * @return boolean
+ * @todo Finish documenting this function
+ **/
+function wiki_user_complete($course, $user, $mod, $wiki) {
+    return true;
 }
 
 /**
@@ -225,6 +225,7 @@ function wiki_reset_course_form_definition(&$mform) {
  *
  * @uses FEATURE_GROUPS
  * @uses FEATURE_GROUPINGS
+ * @uses FEATURE_GROUPMEMBERSONLY
  * @uses FEATURE_MOD_INTRO
  * @uses FEATURE_COMPLETION_TRACKS_VIEWS
  * @uses FEATURE_COMPLETION_HAS_RULES
@@ -238,6 +239,8 @@ function wiki_supports($feature) {
     case FEATURE_GROUPS:
         return true;
     case FEATURE_GROUPINGS:
+        return true;
+    case FEATURE_GROUPMEMBERSONLY:
         return true;
     case FEATURE_MOD_INTRO:
         return true;
@@ -276,7 +279,7 @@ function wiki_supports($feature) {
 function wiki_print_recent_activity($course, $viewfullnames, $timestart) {
     global $CFG, $DB, $OUTPUT;
 
-    $sql = "SELECT p.id, p.timemodified, p.subwikiid, sw.wikiid, w.wikimode, sw.userid, sw.groupid
+    $sql = "SELECT p.*, w.id as wikiid, sw.groupid
             FROM {wiki_pages} p
                 JOIN {wiki_subwikis} sw ON sw.id = p.subwikiid
                 JOIN {wiki} w ON w.id = sw.wikiid
@@ -285,25 +288,48 @@ function wiki_print_recent_activity($course, $viewfullnames, $timestart) {
     if (!$pages = $DB->get_records_sql($sql, array($timestart, $course->id))) {
         return false;
     }
-    require_once($CFG->dirroot . "/mod/wiki/locallib.php");
+    $modinfo = get_fast_modinfo($course);
 
     $wikis = array();
 
     $modinfo = get_fast_modinfo($course);
 
-    $subwikivisible = array();
     foreach ($pages as $page) {
-        if (!isset($subwikivisible[$page->subwikiid])) {
-            $subwiki = (object)array('id' => $page->subwikiid, 'wikiid' => $page->wikiid,
-                'groupid' => $page->groupid, 'userid' => $page->userid);
-            $wiki = (object)array('id' => $page->wikiid, 'course' => $course->id, 'wikimode' => $page->wikimode);
-            $subwikivisible[$page->subwikiid] = wiki_user_can_view($subwiki, $wiki);
+        if (!isset($modinfo->instances['wiki'][$page->wikiid])) {
+            // not visible
+            continue;
         }
-        if ($subwikivisible[$page->subwikiid]) {
-            $wikis[] = $page;
+        $cm = $modinfo->instances['wiki'][$page->wikiid];
+        if (!$cm->uservisible) {
+            continue;
         }
+        $context = get_context_instance(CONTEXT_MODULE, $cm->id);
+
+        if (!has_capability('mod/wiki:viewpage', $context)) {
+            continue;
+        }
+
+        $groupmode = groups_get_activity_groupmode($cm, $course);
+
+        if ($groupmode) {
+            if ($groupmode == SEPARATEGROUPS and !has_capability('mod/wiki:managewiki', $context)) {
+                // separate mode
+                if (isguestuser()) {
+                    // shortcut
+                    continue;
+                }
+
+                if (is_null($modinfo->groups)) {
+                    $modinfo->groups = groups_get_user_groups($course->id); // load all my groups and cache it in modinfo
+                    }
+
+                if (!in_array($page->groupid, $modinfo->groups[0])) {
+                    continue;
+                }
+            }
+        }
+        $wikis[] = $page;
     }
-    unset($subwikivisible);
     unset($pages);
 
     if (!$wikis) {
@@ -436,11 +462,13 @@ function wiki_pluginfile($course, $cm, $context, $filearea, $args, $forcedownloa
             return false;
         }
 
-        send_stored_file($file, null, 0, $options);
+        $lifetime = isset($CFG->filelifetime) ? $CFG->filelifetime : 86400;
+
+        send_stored_file($file, $lifetime, 0, $options);
     }
 }
 
-function wiki_search_form($cm, $search = '', $subwiki = null) {
+function wiki_search_form($cm, $search = '') {
     global $CFG, $OUTPUT;
 
     $output = '<div class="wikisearch">';
@@ -451,9 +479,6 @@ function wiki_search_form($cm, $search = '', $subwiki = null) {
     $output .= '<input id="searchwiki" name="searchstring" type="text" size="18" value="' . s($search, true) . '" alt="search" />';
     $output .= '<input name="courseid" type="hidden" value="' . $cm->course . '" />';
     $output .= '<input name="cmid" type="hidden" value="' . $cm->id . '" />';
-    if (!empty($subwiki->id)) {
-        $output .= '<input name="subwikiid" type="hidden" value="' . $subwiki->id . '" />';
-    }
     $output .= '<input name="searchwikicontent" type="hidden" value="1" />';
     $output .= '<input value="' . get_string('searchwikis', 'wiki') . '" type="submit" />';
     $output .= '</fieldset>';
@@ -467,7 +492,7 @@ function wiki_extend_navigation(navigation_node $navref, $course, $module, $cm) 
 
     require_once($CFG->dirroot . '/mod/wiki/locallib.php');
 
-    $context = context_module::instance($cm->id);
+    $context = get_context_instance(CONTEXT_MODULE, $cm->id);
     $url = $PAGE->url;
     $userid = 0;
     if ($module->wikimode == 'individual') {
@@ -610,7 +635,7 @@ function wiki_comment_validate($comment_param) {
     if (!$cm = get_coursemodule_from_instance('wiki', $wiki->id, $course->id)) {
         throw new comment_exception('invalidcoursemodule');
     }
-    $context = context_module::instance($cm->id);
+    $context = get_context_instance(CONTEXT_MODULE, $cm->id);
     // group access
     if ($subwiki->groupid) {
         $groupmode = groups_get_activity_groupmode($cm, $course);

@@ -41,23 +41,19 @@
 require_once('../config.php');
 require_once($CFG->dirroot.'/calendar/lib.php');
 
+require_sesskey();
+
 $var = required_param('var', PARAM_ALPHA);
-$return = clean_param(base64_decode(required_param('return', PARAM_RAW)), PARAM_LOCALURL);
+$return = clean_param(base64_decode(required_param('return', PARAM_RAW)), PARAM_URL);
 $courseid = optional_param('id', -1, PARAM_INT);
 if ($courseid != -1) {
     $return = new moodle_url($return, array('course' => $courseid));
 } else {
     $return = new moodle_url($return);
 }
-
-if (!confirm_sesskey()) {
-    // Do not call require_sesskey() since this page may be accessed without session (for example by bots).
-    redirect($return);
-}
-
-$url = new moodle_url('/calendar/set.php', array('return'=>base64_encode($return->out_as_local_url(false)), 'course' => $courseid, 'var'=>$var, 'sesskey'=>sesskey()));
+$url = new moodle_url('/calendar/set.php', array('return'=>base64_encode($return->out(false)), 'course' => $courseid, 'var'=>$var, 'sesskey'=>sesskey()));
 $PAGE->set_url($url);
-$PAGE->set_context(context_system::instance());
+$PAGE->set_context(get_context_instance(CONTEXT_SYSTEM));
 
 switch($var) {
     case 'showgroups':

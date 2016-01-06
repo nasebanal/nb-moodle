@@ -33,13 +33,13 @@ $userid = optional_param('userid', false, PARAM_INT);
 $itemid = optional_param('itemid', false, PARAM_INT);
 $type = optional_param('type', false, PARAM_ALPHA);
 $action = optional_param('action', false, PARAM_ALPHA);
-$newvalue = optional_param('newvalue', false, PARAM_TEXT);
+$newvalue = optional_param('newvalue', false, PARAM_MULTILANG);
 
 /// basic access checks
 if (!$course = $DB->get_record('course', array('id' => $courseid))) {
     print_error('nocourseid');
 }
-$context = context_course::instance($course->id);
+$context = get_context_instance(CONTEXT_COURSE, $course->id);
 require_login($course);
 
 switch ($action) {
@@ -118,6 +118,14 @@ switch ($action) {
                 echo json_encode($json_object);
                 die();
             } else {
+                $url = '/report/grader/index.php?id=' . $course->id;
+
+                $user = $DB->get_record('user', array('id'=>$userid), '*', MUST_EXIST);
+                $fullname = fullname($user);
+
+                $info = "{$grade_item->itemname}: $fullname";
+                add_to_log($course->id, 'grade', 'update', $url, $info);
+
                 $json_object->gradevalue = $finalvalue;
 
                 if ($grade_item->update_final_grade($userid, $finalgrade, 'gradebook', $feedback, FORMAT_MOODLE)) {

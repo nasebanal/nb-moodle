@@ -18,7 +18,8 @@
 /**
  * Cluster
  *
- * @package mod_lesson
+ * @package    mod
+ * @subpackage lesson
  * @copyright  2009 Sam Hemelryk
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  **/

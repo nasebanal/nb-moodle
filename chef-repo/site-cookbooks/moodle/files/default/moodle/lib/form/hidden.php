@@ -54,10 +54,16 @@ class MoodleQuickForm_hidden extends HTML_QuickForm_hidden{
     }
 
     /**
-     * @deprecated since Moodle 2.0
+     * set html for help button
+     *
+     * @param array $helpbuttonargs array of arguments to make a help button
+     * @param string $function function name to call to get html
+     * @deprecated since Moodle 2.0. Please do not call this function any more.
+     * @todo MDL-31047 this api will be removed.
+     * @see MoodleQuickForm::setHelpButton()
      */
     function setHelpButton($helpbuttonargs, $function='helpbutton'){
-        throw new coding_exception('setHelpButton() can not be used any more, please see MoodleQuickForm::addHelpButton().');
+
     }
 
     /**

@@ -1,4 +1,5 @@
 <?php
+
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -17,7 +18,7 @@
 /**
  * Strings for component 'message', language 'en', branch 'MOODLE_20_STABLE'
  *
- * @package   core_message
+ * @package   message
  * @copyright 1999 onwards Martin Dougiamas  {@link http://moodle.com}
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -31,38 +32,29 @@ $string['allmine'] = 'All messages to me or from me';
 $string['allstudents'] = 'All messages between students in course';
 $string['allusers'] = 'All messages from all users';
 $string['backupmessageshelp'] = 'If enabled, then instant messages will be included in SITE automated backups';
-$string['beepnewmessage'] = 'Beep when popup notification is displayed';
+$string['beepnewmessage'] = 'Beep on new message';
 $string['blockcontact'] = 'Block contact';
 $string['blockedmessages'] = '{$a} message(s) to/from blocked users';
 $string['blockedusers'] = 'Blocked users ({$a})';
 $string['blocknoncontacts'] = 'Prevent non-contacts from messaging me';
-$string['contactlistempty'] = 'Contact list empty';
+$string['contactlistempty'] = 'Your contact list is empty';
 $string['contacts'] = 'Contacts';
 $string['context'] = 'context';
+$string['couldnotfindpreference'] = 'Could not load preference {$a}. Does the component and name you supplied to message_send() match a row in message_providers? Message providers must appear in the database so users can configure how they will be notified when they receive messages.';
 $string['defaultmessageoutputs'] = 'Default message outputs';
 $string['defaults'] = 'Defaults';
-$string['deletemessage'] = 'Delete message';
-$string['deletemessageconfirmation'] = 'Are you sure you want to delete this message? It will only be deleted from your messaging history and will still be viewable by the user who sent or received the message.';
 $string['deletemessagesdays'] = 'Number of days before old messages are automatically deleted';
 $string['disableall'] = 'Temporarily disable notifications';
 $string['disableall_help'] = 'Temporarily disable all notifications except those marked as "forced" by the site administrator';
 $string['disabled'] = 'Messaging is disabled on this site';
 $string['disallowed'] = 'Disallowed';
 $string['discussion'] = 'Discussion';
+$string['editmymessage'] = 'Messaging';
 $string['emailmessages'] = 'Email messages when I am offline';
 $string['emailtagline'] = 'This is a copy of a message sent to you at "{$a->sitename}". Go to {$a->url} to reply.';
 $string['emptysearchstring'] = 'You must search for something';
-$string['enabled'] = 'Enabled';
 $string['errorcallingprocessor'] = 'Error calling defined output';
-$string['errorwhilesendingmessage'] = 'An error occurred while sending the message; please try again later.';
 $string['errortranslatingdefault'] = 'Error translating default setting provided by plugin, using system defaults instead.';
-$string['eventmessagecontactadded'] = 'Message contact added';
-$string['eventmessagecontactblocked'] = 'Message contact blocked';
-$string['eventmessagecontactremoved'] = 'Message contact removed';
-$string['eventmessagecontactunblocked'] = 'Message contact unblocked';
-$string['eventmessagedeleted'] = 'Message deleted';
-$string['eventmessageviewed'] = 'Message viewed';
-$string['eventmessagesent'] = 'Message sent';
 $string['forced'] = 'Forced';
 $string['formorethan'] = 'For more than';
 $string['guestnoeditmessage'] = 'Guest user can not edit messaging options';
@@ -89,12 +81,11 @@ $string['message'] = 'Message';
 $string['messagehistory'] = 'Message history';
 $string['messagehistoryfull'] = 'All messages';
 $string['messagenavigation'] = 'Message navigation:';
-$string['messagetosend'] = 'Message to send';
 $string['messages'] = 'Messages';
-$string['messagesent'] = 'Message sent';
 $string['messaging'] = 'Messaging';
 $string['messagingblockednoncontact'] = '{$a} will not be able to reply as you have blocked non-contacts';
 $string['messagingdisabled'] = 'Messaging is disabled on this site, emails will be sent instead';
+$string['mycontacts'] = 'My contacts';
 $string['newonlymsg'] = 'Show only new';
 $string['newsearch'] = 'New search';
 $string['noframesjs'] = 'Use more accessible interface';
@@ -119,6 +110,8 @@ $string['permitted'] = 'Permitted';
 $string['page-message-x'] = 'Any message pages';
 $string['private_config'] = 'Popup message window';
 $string['processortag'] = 'Destination';
+$string['processordeleteconfirm'] = 'You are about to completely delete message output \'{$a}\'.  This will completely delete everything in the database associated with this output. Are you SURE you want to continue?';
+$string['processordeletefiles'] = 'All data associated with the output \'{$a->processor}\' has been deleted from the database.  To complete the deletion (and prevent the output re-installing itself), you should now delete this directory from your server: {$a->directory}';
 $string['providers_config'] = 'Configure notification methods for incoming messages';
 $string['providerstag'] = 'Source';
 $string['recent'] = 'Recent';
@@ -131,7 +124,6 @@ $string['searchmessages'] = 'Search messages';
 $string['searchcombined'] = 'Search people and messages';
 $string['sendingvia'] = 'Sending "{$a->provider}" via "{$a->processor}"';
 $string['sendingviawhen'] = 'Sending "{$a->provider}" via "{$a->processor}" when {$a->state}';
-$string['sendingmessage'] = 'Sending message';
 $string['sendmessage'] = 'Send message';
 $string['sendmessageto'] = 'Send message to {$a}';
 $string['sendmessagetopopup'] = 'Send message to {$a} - new window';
@@ -143,12 +135,12 @@ $string['thisconversation'] = 'this conversation';
 $string['timenosee'] = 'Minutes since I was last seen online';
 $string['timesent'] = 'Time sent';
 $string['touserdoesntexist'] = 'You can not send a message to a user id ({$a}) that doesn\'t exist';
-$string['unabletomessageuser'] = 'You are not permitted to send a message to that user';
 $string['unblockcontact'] = 'Unblock contact';
 $string['unreadmessages'] = 'Unread messages ({$a})';
 $string['unreadnewmessages'] = 'New messages ({$a})';
 $string['unreadnewmessage'] = 'New message from {$a}';
+$string['unreadnewnotification'] = 'New notification';
+$string['unreadnewnotifications'] = 'New notifications ({$a})';
 $string['userisblockingyou'] = 'This user has blocked you from sending messages to them';
 $string['userisblockingyounoncontact'] = '{$a} only accepts messages from their contacts.';
 $string['userssearchresults'] = 'Users found: {$a}';
-$string['viewconversation'] = 'View conversation';

@@ -24,24 +24,21 @@ class mod_choice_mod_form extends moodleform_mod {
         $mform->addRule('name', null, 'required', null, 'client');
         $mform->addRule('name', get_string('maximumchars', '', 255), 'maxlength', 255, 'client');
 
-        $this->standard_intro_elements(get_string('description', 'choice'));
+        $this->add_intro_editor(true, get_string('chatintro', 'chat'));
 
-        $mform->addElement('select', 'display', get_string("displaymode","choice"), $CHOICE_DISPLAY);
-
-        //-------------------------------------------------------------------------------
-        $mform->addElement('header', 'optionhdr', get_string('options', 'choice'));
-
-        $mform->addElement('selectyesno', 'allowupdate', get_string("allowupdate", "choice"));
-
-        $mform->addElement('selectyesno', 'allowmultiple', get_string('allowmultiple', 'choice'));
-
-        $mform->addElement('selectyesno', 'limitanswers', get_string('limitanswers', 'choice'));
-        $mform->addHelpButton('limitanswers', 'limitanswers', 'choice');
-
+//-------------------------------------------------------------------------------
         $repeatarray = array();
-        $repeatarray[] = $mform->createElement('text', 'option', get_string('optionno', 'choice'));
-        $repeatarray[] = $mform->createElement('text', 'limit', get_string('limitno', 'choice'));
+        $repeatarray[] = $mform->createElement('header', '', get_string('option','choice').' {no}');
+        $repeatarray[] = $mform->createElement('text', 'option', get_string('option','choice'));
+        $repeatarray[] = $mform->createElement('text', 'limit', get_string('limit','choice'));
         $repeatarray[] = $mform->createElement('hidden', 'optionid', 0);
+
+        $menuoptions = array();
+        $menuoptions[0] = get_string('disable');
+        $menuoptions[1] = get_string('enable');
+        $mform->addElement('header', 'timerestricthdr', get_string('limit', 'choice'));
+        $mform->addElement('select', 'limitanswers', get_string('limitanswers', 'choice'), $menuoptions);
+        $mform->addHelpButton('limitanswers', 'limitanswers', 'choice');
 
         if ($this->_instance){
             $repeatno = $DB->count_records('choice_options', array('choiceid'=>$this->_instance));
@@ -54,7 +51,6 @@ class mod_choice_mod_form extends moodleform_mod {
         $repeateloptions['limit']['default'] = 0;
         $repeateloptions['limit']['disabledif'] = array('limitanswers', 'eq', 0);
         $repeateloptions['limit']['rule'] = 'numeric';
-        $repeateloptions['limit']['type'] = PARAM_INT;
 
         $repeateloptions['option']['helpbutton'] = array('choiceoptions', 'choice');
         $mform->setType('option', PARAM_CLEANHTML);
@@ -62,15 +58,13 @@ class mod_choice_mod_form extends moodleform_mod {
         $mform->setType('optionid', PARAM_INT);
 
         $this->repeat_elements($repeatarray, $repeatno,
-                    $repeateloptions, 'option_repeats', 'option_add_fields', 3, null, true);
+                    $repeateloptions, 'option_repeats', 'option_add_fields', 3);
 
-        // Make the first option required
-        if ($mform->elementExists('option[0]')) {
-            $mform->addRule('option[0]', get_string('atleastoneoption', 'choice'), 'required', null, 'client');
-        }
+
+
 
 //-------------------------------------------------------------------------------
-        $mform->addElement('header', 'timerestricthdr', get_string('availability'));
+        $mform->addElement('header', 'timerestricthdr', get_string('timerestrict', 'choice'));
         $mform->addElement('checkbox', 'timerestrict', get_string('timerestrict', 'choice'));
 
         $mform->addElement('date_time_selector', 'timeopen', get_string("choiceopen", "choice"));
@@ -79,22 +73,20 @@ class mod_choice_mod_form extends moodleform_mod {
         $mform->addElement('date_time_selector', 'timeclose', get_string("choiceclose", "choice"));
         $mform->disabledIf('timeclose', 'timerestrict');
 
-        $mform->addElement('advcheckbox', 'showpreview', get_string('showpreview', 'choice'));
-        $mform->addHelpButton('showpreview', 'showpreview', 'choice');
-        $mform->disabledIf('showpreview', 'timerestrict');
-
 //-------------------------------------------------------------------------------
-        $mform->addElement('header', 'resultshdr', get_string('results', 'choice'));
+        $mform->addElement('header', 'miscellaneoussettingshdr', get_string('miscellaneoussettings', 'form'));
+
+        $mform->addElement('select', 'display', get_string("displaymode","choice"), $CHOICE_DISPLAY);
 
         $mform->addElement('select', 'showresults', get_string("publish", "choice"), $CHOICE_SHOWRESULTS);
 
         $mform->addElement('select', 'publish', get_string("privacy", "choice"), $CHOICE_PUBLISH);
         $mform->disabledIf('publish', 'showresults', 'eq', 0);
 
+        $mform->addElement('selectyesno', 'allowupdate', get_string("allowupdate", "choice"));
+
         $mform->addElement('selectyesno', 'showunanswered', get_string("showunanswered", "choice"));
 
-        $mform->addElement('selectyesno', 'includeinactive', get_string('includeinactive', 'choice'));
-        $mform->setDefault('includeinactive', 0);
 
 //-------------------------------------------------------------------------------
         $this->standard_coursemodule_elements();
@@ -123,6 +115,23 @@ class mod_choice_mod_form extends moodleform_mod {
             $default_values['timerestrict'] = 1;
         }
 
+    }
+
+    function validation($data, $files) {
+        $errors = parent::validation($data, $files);
+
+        $choices = 0;
+        foreach ($data['option'] as $option){
+            if (trim($option) != ''){
+                $choices++;
+            }
+        }
+
+        if ($choices < 1) {
+           $errors['option[0]'] = get_string('atleastoneoption', 'choice');
+        }
+
+        return $errors;
     }
 
     function get_data() {

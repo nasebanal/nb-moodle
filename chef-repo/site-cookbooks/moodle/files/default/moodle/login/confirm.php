@@ -32,7 +32,7 @@ $p = optional_param('p', '', PARAM_ALPHANUM);   // Old parameter:  secret
 $s = optional_param('s', '', PARAM_RAW);        // Old parameter:  username
 
 $PAGE->set_url('/login/confirm.php');
-$PAGE->set_context(context_system::instance());
+$PAGE->set_context(get_context_instance(CONTEXT_SYSTEM));
 
 if (empty($CFG->registerauth)) {
     print_error('cannotusepage2');
@@ -63,6 +63,7 @@ if (!empty($data) || (!empty($p) && !empty($s))) {
         $PAGE->set_heading($COURSE->fullname);
         echo $OUTPUT->header();
         echo $OUTPUT->box_start('generalbox centerpara boxwidthnormal boxaligncenter');
+        echo "<h3>".get_string("thanks").", ". fullname($user) . "</h3>\n";
         echo "<p>".get_string("alreadyconfirmed")."</p>\n";
         echo $OUTPUT->single_button("$CFG->wwwroot/course/", get_string('courses'));
         echo $OUTPUT->box_end();
@@ -77,16 +78,12 @@ if (!empty($data) || (!empty($p) && !empty($s))) {
             print_error('cannotfinduser', '', '', s($username));
         }
 
-        if (!$user->suspended) {
-            complete_user_login($user);
+        complete_user_login($user);
 
-            \core\session\manager::apply_concurrent_login_limit($user->id, session_id());
-
-            if ( ! empty($SESSION->wantsurl) ) {   // Send them where they were going.
-                $goto = $SESSION->wantsurl;
-                unset($SESSION->wantsurl);
-                redirect($goto);
-            }
+        if ( ! empty($SESSION->wantsurl) ) {   // Send them where they were going
+            $goto = $SESSION->wantsurl;
+            unset($SESSION->wantsurl);
+            redirect($goto);
         }
 
         $PAGE->navbar->add(get_string("confirmed"));

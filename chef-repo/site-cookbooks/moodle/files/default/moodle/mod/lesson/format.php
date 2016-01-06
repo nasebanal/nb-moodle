@@ -21,33 +21,34 @@
  *
  * Included by import.ph
  *
- * @package mod_lesson
+ * @package    mod
+ * @subpackage lesson
  * @copyright  1999 onwards Martin Dougiamas  {@link http://moodle.com}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  **/
 
 defined('MOODLE_INTERNAL') || die();
 
-/**
- * Import files embedded into answer or response
+/**#@+
+ * The core question types.
  *
- * @param string $field nfield name (answer or response)
- * @param array $data imported data
- * @param object $answer answer object
- * @param int $contextid
- **/
-function lesson_import_question_files($field, $data, $answer, $contextid) {
-    global $DB;
-    if (!isset($data['itemid'])) {
-        return;
-    }
-    $text = file_save_draft_area_files($data['itemid'],
-            $contextid, 'mod_lesson', 'page_' . $field . 's', $answer->id,
-            array('subdirs' => false, 'maxfiles' => -1, 'maxbytes' => 0),
-            $answer->$field);
-
-    $DB->set_field("lesson_answers", $field, $text, array("id" => $answer->id));
+ * These used to be in lib/questionlib.php, but are being deprecated. Copying them
+ * here to keep this code working for now.
+ */
+if (!defined('SHORTANSWER')) {
+    define("SHORTANSWER",   "shortanswer");
+    define("TRUEFALSE",     "truefalse");
+    define("MULTICHOICE",   "multichoice");
+    define("RANDOM",        "random");
+    define("MATCH",         "match");
+    define("RANDOMSAMATCH", "randomsamatch");
+    define("DESCRIPTION",   "description");
+    define("NUMERICAL",     "numerical");
+    define("MULTIANSWER",   "multianswer");
+    define("CALCULATED",    "calculated");
+    define("ESSAY",         "essay");
 }
+/**#@-*/
 
 /**
  * Given some question info and some data about the the answers
@@ -58,17 +59,15 @@ function lesson_import_question_files($field, $data, $answer, $contextid) {
  * Lifted from mod/quiz/lib.php -
  *    1. all reference to oldanswers removed
  *    2. all reference to quiz_multichoice table removed
- *    3. In shortanswer questions usecase is store in the qoption field
- *    4. In numeric questions store the range as two answers
- *    5. truefalse options are ignored
- *    6. For multichoice questions with more than one answer the qoption field is true
+ *    3. In SHORTANSWER questions usecase is store in the qoption field
+ *    4. In NUMERIC questions store the range as two answers
+ *    5. TRUEFALSE options are ignored
+ *    6. For MULTICHOICE questions with more than one answer the qoption field is true
  *
- * @param object $question Contains question data like question, type and answers.
- * @param object $lesson
- * @param int $contextid
+ * @param opject $question Contains question data like question, type and answers.
  * @return object Returns $result->error or $result->notice.
  **/
-function lesson_save_question_options($question, $lesson, $contextid) {
+function lesson_save_question_options($question, $lesson) {
     global $DB;
 
     // These lines are required to ensure that all page types have
@@ -80,17 +79,6 @@ function lesson_save_question_options($question, $lesson, $contextid) {
 
     $timenow = time();
     $result = new stdClass();
-
-    // Default answer to avoid code duplication.
-    $defaultanswer = new stdClass();
-    $defaultanswer->lessonid   = $question->lessonid;
-    $defaultanswer->pageid = $question->id;
-    $defaultanswer->timecreated   = $timenow;
-    $defaultanswer->answerformat = FORMAT_HTML;
-    $defaultanswer->jumpto = LESSON_THISPAGE;
-    $defaultanswer->grade = 0;
-    $defaultanswer->score = 0;
-
     switch ($question->qtype) {
         case LESSON_PAGE_SHORTANSWER:
 
@@ -100,17 +88,18 @@ function lesson_save_question_options($question, $lesson, $contextid) {
             // Insert all the new answers
             foreach ($question->answer as $key => $dataanswer) {
                 if ($dataanswer != "") {
-                    $answer = clone($defaultanswer);
+                    $answer = new stdClass;
+                    $answer->lessonid   = $question->lessonid;
+                    $answer->pageid   = $question->id;
                     if ($question->fraction[$key] >=0.5) {
                         $answer->jumpto = LESSON_NEXTPAGE;
-                        $answer->score = 1;
                     }
-                    $answer->grade = round($question->fraction[$key] * 100);
+                    $answer->timecreated   = $timenow;
+                    $answer->grade = $question->fraction[$key] * 100;
                     $answer->answer   = $dataanswer;
                     $answer->response = $question->feedback[$key]['text'];
                     $answer->responseformat = $question->feedback[$key]['format'];
                     $answer->id = $DB->insert_record("lesson_answers", $answer);
-                    lesson_import_question_files('response', $question->feedback[$key], $answer, $contextid);
                     $answers[] = $answer->id;
                     if ($question->fraction[$key] > $maxfraction) {
                         $maxfraction = $question->fraction[$key];
@@ -122,12 +111,12 @@ function lesson_save_question_options($question, $lesson, $contextid) {
             /// Perform sanity checks on fractional grades
             if ($maxfraction != 1) {
                 $maxfraction = $maxfraction * 100;
-                $result->notice = get_string("fractionsnomax", "lesson", $maxfraction);
+                $result->notice = get_string("fractionsnomax", "quiz", $maxfraction);
                 return $result;
             }
             break;
 
-        case LESSON_PAGE_NUMERICAL:   // Note similarities to shortanswer.
+        case LESSON_PAGE_NUMERICAL:   // Note similarities to SHORTANSWER
 
             $answers = array();
             $maxfraction = -1;
@@ -136,19 +125,19 @@ function lesson_save_question_options($question, $lesson, $contextid) {
             // for each answer store the pair of min and max values even if they are the same
             foreach ($question->answer as $key => $dataanswer) {
                 if ($dataanswer != "") {
-                    $answer = clone($defaultanswer);
-                    if ($question->fraction[$key] >= 0.5) {
-                        $answer->jumpto = LESSON_NEXTPAGE;
-                        $answer->score = 1;
-                    }
-                    $answer->grade = round($question->fraction[$key] * 100);
+                    $answer = new stdClass;
+                    $answer->lessonid   = $question->lessonid;
+                    $answer->pageid   = $question->id;
+                    $answer->jumpto = LESSON_NEXTPAGE;
+                    $answer->timecreated   = $timenow;
+                    $answer->grade = $question->fraction[$key] * 100;
                     $min = $question->answer[$key] - $question->tolerance[$key];
                     $max = $question->answer[$key] + $question->tolerance[$key];
                     $answer->answer   = $min.":".$max;
+                    // $answer->answer   = $question->min[$key].":".$question->max[$key]; original line for min/max
                     $answer->response = $question->feedback[$key]['text'];
                     $answer->responseformat = $question->feedback[$key]['format'];
                     $answer->id = $DB->insert_record("lesson_answers", $answer);
-                    lesson_import_question_files('response', $question->feedback[$key], $answer, $contextid);
 
                     $answers[] = $answer->id;
                     if ($question->fraction[$key] > $maxfraction) {
@@ -160,7 +149,7 @@ function lesson_save_question_options($question, $lesson, $contextid) {
             /// Perform sanity checks on fractional grades
             if ($maxfraction != 1) {
                 $maxfraction = $maxfraction * 100;
-                $result->notice = get_string("fractionsnomax", "lesson", $maxfraction);
+                $result->notice = get_string("fractionsnomax", "quiz", $maxfraction);
                 return $result;
             }
         break;
@@ -168,49 +157,37 @@ function lesson_save_question_options($question, $lesson, $contextid) {
 
         case LESSON_PAGE_TRUEFALSE:
 
-            // In lesson the correct answer always come first, as it was the case
-            // in question bank exports years ago.
-            $answer = clone($defaultanswer);
-            $answer->grade = 100;
-            $answer->jumpto = LESSON_NEXTPAGE;
-            $answer->score = 1;
-            if ($question->correctanswer) {
-                $answer->answer = get_string("true", "lesson");
-                if (isset($question->feedbacktrue)) {
-                    $answer->response = $question->feedbacktrue['text'];
-                    $answer->responseformat = $question->feedbacktrue['format'];
-                    $answer->id = $DB->insert_record("lesson_answers", $answer);
-                    lesson_import_question_files('response', $question->feedbacktrue, $answer, $contextid);
-                }
-            } else {
-                $answer->answer = get_string("false", "lesson");
-                if (isset($question->feedbackfalse)) {
-                    $answer->response = $question->feedbackfalse['text'];
-                    $answer->responseformat = $question->feedbackfalse['format'];
-                    $answer->id = $DB->insert_record("lesson_answers", $answer);
-                    lesson_import_question_files('response', $question->feedbackfalse, $answer, $contextid);
-                }
+            // the truth
+            $answer = new stdClass();
+            $answer->lessonid   = $question->lessonid;
+            $answer->pageid = $question->id;
+            $answer->timecreated   = $timenow;
+            $answer->answer = get_string("true", "quiz");
+            $answer->grade = $question->correctanswer * 100;
+            if ($answer->grade > 50 ) {
+                $answer->jumpto = LESSON_NEXTPAGE;
             }
+            if (isset($question->feedbacktrue)) {
+                $answer->response = $question->feedbacktrue['text'];
+                $answer->responseformat = $question->feedbacktrue['format'];
+            }
+            $DB->insert_record("lesson_answers", $answer);
 
-            // Now the wrong answer.
-            $answer = clone($defaultanswer);
-            if ($question->correctanswer) {
-                $answer->answer = get_string("false", "lesson");
-                if (isset($question->feedbackfalse)) {
-                    $answer->response = $question->feedbackfalse['text'];
-                    $answer->responseformat = $question->feedbackfalse['format'];
-                    $answer->id = $DB->insert_record("lesson_answers", $answer);
-                    lesson_import_question_files('response', $question->feedbackfalse, $answer, $contextid);
-                }
-            } else {
-                $answer->answer = get_string("true", "lesson");
-                if (isset($question->feedbacktrue)) {
-                    $answer->response = $question->feedbacktrue['text'];
-                    $answer->responseformat = $question->feedbacktrue['format'];
-                    $answer->id = $DB->insert_record("lesson_answers", $answer);
-                    lesson_import_question_files('response', $question->feedbacktrue, $answer, $contextid);
-                }
+            // the lie
+            $answer = new stdClass;
+            $answer->lessonid   = $question->lessonid;
+            $answer->pageid = $question->id;
+            $answer->timecreated   = $timenow;
+            $answer->answer = get_string("false", "quiz");
+            $answer->grade = (1 - (int)$question->correctanswer) * 100;
+            if ($answer->grade > 50 ) {
+                $answer->jumpto = LESSON_NEXTPAGE;
             }
+            if (isset($question->feedbackfalse)) {
+                $answer->response = $question->feedbackfalse['text'];
+                $answer->responseformat = $question->feedbackfalse['format'];
+            }
+            $DB->insert_record("lesson_answers", $answer);
 
           break;
 
@@ -224,29 +201,27 @@ function lesson_save_question_options($question, $lesson, $contextid) {
             // Insert all the new answers
             foreach ($question->answer as $key => $dataanswer) {
                 if ($dataanswer != "") {
-                    $answer = clone($defaultanswer);
-                    $answer->grade = round($question->fraction[$key] * 100);
-
-                    if ($question->single) {
-                        if ($answer->grade > 50) {
-                            $answer->jumpto = LESSON_NEXTPAGE;
-                            $answer->score = 1;
-                        }
-                    } else {
-                        // If multi answer allowed, any answer with fraction > 0 is considered correct.
-                        if ($question->fraction[$key] > 0) {
-                            $answer->jumpto = LESSON_NEXTPAGE;
-                            $answer->score = 1;
-                        }
+                    $answer = new stdClass;
+                    $answer->lessonid   = $question->lessonid;
+                    $answer->pageid   = $question->id;
+                    $answer->timecreated   = $timenow;
+                    $answer->grade = $question->fraction[$key] * 100;
+                    // changed some defaults
+                    /* Original Code
+                    if ($answer->grade > 50 ) {
+                        $answer->jumpto = LESSON_NEXTPAGE;
                     }
+                    Replaced with:                    */
+                    if ($answer->grade > 50 ) {
+                        $answer->jumpto = LESSON_NEXTPAGE;
+                        $answer->score = 1;
+                    }
+                    // end Replace
                     $answer->answer   = $dataanswer['text'];
                     $answer->answerformat   = $dataanswer['format'];
                     $answer->response = $question->feedback[$key]['text'];
                     $answer->responseformat = $question->feedback[$key]['format'];
                     $answer->id = $DB->insert_record("lesson_answers", $answer);
-                    lesson_import_question_files('answer', $dataanswer, $answer, $contextid);
-                    lesson_import_question_files('response', $question->feedback[$key], $answer, $contextid);
-
                     // for Sanity checks
                     if ($question->fraction[$key] > 0) {
                         $totalfraction += $question->fraction[$key];
@@ -261,14 +236,14 @@ function lesson_save_question_options($question, $lesson, $contextid) {
             if ($question->single) {
                 if ($maxfraction != 1) {
                     $maxfraction = $maxfraction * 100;
-                    $result->notice = get_string("fractionsnomax", "lesson", $maxfraction);
+                    $result->notice = get_string("fractionsnomax", "quiz", $maxfraction);
                     return $result;
                 }
             } else {
                 $totalfraction = round($totalfraction,2);
                 if ($totalfraction != 1) {
                     $totalfraction = $totalfraction * 100;
-                    $result->notice = get_string("fractionsaddwrong", "lesson", $totalfraction);
+                    $result->notice = get_string("fractionsaddwrong", "quiz", $totalfraction);
                     return $result;
                 }
             }
@@ -278,11 +253,16 @@ function lesson_save_question_options($question, $lesson, $contextid) {
 
             $subquestions = array();
 
+            $defaultanswer = new stdClass;
+            $defaultanswer->lessonid   = $question->lessonid;
+            $defaultanswer->pageid   = $question->id;
+            $defaultanswer->timecreated   = $timenow;
+            $defaultanswer->grade = 0;
+
             // The first answer should always be the correct answer
             $correctanswer = clone($defaultanswer);
             $correctanswer->answer = get_string('thatsthecorrectanswer', 'lesson');
             $correctanswer->jumpto = LESSON_NEXTPAGE;
-            $correctanswer->score = 1;
             $DB->insert_record("lesson_answers", $correctanswer);
 
             // The second answer should always be the wrong answer
@@ -303,33 +283,16 @@ function lesson_save_question_options($question, $lesson, $contextid) {
                         // first answer contains the correct answer jump
                         $answer->jumpto = LESSON_NEXTPAGE;
                     }
-                    $answer->id = $DB->insert_record("lesson_answers", $answer);
-                    lesson_import_question_files('answer', $questiontext, $answer, $contextid);
-                    $subquestions[] = $answer->id;
+                    $subquestions[] = $DB->insert_record("lesson_answers", $answer);
                     $i++;
                 }
             }
 
             if (count($subquestions) < 3) {
-                $result->notice = get_string("notenoughsubquestions", "lesson");
+                $result->notice = get_string("notenoughsubquestions", "quiz");
                 return $result;
             }
             break;
-
-        case LESSON_PAGE_ESSAY:
-            $answer = new stdClass();
-            $answer->lessonid = $question->lessonid;
-            $answer->pageid = $question->id;
-            $answer->timecreated = $timenow;
-            $answer->answer = null;
-            $answer->answerformat = FORMAT_MOODLE;
-            $answer->grade = 0;
-            $answer->score = 1;
-            $answer->jumpto = LESSON_NEXTPAGE;
-            $answer->response = null;
-            $answer->responseformat = FORMAT_MOODLE;
-            $answer->id = $DB->insert_record("lesson_answers", $answer);
-        break;
         default:
             $result->error = "Unsupported question type ($question->qtype)!";
             return $result;
@@ -341,57 +304,17 @@ function lesson_save_question_options($question, $lesson, $contextid) {
 class qformat_default {
 
     var $displayerrors = true;
-    var $category = null;
+    var $category = NULL;
     var $questionids = array();
-    protected $importcontext = null;
-    var $qtypeconvert = array('numerical'   => LESSON_PAGE_NUMERICAL,
-                               'multichoice' => LESSON_PAGE_MULTICHOICE,
-                               'truefalse'   => LESSON_PAGE_TRUEFALSE,
-                               'shortanswer' => LESSON_PAGE_SHORTANSWER,
-                               'match'       => LESSON_PAGE_MATCHING,
-                               'essay'       => LESSON_PAGE_ESSAY
+    var $qtypeconvert = array(NUMERICAL   => LESSON_PAGE_NUMERICAL,
+                              MULTICHOICE => LESSON_PAGE_MULTICHOICE,
+                              TRUEFALSE   => LESSON_PAGE_TRUEFALSE,
+                              SHORTANSWER => LESSON_PAGE_SHORTANSWER,
+                              MATCH       => LESSON_PAGE_MATCHING
                               );
 
     // Importing functions
     function provide_import() {
-        return false;
-    }
-
-    function set_importcontext($context) {
-        $this->importcontext = $context;
-    }
-
-    /**
-     * Handle parsing error
-     *
-     * @param string $message information about error
-     * @param string $text imported text that triggered the error
-     * @param string $questionname imported question name
-     */
-    protected function error($message, $text='', $questionname='') {
-        $importerrorquestion = get_string('importerrorquestion', 'question');
-
-        echo "<div class=\"importerror\">\n";
-        echo "<strong>$importerrorquestion $questionname</strong>";
-        if (!empty($text)) {
-            $text = s($text);
-            echo "<blockquote>$text</blockquote>\n";
-        }
-        echo "<strong>$message</strong>\n";
-        echo "</div>";
-    }
-
-    /**
-     * Import for questiontype plugins
-     * @param mixed $data The segment of data containing the question
-     * @param object $question processed (so far) by standard import code if appropriate
-     * @param object $extra mixed any additional format specific data that may be passed by the format
-     * @param string $qtypehint hint about a question type from format
-     * @return object question object suitable for save_options() or false if cannot handle
-     */
-    public function try_importing_using_qtypes($data, $question = null, $extra = null,
-            $qtypehint = '') {
-
         return false;
     }
 
@@ -421,13 +344,6 @@ class qformat_default {
                 $this->count_questions($questions)), 'notifysuccess');
 
         $count = 0;
-        $addquestionontop = false;
-        if ($pageid == 0) {
-            $addquestionontop = true;
-            $updatelessonpage = $DB->get_record('lesson_pages', array('lessonid' => $lesson->id, 'prevpageid' => 0));
-        } else {
-            $updatelessonpage = $DB->get_record('lesson_pages', array('lessonid' => $lesson->id, 'id' => $pageid));
-        }
 
         $unsupportedquestions = 0;
 
@@ -437,12 +353,11 @@ class qformat_default {
                 case 'category':
                     break;
                 // the good ones
-                case 'shortanswer' :
-                case 'numerical' :
-                case 'truefalse' :
-                case 'multichoice' :
-                case 'match' :
-                case 'essay' :
+                case SHORTANSWER :
+                case NUMERICAL :
+                case TRUEFALSE :
+                case MULTICHOICE :
+                case MATCH :
                     $count++;
 
                     //Show nice formated question in one line.
@@ -452,12 +367,12 @@ class qformat_default {
                     $newpage->lessonid = $lesson->id;
                     $newpage->qtype = $this->qtypeconvert[$question->qtype];
                     switch ($question->qtype) {
-                        case 'shortanswer' :
+                        case SHORTANSWER :
                             if (isset($question->usecase)) {
                                 $newpage->qoption = $question->usecase;
                             }
                             break;
-                        case 'multichoice' :
+                        case MULTICHOICE :
                             if (isset($question->single)) {
                                 $newpage->qoption = !$question->single;
                             }
@@ -484,6 +399,7 @@ class qformat_default {
                         $newpageid = $DB->insert_record("lesson_pages", $newpage);
                         // update the linked list
                         $DB->set_field("lesson_pages", "nextpageid", $newpageid, array("id" => $pageid));
+
                     } else {
                         // new page is the first page
                         // get the existing (first) page (if any)
@@ -502,27 +418,17 @@ class qformat_default {
                             $DB->set_field("lesson_pages", "prevpageid", $newpageid, array("id" => $page->id));
                         }
                     }
-
                     // reset $pageid and put the page ID in $question, used in save_question_option()
                     $pageid = $newpageid;
                     $question->id = $newpageid;
 
                     $this->questionids[] = $question->id;
 
-                    // Import images in question text.
-                    if (isset($question->questiontextitemid)) {
-                        $questiontext = file_save_draft_area_files($question->questiontextitemid,
-                                $this->importcontext->id, 'mod_lesson', 'page_contents', $newpageid,
-                                null , $question->questiontext);
-                        // Update content with recoded urls.
-                        $DB->set_field("lesson_pages", "contents", $questiontext, array("id" => $newpageid));
-                    }
-
                     // Now to save all the answers and type-specific options
 
                     $question->lessonid = $lesson->id; // needed for foreign key
                     $question->qtype = $this->qtypeconvert[$question->qtype];
-                    $result = lesson_save_question_options($question, $lesson, $this->importcontext->id);
+                    $result = lesson_save_question_options($question, $lesson);
 
                     if (!empty($result->error)) {
                         echo $OUTPUT->notification($result->error);
@@ -539,14 +445,7 @@ class qformat_default {
                     $unsupportedquestions++;
                     break;
             }
-        }
-        // Update the prev links if there were existing pages.
-        if (!empty($updatelessonpage)) {
-            if ($addquestionontop) {
-                $DB->set_field("lesson_pages", "prevpageid", $pageid, array("id" => $updatelessonpage->id));
-            } else {
-                $DB->set_field("lesson_pages", "prevpageid", $pageid, array("id" => $updatelessonpage->nextpageid));
-            }
+
         }
         if ($unsupportedquestions) {
             echo $OUTPUT->notification(get_string('unknownqtypesnotimported', 'lesson', $unsupportedquestions));
@@ -630,10 +529,9 @@ class qformat_default {
     /// this format, this function converts it into a question
     /// object suitable for processing and insertion into Moodle.
 
-        // We should never get there unless the qformat plugin is broken.
-        throw new coding_exception('Question format plugin is missing important code: readquestion.');
+        echo "<p>This flash question format has not yet been completed!</p>";
 
-        return null;
+        return NULL;
     }
 
     /**
@@ -660,41 +558,32 @@ class qformat_default {
         $name = clean_param($name, PARAM_TEXT); // Matches what the question editing form does.
         $name = trim($name);
         $trimlength = 251;
-        while (core_text::strlen($name) > 255 && $trimlength > 0) {
+        while (textlib::strlen($name) > 255 && $trimlength > 0) {
             $name = shorten_text($name, $trimlength);
             $trimlength -= 10;
         }
         return $name;
     }
 
-    /**
-     * return an "empty" question
-     * Somewhere to specify question parameters that are not handled
-     * by import but are required db fields.
-     * This should not be overridden.
-     * @return object default question
-     */
-    protected function defaultquestion() {
+    function defaultquestion() {
+    // returns an "empty" question
+    // Somewhere to specify question parameters that are not handled
+    // by import but are required db fields.
+    // This should not be overridden.
         global $CFG;
-        static $defaultshuffleanswers = null;
-        if (is_null($defaultshuffleanswers)) {
-            $defaultshuffleanswers = get_config('quiz', 'shuffleanswers');
-        }
 
         $question = new stdClass();
-        $question->shuffleanswers = $defaultshuffleanswers;
+        $question->shuffleanswers = get_config('quiz', 'shuffleanswers');
         $question->defaultmark = 1;
         $question->image = "";
         $question->usecase = 0;
         $question->multiplier = array();
-        $question->questiontextformat = FORMAT_MOODLE;
         $question->generalfeedback = '';
-        $question->generalfeedbackformat = FORMAT_MOODLE;
         $question->correctfeedback = '';
         $question->partiallycorrectfeedback = '';
         $question->incorrectfeedback = '';
         $question->answernumbering = 'abc';
-        $question->penalty = 0.3333333;
+        $question->penalty = 0.1;
         $question->length = 1;
         $question->qoption = 0;
         $question->layout = 1;
@@ -721,12 +610,7 @@ class qformat_default {
     protected function format_question_text($question) {
         $formatoptions = new stdClass();
         $formatoptions->noclean = true;
-        // The html_to_text call strips out all URLs, but format_text complains
-        // if it finds @@PLUGINFILE@@ tokens. So, we need to replace
-        // @@PLUGINFILE@@ with a real URL, but it doesn't matter what.
-        // We use http://example.com/.
-        $text = str_replace('@@PLUGINFILE@@/', 'http://example.com/', $question->questiontext);
-        return html_to_text(format_text($text,
+        return html_to_text(format_text($question->questiontext,
                 $question->questiontextformat, $formatoptions), 0, false);
     }
 
@@ -763,8 +647,8 @@ class qformat_based_on_xml extends qformat_default {
             "&#8212;" => "-",
         );
         $str = strtr($str, $html_code_list);
-        // Use core_text entities_to_utf8 function to convert only numerical entities.
-        $str = core_text::entities_to_utf8($str, false);
+        // Use textlib entities_to_utf8 function to convert only numerical entities.
+        $str = textlib::entities_to_utf8($str, false);
         return $str;
     }
 

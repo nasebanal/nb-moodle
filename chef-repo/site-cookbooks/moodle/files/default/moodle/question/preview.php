@@ -50,17 +50,17 @@ $question = question_bank::load_question($id);
 if ($cmid = optional_param('cmid', 0, PARAM_INT)) {
     $cm = get_coursemodule_from_id(false, $cmid);
     require_login($cm->course, false, $cm);
-    $context = context_module::instance($cmid);
+    $context = get_context_instance(CONTEXT_MODULE, $cmid);
 
 } else if ($courseid = optional_param('courseid', 0, PARAM_INT)) {
     require_login($courseid);
-    $context = context_course::instance($courseid);
+    $context = get_context_instance(CONTEXT_COURSE, $courseid);
 
 } else {
     require_login();
     $category = $DB->get_record('question_categories',
             array('id' => $question->category), '*', MUST_EXIST);
-    $context = context::instance_by_id($category->contextid);
+    $context = get_context_instance_by_id($category->contextid);
     $PAGE->set_context($context);
     // Note that in the other cases, require_login will set the correct page context.
 }
@@ -226,11 +226,8 @@ $technical = array();
 $technical[] = get_string('behaviourbeingused', 'question',
         question_engine::get_behaviour_name($qa->get_behaviour_name()));
 $technical[] = get_string('technicalinfominfraction',     'question', $qa->get_min_fraction());
-$technical[] = get_string('technicalinfomaxfraction',     'question', $qa->get_max_fraction());
-$technical[] = get_string('technicalinfovariant',         'question', $qa->get_variant());
 $technical[] = get_string('technicalinfoquestionsummary', 'question', s($qa->get_question_summary()));
 $technical[] = get_string('technicalinforightsummary',    'question', s($qa->get_right_answer_summary()));
-$technical[] = get_string('technicalinforesponsesummary', 'question', s($qa->get_response_summary()));
 $technical[] = get_string('technicalinfostate',           'question', '' . $qa->get_state());
 
 // Start output.
@@ -277,10 +274,12 @@ print_collapsible_region_end();
 // Display the settings form.
 $optionsform->display();
 
-$PAGE->requires->js_module('core_question_engine');
-$PAGE->requires->strings_for_js(array(
-    'closepreview',
-), 'question');
-$PAGE->requires->yui_module('moodle-question-preview', 'M.question.preview.init');
+$PAGE->requires->js_init_call('M.core_question_preview.init', null, false, array(
+        'name' => 'core_question_preview',
+        'fullpath' => '/question/preview.js',
+        'requires' => array('base', 'dom', 'event-delegate', 'event-key', 'core_question_engine'),
+        'strings' => array(
+            array('closepreview', 'question'),
+        )));
 echo $OUTPUT->footer();
 

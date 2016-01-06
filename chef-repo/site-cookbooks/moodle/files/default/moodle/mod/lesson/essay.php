@@ -18,28 +18,27 @@
 /**
  * Provides the interface for grading essay questions
  *
- * @package mod_lesson
+ * @package    mod
+ * @subpackage lesson
  * @copyright  1999 onwards Martin Dougiamas  {@link http://moodle.com}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  **/
 
 require_once('../../config.php');
 require_once($CFG->dirroot.'/mod/lesson/locallib.php');
-require_once($CFG->dirroot.'/mod/lesson/pagetypes/essay.php');
 require_once($CFG->dirroot.'/mod/lesson/essay_form.php');
 require_once($CFG->libdir.'/eventslib.php');
 
 $id   = required_param('id', PARAM_INT);             // Course Module ID
 $mode = optional_param('mode', 'display', PARAM_ALPHA);
 
-$cm = get_coursemodule_from_id('lesson', $id, 0, false, MUST_EXIST);
+$cm = get_coursemodule_from_id('lesson', $id, 0, false, MUST_EXIST);;
 $course = $DB->get_record('course', array('id' => $cm->course), '*', MUST_EXIST);
-$dblesson = $DB->get_record('lesson', array('id' => $cm->instance), '*', MUST_EXIST);
-$lesson = new lesson($dblesson);
+$lesson = new lesson($DB->get_record('lesson', array('id' => $cm->instance), '*', MUST_EXIST));
 
 require_login($course, false, $cm);
-$context = context_module::instance($cm->id);
-require_capability('mod/lesson:grade', $context);
+$context = get_context_instance(CONTEXT_MODULE, $cm->id);
+require_capability('mod/lesson:edit', $context);
 
 $url = new moodle_url('/mod/lesson/essay.php', array('id'=>$id));
 if ($mode !== 'display') {
@@ -47,23 +46,14 @@ if ($mode !== 'display') {
 }
 $PAGE->set_url($url);
 
-$currentgroup = groups_get_activity_group($cm, true);
-
 $attempt = new stdClass();
 $user = new stdClass();
 $attemptid = optional_param('attemptid', 0, PARAM_INT);
-
-$formattextdefoptions = new stdClass();
-$formattextdefoptions->noclean = true;
-$formattextdefoptions->para = false;
-$formattextdefoptions->context = $context;
 
 if ($attemptid > 0) {
     $attempt = $DB->get_record('lesson_attempts', array('id' => $attemptid));
     $answer = $DB->get_record('lesson_answers', array('lessonid' => $lesson->id, 'pageid' => $attempt->pageid));
     $user = $DB->get_record('user', array('id' => $attempt->userid));
-    // Apply overrides.
-    $lesson->update_effective_access($user->id);
     $scoreoptions = array();
     if ($lesson->custom) {
         $i = $answer->score;
@@ -104,13 +94,7 @@ switch ($mode) {
             print_error('cannotfinduser', 'lesson');
         }
 
-        $editoroptions = array('noclean' => true, 'maxfiles' => EDITOR_UNLIMITED_FILES,
-                'maxbytes' => $CFG->maxbytes, 'context' => $context);
-        $essayinfo = lesson_page_type_essay::extract_useranswer($attempt->useranswer);
-        $essayinfo = file_prepare_standard_editor($essayinfo, 'response', $editoroptions, $context,
-                'mod_lesson', 'essay_responses', $attempt->id);
-        $mform = new essay_grading_form(null, array('scoreoptions' => $scoreoptions, 'user' => $user));
-        $mform->set_data($essayinfo);
+        $mform = new essay_grading_form(null, array('scoreoptions'=>$scoreoptions, 'user'=>$user));
         if ($mform->is_cancelled()) {
             redirect("$CFG->wwwroot/mod/lesson/essay.php?id=$cm->id");
         }
@@ -119,12 +103,12 @@ switch ($mode) {
                 print_error('cannotfindgrade', 'lesson');
             }
 
+            $essayinfo = new stdClass;
+            $essayinfo = unserialize($attempt->useranswer);
+
             $essayinfo->graded = 1;
             $essayinfo->score = $form->score;
-            $form = file_postupdate_standard_editor($form, 'response', $editoroptions, $context,
-                                        'mod_lesson', 'essay_responses', $attempt->id);
-            $essayinfo->response = $form->response;
-            $essayinfo->responseformat = $form->responseformat;
+            $essayinfo->response = clean_param($form->response, PARAM_RAW);
             $essayinfo->sent = 0;
             if (!$lesson->custom && $essayinfo->score == 1) {
                 $attempt->correct = 1;
@@ -145,20 +129,8 @@ switch ($mode) {
             $updategrade->id = $grade->id;
             $updategrade->grade = $gradeinfo->grade;
             $DB->update_record('lesson_grades', $updategrade);
-
-            $params = array(
-                'context' => $context,
-                'objectid' => $grade->id,
-                'courseid' => $course->id,
-                'relateduserid' => $attempt->userid,
-                'other' => array(
-                    'lessonid' => $lesson->id,
-                    'attemptid' => $attemptid
-                )
-            );
-            $event = \mod_lesson\event\essay_assessed::create($params);
-            $event->add_record_snapshot('lesson', $dblesson);
-            $event->trigger();
+            // Log it
+            add_to_log($course->id, 'lesson', 'update grade', "essay.php?id=$cm->id", $lesson->name, $cm->id);
 
             $lesson->add_message(get_string('changessaved'), 'notifysuccess');
 
@@ -182,30 +154,25 @@ switch ($mode) {
             }
         } else {
             $queryadd = '';
-
-            // If group selected, only send to group members.
-            list($esql, $params) = get_enrolled_sql($context, '', $currentgroup, true);
-            list($sort, $sortparams) = users_order_by_sql('u');
-            $params['lessonid'] = $lesson->id;
-
+            $params = array ("lessonid" => $lesson->id);
             // Need to use inner view to avoid distinct + text
             if (!$users = $DB->get_records_sql("
                 SELECT u.*
                   FROM {user} u
                   JOIN (
-                           SELECT DISTINCT userid
-                             FROM {lesson_attempts}
-                            WHERE lessonid = :lessonid
-                       ) ui ON u.id = ui.userid
-                  JOIN ($esql) ue ON ue.id = u.id
-                  ORDER BY $sort", $params)) {
+                    SELECT DISTINCT u.id
+                      FROM {user} u,
+                           {lesson_attempts} a
+                     WHERE a.lessonid = :lessonid and
+                           u.id = a.userid) ui ON (u.id = ui.id)
+                  ORDER BY u.lastname", $params)) {
                 print_error('cannotfinduser', 'lesson');
             }
         }
 
         $pages = $lesson->load_all_pages();
         foreach ($pages as $key=>$page) {
-            if ($page->qtype != LESSON_PAGE_ESSAY) {
+            if ($page->qtype !== LESSON_PAGE_ESSAY) {
                 unset($pages[$key]);
             }
         }
@@ -224,9 +191,11 @@ switch ($mode) {
         if (!$answers = $DB->get_records_select('lesson_answers', "lessonid = ? AND pageid $answerUsql", $parameters, '', 'pageid, score')) {
             print_error('cannotfindanswer', 'lesson');
         }
+        $options = new stdClass;
+        $options->noclean = true;
 
         foreach ($attempts as $attempt) {
-            $essayinfo = lesson_page_type_essay::extract_useranswer($attempt->useranswer);
+            $essayinfo = unserialize($attempt->useranswer);
             if ($essayinfo->graded && !$essayinfo->sent) {
                 // Holds values for the essayemailsubject string for the email message
                 $a = new stdClass;
@@ -247,21 +216,16 @@ switch ($mode) {
 
                 // Set rest of the message values
                 $currentpage = $lesson->load_page($attempt->pageid);
-                $a->question = format_text($currentpage->contents, $currentpage->contentsformat, $formattextdefoptions);
-                $a->response = format_text($essayinfo->answer, $essayinfo->answerformat,
-                        array('context' => $context, 'para' => true));
-                $a->comment = $essayinfo->response;
-                $a->comment = file_rewrite_pluginfile_urls($a->comment, 'pluginfile.php', $context->id,
-                            'mod_lesson', 'essay_responses', $attempt->id);
-                $a->comment  = format_text($a->comment, $essayinfo->responseformat, $formattextdefoptions);
-                $a->lesson = format_string($lesson->name, true);
+                $a->question = format_text($currentpage->contents, $currentpage->contentsformat, $options);
+                $a->response = s($essayinfo->answer);
+                $a->comment  = s($essayinfo->response);
 
                 // Fetch message HTML and plain text formats
                 $message  = get_string('essayemailmessage2', 'lesson', $a);
                 $plaintext = format_text_email($message, FORMAT_HTML);
 
                 // Subject
-                $subject = get_string('essayemailsubject', 'lesson');
+                $subject = get_string('essayemailsubject', 'lesson', format_string($pages[$attempt->pageid]->title,true));
 
                 $eventdata = new stdClass();
                 $eventdata->modulename       = 'lesson';
@@ -281,6 +245,8 @@ switch ($mode) {
                 $essayinfo->sent = 1;
                 $attempt->useranswer = serialize($essayinfo);
                 $DB->update_record('lesson_attempts', $attempt);
+                // Log it
+                add_to_log($course->id, 'lesson', 'update email essay grade', "essay.php?id=$cm->id", format_string($pages[$attempt->pageid]->title,true).': '.fullname($users[$attempt->userid]), $cm->id);
             }
         }
         $lesson->add_message(get_string('emailsuccess', 'lesson'), 'notifysuccess');
@@ -291,50 +257,41 @@ switch ($mode) {
         // Get lesson pages that are essay
         $pages = $lesson->load_all_pages();
         foreach ($pages as $key=>$page) {
-            if ($page->qtype != LESSON_PAGE_ESSAY) {
+            if ($page->qtype !== LESSON_PAGE_ESSAY) {
                 unset($pages[$key]);
             }
         }
         if (count($pages) > 0) {
+            $params = array ("lessonid" => $lesson->id, "qtype" => LESSON_PAGE_ESSAY);
             // Get only the attempts that are in response to essay questions
-            list($usql, $parameters) = $DB->get_in_or_equal(array_keys($pages), SQL_PARAMS_NAMED);
-            // If group selected, only get group members attempts.
-            list($esql, $params) = get_enrolled_sql($context, '', $currentgroup, true);
-            $parameters = array_merge($params, $parameters);
-
-            $sql = "SELECT a.*
-                        FROM {lesson_attempts} a
-                        JOIN ($esql) ue ON a.userid = ue.id
-                        WHERE pageid $usql";
-            if ($essayattempts = $DB->get_records_sql($sql, $parameters)) {
+            list($usql, $parameters) = $DB->get_in_or_equal(array_keys($pages));
+            if ($essayattempts = $DB->get_records_select('lesson_attempts', 'pageid '.$usql, $parameters)) {
+                // Get all the users who have taken this lesson, order by their last name
                 $ufields = user_picture::fields('u');
-                // Get all the users who have taken this lesson.
-                list($sort, $sortparams) = users_order_by_sql('u');
-
-                $params['lessonid'] = $lesson->id;
-                $sql = "SELECT DISTINCT $ufields
-                        FROM {user} u
-                        JOIN {lesson_attempts} a ON u.id = a.userid
-                        JOIN ($esql) ue ON ue.id = a.userid
-                        WHERE a.lessonid = :lessonid
-                        ORDER BY $sort";
+                if (!empty($cm->groupingid)) {
+                    $params["groupingid"] = $cm->groupingid;
+                    $sql = "SELECT DISTINCT $ufields
+                            FROM {lesson_attempts} a
+                                INNER JOIN {user} u ON u.id = a.userid
+                                INNER JOIN {groups_members} gm ON gm.userid = u.id
+                                INNER JOIN {groupings_groups} gg ON gm.groupid = gg.groupid AND gg.groupingid = :groupingid
+                            WHERE a.lessonid = :lessonid
+                            ORDER BY u.lastname";
+                } else {
+                    $sql = "SELECT DISTINCT $ufields
+                            FROM {user} u,
+                                 {lesson_attempts} a
+                            WHERE a.lessonid = :lessonid and
+                                  u.id = a.userid
+                            ORDER BY u.lastname";
+                }
                 if (!$users = $DB->get_records_sql($sql, $params)) {
                     $mode = 'none'; // not displaying anything
-                    if (!empty($currentgroup)) {
-                        $groupname = groups_get_group_name($currentgroup);
-                        $lesson->add_message(get_string('noonehasansweredgroup', 'lesson', $groupname));
-                    } else {
-                        $lesson->add_message(get_string('noonehasanswered', 'lesson'));
-                    }
+                    $lesson->add_message(get_string('noonehasanswered', 'lesson'));
                 }
             } else {
                 $mode = 'none'; // not displaying anything
-                if (!empty($currentgroup)) {
-                    $groupname = groups_get_group_name($currentgroup);
-                    $lesson->add_message(get_string('noonehasansweredgroup', 'lesson', $groupname));
-                } else {
-                    $lesson->add_message(get_string('noonehasanswered', 'lesson'));
-                }
+                $lesson->add_message(get_string('noonehasanswered', 'lesson'));
             }
         } else {
             $mode = 'none'; // not displaying anything
@@ -342,13 +299,14 @@ switch ($mode) {
         }
         break;
 }
+// Log it
+add_to_log($course->id, 'lesson', 'view grade', "essay.php?id=$cm->id", get_string('manualgrading', 'lesson'), $cm->id);
 
 $lessonoutput = $PAGE->get_renderer('mod_lesson');
-echo $lessonoutput->header($lesson, $cm, 'essay', false, null, get_string('manualgrading', 'lesson'));
+echo $lessonoutput->header($lesson, $cm, 'essay');
 
 switch ($mode) {
     case 'display':
-        groups_print_activity_menu($cm, $url);
         // Expects $user, $essayattempts and $pages to be set already
 
         // Group all the essays by userid
@@ -394,18 +352,18 @@ switch ($mode) {
                     }
 
                     // Start processing the attempt
-                    $essayinfo = lesson_page_type_essay::extract_useranswer($essay->useranswer);
+                    $essayinfo = unserialize($essay->useranswer);
 
                     // link for each essay
                     $url = new moodle_url('/mod/lesson/essay.php', array('id'=>$cm->id,'mode'=>'grade','attemptid'=>$essay->id,'sesskey'=>sesskey()));
                     $attributes = array();
                     // Different colors for all the states of an essay (graded, if sent, not graded)
                     if (!$essayinfo->graded) {
-                        $attributes['class'] = "essayungraded";
+                        $attributes['class'] = "graded";
                     } elseif (!$essayinfo->sent) {
-                        $attributes['class'] = "essaygraded";
+                        $attributes['class'] = "sent";
                     } else {
-                        $attributes['class'] = "essaysent";
+                        $attributes['class'] = "ungraded";
                     }
                     $essaylinks[] = html_writer::link($url, userdate($essay->timeseen, get_string('strftimedatetime')).' '.format_string($pages[$essay->pageid]->title,true), $attributes);
                 }
@@ -426,19 +384,9 @@ switch ($mode) {
         echo html_writer::table($table);
         break;
     case 'grade':
-        // Trigger the essay grade viewed event.
-        $event = \mod_lesson\event\essay_attempt_viewed::create(array(
-            'objectid' => $attempt->id,
-            'relateduserid' => $attempt->userid,
-            'context' => $context,
-            'courseid' => $course->id,
-        ));
-        $event->add_record_snapshot('lesson_attempts', $attempt);
-        $event->trigger();
-
         // Grading form
         // Expects the following to be set: $attemptid, $answer, $user, $page, $attempt
-        $essayinfo = lesson_page_type_essay::extract_useranswer($attempt->useranswer);
+        $essayinfo = unserialize($attempt->useranswer);
         $currentpage = $lesson->load_page($attempt->pageid);
 
         $mform = new essay_grading_form(null, array('scoreoptions'=>$scoreoptions, 'user'=>$user));
@@ -446,21 +394,12 @@ switch ($mode) {
         $data->id = $cm->id;
         $data->attemptid = $attemptid;
         $data->score = $essayinfo->score;
-        $data->question = format_text($currentpage->contents, $currentpage->contentsformat, $formattextdefoptions);
-        $data->studentanswer = format_text($essayinfo->answer, $essayinfo->answerformat,
-                array('context' => $context, 'para' => true));
+        $data->question = format_string($currentpage->contents, $currentpage->contentsformat);
+        $data->studentanswer = format_string($essayinfo->answer, $essayinfo->answerformat);
         $data->response = $essayinfo->response;
-        $data->responseformat = $essayinfo->responseformat;
-        $editoroptions = array('noclean' => true, 'maxfiles' => EDITOR_UNLIMITED_FILES,
-                'maxbytes' => $CFG->maxbytes, 'context' => $context);
-        $data = file_prepare_standard_editor($data, 'response', $editoroptions, $context,
-                'mod_lesson', 'essay_responses', $attempt->id);
         $mform->set_data($data);
 
         $mform->display();
-        break;
-    default:
-        groups_print_activity_menu($cm, $url);
         break;
 }
 

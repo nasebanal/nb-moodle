@@ -52,7 +52,7 @@ if (!$item = $DB->get_record('grade_items', array('id' => $itemid))) {
 }
 
 require_login($course);
-$context = context_course::instance($course->id);
+$context = get_context_instance(CONTEXT_COURSE, $course->id);
 
 require_capability('gradereport/grader:view', $context);
 require_capability('moodle/grade:viewall', $context);
@@ -94,6 +94,7 @@ print_grade_page_head($COURSE->id, 'report', 'grader', $reportname);
 
 echo $report->group_selector;
 echo '<div class="clearer"></div>';
+// echo $report->get_toggles_html();
 
 //show warnings if any
 foreach($warnings as $warning) {

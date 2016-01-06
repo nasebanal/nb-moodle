@@ -1,4 +1,5 @@
 <?php
+
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -22,8 +23,6 @@
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-$string['pluginname'] = 'Private files';
+$string['managemyfiles'] = 'Manage my files';
+$string['pluginname'] = 'My private files';
 $string['privatefiles'] = 'Private files';
-$string['private_files:addinstance'] = 'Add a new private files block';
-$string['private_files:myaddinstance'] = 'Add a new private files block to Dashboard';
-

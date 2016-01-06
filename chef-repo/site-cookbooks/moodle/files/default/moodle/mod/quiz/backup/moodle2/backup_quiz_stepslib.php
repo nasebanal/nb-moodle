@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * @package    mod_quiz
+ * @package    moodlecore
  * @subpackage backup-moodle2
  * @copyright  2010 onwards Eloy Lafuente (stronk7) {@link http://stronk7.com}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -41,15 +41,15 @@ class backup_quiz_activity_structure_step extends backup_questions_activity_stru
         // Define each element separated.
         $quiz = new backup_nested_element('quiz', array('id'), array(
             'name', 'intro', 'introformat', 'timeopen', 'timeclose', 'timelimit',
-            'overduehandling', 'graceperiod', 'preferredbehaviour', 'canredoquestions', 'attempts_number',
+            'overduehandling', 'graceperiod', 'preferredbehaviour', 'attempts_number',
             'attemptonlast', 'grademethod', 'decimalpoints', 'questiondecimalpoints',
             'reviewattempt', 'reviewcorrectness', 'reviewmarks',
             'reviewspecificfeedback', 'reviewgeneralfeedback',
             'reviewrightanswer', 'reviewoverallfeedback',
-            'questionsperpage', 'navmethod', 'shuffleanswers',
-            'sumgrades', 'grade', 'timecreated',
+            'questionsperpage', 'navmethod', 'shufflequestions', 'shuffleanswers',
+            'questions', 'sumgrades', 'grade', 'timecreated',
             'timemodified', 'password', 'subnet', 'browsersecurity',
-            'delay1', 'delay2', 'showuserpicture', 'showblocks', 'completionattemptsexhausted', 'completionpass'));
+            'delay1', 'delay2', 'showuserpicture', 'showblocks'));
 
         // Define elements for access rule subplugin settings.
         $this->add_subplugin_structure('quizaccess', $quiz, true);
@@ -57,12 +57,7 @@ class backup_quiz_activity_structure_step extends backup_questions_activity_stru
         $qinstances = new backup_nested_element('question_instances');
 
         $qinstance = new backup_nested_element('question_instance', array('id'), array(
-            'slot', 'page', 'requireprevious', 'questionid', 'maxmark'));
-
-        $sections = new backup_nested_element('sections');
-
-        $section = new backup_nested_element('section', array('id'), array(
-            'firstslot', 'heading', 'shufflequestions'));
+            'question', 'grade'));
 
         $feedbacks = new backup_nested_element('feedbacks');
 
@@ -97,9 +92,6 @@ class backup_quiz_activity_structure_step extends backup_questions_activity_stru
         $quiz->add_child($qinstances);
         $qinstances->add_child($qinstance);
 
-        $quiz->add_child($sections);
-        $sections->add_child($section);
-
         $quiz->add_child($feedbacks);
         $feedbacks->add_child($feedback);
 
@@ -115,11 +107,8 @@ class backup_quiz_activity_structure_step extends backup_questions_activity_stru
         // Define sources.
         $quiz->set_source_table('quiz', array('id' => backup::VAR_ACTIVITYID));
 
-        $qinstance->set_source_table('quiz_slots',
-                array('quizid' => backup::VAR_PARENTID));
-
-        $section->set_source_table('quiz_sections',
-                array('quizid' => backup::VAR_PARENTID));
+        $qinstance->set_source_table('quiz_question_instances',
+                array('quiz' => backup::VAR_PARENTID));
 
         $feedback->set_source_table('quiz_feedback',
                 array('quizid' => backup::VAR_PARENTID));
@@ -148,7 +137,7 @@ class backup_quiz_activity_structure_step extends backup_questions_activity_stru
         $attempt->set_source_alias('attempt', 'attemptnum');
 
         // Define id annotations.
-        $qinstance->annotate_ids('question', 'questionid');
+        $qinstance->annotate_ids('question', 'question');
         $override->annotate_ids('user', 'userid');
         $override->annotate_ids('group', 'groupid');
         $grade->annotate_ids('user', 'userid');

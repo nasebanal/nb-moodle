@@ -20,7 +20,7 @@
  *
  * @copyright 2005 Martin Dougiamas  http://dougiamas.com
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @package mod_data
+ * @package mod-data
  */
 
 require_once('../../config.php');
@@ -62,7 +62,7 @@ if ($id) {
 
 require_login($course, false, $cm);
 
-$context = context_module::instance($cm->id);
+$context = get_context_instance(CONTEXT_MODULE, $cm->id);
 require_capability('mod/data:manageentries', $context);
 $form = new mod_data_import_form(new moodle_url('/mod/data/import.php'));
 
@@ -94,7 +94,7 @@ if (!$formdata = $form->get_data()) {
     // Large files are likely to take their time and memory. Let PHP know
     // that we'll take longer, and that the process should be recycled soon
     // to free up memory.
-    core_php_time_limit::raise();
+    @set_time_limit(0);
     raise_memory_limit(MEMORY_EXTRA);
 
     $iid = csv_import_reader::get_new_iid('moddata');
@@ -156,22 +156,10 @@ if (!$formdata = $form->get_data()) {
                     // for now, only for "latlong" and "url" fields, but that should better be looked up from
                     // $CFG->dirroot . '/mod/data/field/' . $field->type . '/field.class.php'
                     // once there is stored how many contents the field can have.
-                    if ($field->type == 'latlong') {
-                        $values = explode(" ", $value, 2);
-                        // The lat, long values might be in a different float format.
-                        $content->content  = unformat_float($values[0]);
-                        $content->content1 = unformat_float($values[1]);
-                    } else if ($field->type == 'url') {
+                    if (preg_match("/^(latlong|url)$/", $field->type)) {
                         $values = explode(" ", $value, 2);
                         $content->content  = $values[0];
-                        if (!empty($content->content) && (strpos($content->content, '://') === false)
-                                && (strpos($content->content, '/') !== 0)) {
-                            $content->content = 'http://' . $content->content;
-                        }
-                        // The url field doesn't always have two values (unforced autolinking).
-                        if (count($values) > 1) {
-                            $content->content1 = $values[1];
-                        }
+                        $content->content1 = $values[1];
                     } else {
                         $content->content = $value;
                     }

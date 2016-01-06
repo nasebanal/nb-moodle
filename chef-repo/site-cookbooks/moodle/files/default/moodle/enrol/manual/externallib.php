@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+
 /**
  * External course participation api.
  *
@@ -31,7 +32,7 @@ defined('MOODLE_INTERNAL') || die();
 require_once("$CFG->libdir/externallib.php");
 
 /**
- * Manual enrolment external functions.
+ * Manual enrolment external functions
  *
  * @package    enrol_manual
  * @category   external
@@ -42,7 +43,7 @@ require_once("$CFG->libdir/externallib.php");
 class enrol_manual_external extends external_api {
 
     /**
-     * Returns description of method parameters.
+     * Returns description of method parameters
      *
      * @return external_function_parameters
      * @since Moodle 2.2
@@ -67,7 +68,7 @@ class enrol_manual_external extends external_api {
     }
 
     /**
-     * Enrolment of users.
+     * Enrolment of users
      *
      * Function throw an exception at the first error encountered.
      * @param array $enrolments  An array of user enrolment
@@ -81,24 +82,24 @@ class enrol_manual_external extends external_api {
         $params = self::validate_parameters(self::enrol_users_parameters(),
                 array('enrolments' => $enrolments));
 
-        $transaction = $DB->start_delegated_transaction(); // Rollback all enrolment if an error occurs
-                                                           // (except if the DB doesn't support it).
+        $transaction = $DB->start_delegated_transaction(); //rollback all enrolment if an error occurs
+                                                           //(except if the DB doesn't support it)
 
-        // Retrieve the manual enrolment plugin.
+        //retrieve the manual enrolment plugin
         $enrol = enrol_get_plugin('manual');
         if (empty($enrol)) {
             throw new moodle_exception('manualpluginnotinstalled', 'enrol_manual');
         }
 
         foreach ($params['enrolments'] as $enrolment) {
-            // Ensure the current user is allowed to run this function in the enrolment context.
-            $context = context_course::instance($enrolment['courseid'], IGNORE_MISSING);
+            // Ensure the current user is allowed to run this function in the enrolment context
+            $context = get_context_instance(CONTEXT_COURSE, $enrolment['courseid']);
             self::validate_context($context);
 
-            // Check that the user has the permission to manual enrol.
+            //check that the user has the permission to manual enrol
             require_capability('enrol/manual:enrol', $context);
 
-            // Throw an exception if user is not able to assign the role.
+            //throw an exception if user is not able to assign the role
             $roles = get_assignable_roles($context);
             if (!array_key_exists($enrolment['roleid'], $roles)) {
                 $errorparams = new stdClass();
@@ -108,8 +109,7 @@ class enrol_manual_external extends external_api {
                 throw new moodle_exception('wsusercannotassign', 'enrol_manual', '', $errorparams);
             }
 
-            // Check manual enrolment plugin instance is enabled/exist.
-            $instance = null;
+            //check manual enrolment plugin instance is enabled/exist
             $enrolinstances = enrol_get_instances($enrolment['courseid'], true);
             foreach ($enrolinstances as $courseenrolinstance) {
               if ($courseenrolinstance->enrol == "manual") {
@@ -123,7 +123,7 @@ class enrol_manual_external extends external_api {
               throw new moodle_exception('wsnoinstance', 'enrol_manual', $errorparams);
             }
 
-            // Check that the plugin accept enrolment (it should always the case, it's hard coded in the plugin).
+            //check that the plugin accept enrolment (it should always the case, it's hard coded in the plugin)
             if (!$enrol->allow_enrol($instance)) {
                 $errorparams = new stdClass();
                 $errorparams->roleid = $enrolment['roleid'];
@@ -132,7 +132,7 @@ class enrol_manual_external extends external_api {
                 throw new moodle_exception('wscannotenrol', 'enrol_manual', '', $errorparams);
             }
 
-            // Finally proceed the enrolment.
+            //finally proceed the enrolment
             $enrolment['timestart'] = isset($enrolment['timestart']) ? $enrolment['timestart'] : 0;
             $enrolment['timeend'] = isset($enrolment['timeend']) ? $enrolment['timeend'] : 0;
             $enrolment['status'] = (isset($enrolment['suspend']) && !empty($enrolment['suspend'])) ?
@@ -147,7 +147,7 @@ class enrol_manual_external extends external_api {
     }
 
     /**
-     * Returns description of method result value.
+     * Returns description of method result value
      *
      * @return null
      * @since Moodle 2.2
@@ -156,95 +156,28 @@ class enrol_manual_external extends external_api {
         return null;
     }
 
-    /**
-     * Returns description of method parameters.
-     *
-     * @return external_function_parameters
-     */
-    public static function unenrol_users_parameters() {
-        return new external_function_parameters(array(
-            'enrolments' => new external_multiple_structure(
-                new external_single_structure(
-                    array(
-                        'userid' => new external_value(PARAM_INT, 'The user that is going to be unenrolled'),
-                        'courseid' => new external_value(PARAM_INT, 'The course to unenrol the user from'),
-                        'roleid' => new external_value(PARAM_INT, 'The user role', VALUE_OPTIONAL),
-                    )
-                )
-            )
-        ));
-    }
-
-    /**
-     * Unenrolment of users.
-     *
-     * @param array $enrolments an array of course user and role ids
-     * @throws coding_exception
-     * @throws dml_transaction_exception
-     * @throws invalid_parameter_exception
-     * @throws moodle_exception
-     * @throws required_capability_exception
-     * @throws restricted_context_exception
-     */
-    public static function unenrol_users($enrolments) {
-        global $CFG, $DB;
-        $params = self::validate_parameters(self::unenrol_users_parameters(), array('enrolments' => $enrolments));
-        require_once($CFG->libdir . '/enrollib.php');
-        $transaction = $DB->start_delegated_transaction(); // Rollback all enrolment if an error occurs.
-        $enrol = enrol_get_plugin('manual');
-        if (empty($enrol)) {
-            throw new moodle_exception('manualpluginnotinstalled', 'enrol_manual');
-        }
-
-        foreach ($params['enrolments'] as $enrolment) {
-            $context = context_course::instance($enrolment['courseid']);
-            self::validate_context($context);
-            require_capability('enrol/manual:unenrol', $context);
-            $instance = $DB->get_record('enrol', array('courseid' => $enrolment['courseid'], 'enrol' => 'manual'));
-            if (!$instance) {
-                throw new moodle_exception('wsnoinstance', 'enrol_manual', $enrolment);
-            }
-            $user = $DB->get_record('user', array('id' => $enrolment['userid']));
-            if (!$user) {
-                throw new invalid_parameter_exception('User id not exist: '.$enrolment['userid']);
-            }
-            if (!$enrol->allow_unenrol($instance)) {
-                throw new moodle_exception('wscannotunenrol', 'enrol_manual', '', $enrolment);
-            }
-            $enrol->unenrol_user($instance, $enrolment['userid']);
-        }
-        $transaction->allow_commit();
-    }
-
-    /**
-     * Returns description of method result value.
-     *
-     * @return null
-     */
-    public static function unenrol_users_returns() {
-        return null;
-    }
-
 }
 
 /**
- * Deprecated manual enrolment external functions.
+ * Deprecated manual enrolment external functions
  *
  * @package    enrol_manual
  * @copyright  2011 Jerome Mouneyrac
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @since Moodle 2.0
  * @deprecated Moodle 2.2 MDL-29106 - Please do not use this class any more.
+ * @todo MDL-31194 This will be deleted in Moodle 2.5.
  * @see enrol_manual_external
  */
 class moodle_enrol_manual_external extends external_api {
 
     /**
-     * Returns description of method parameters.
+     * Returns description of method parameters
      *
      * @return external_function_parameters
      * @since Moodle 2.0
      * @deprecated Moodle 2.2 MDL-29106 - Please do not call this function any more.
+     * @todo MDL-31194 This will be deleted in Moodle 2.5.
      * @see enrol_manual_external::enrol_users_parameters()
      */
     public static function manual_enrol_users_parameters() {
@@ -258,6 +191,7 @@ class moodle_enrol_manual_external extends external_api {
      * @param array $enrolments  An array of user enrolment
      * @since Moodle 2.0
      * @deprecated Moodle 2.2 MDL-29106 - Please do not call this function any more.
+     * @todo MDL-31194 This will be deleted in Moodle 2.5.
      * @see enrol_manual_external::enrol_users()
      */
     public static function manual_enrol_users($enrolments) {
@@ -265,23 +199,16 @@ class moodle_enrol_manual_external extends external_api {
     }
 
     /**
-     * Returns description of method result value.
+     * Returns description of method result value
      *
      * @return nul
      * @since Moodle 2.0
      * @deprecated Moodle 2.2 MDL-29106 - Please do not call this function any more.
+     * @todo MDL-31194 This will be deleted in Moodle 2.5.
      * @see enrol_manual_external::enrol_users_returns()
      */
     public static function manual_enrol_users_returns() {
         return enrol_manual_external::enrol_users_returns();
     }
 
-    /**
-     * Marking the method as deprecated.
-     *
-     * @return bool
-     */
-    public static function manual_enrol_users_is_deprecated() {
-        return true;
-    }
 }

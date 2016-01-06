@@ -16,7 +16,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * @package   mod_forum
+ * @package mod-forum
  * @copyright 1999 onwards Martin Dougiamas  {@link http://moodle.com}
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -112,13 +112,7 @@ if (!$course = $DB->get_record('course', array('id'=>$id))) {
 
 require_course_login($course);
 
-$params = array(
-    'context' => $PAGE->context,
-    'other' => array('searchterm' => $search)
-);
-
-$event = \mod_forum\event\course_searched::create($params);
-$event->trigger();
+add_to_log($course->id, "forum", "search", "search.php?id=$course->id&amp;search=".urlencode($search), $search);
 
 $strforums = get_string("modulenameplural", "forum");
 $strsearch = get_string("search", "forum");
@@ -147,14 +141,12 @@ $searchterms = explode(' ', $searchterms);
 $searchform = forum_search_form($course, $search);
 
 $PAGE->navbar->add($strsearch, new moodle_url('/mod/forum/search.php', array('id'=>$course->id)));
-$PAGE->navbar->add($strsearchresults);
+$PAGE->navbar->add(s($search, true));
 if (!$posts = forum_search_posts($searchterms, $course->id, $page*$perpage, $perpage, $totalcount)) {
     $PAGE->set_title($strsearchresults);
     $PAGE->set_heading($course->fullname);
     echo $OUTPUT->header();
-    echo $OUTPUT->heading($strforums, 2);
-    echo $OUTPUT->heading($strsearchresults, 3);
-    echo $OUTPUT->heading(get_string("noposts", "forum"), 4);
+    echo $OUTPUT->heading(get_string("nopostscontaining", "forum", $search));
 
     if (!$individualparams) {
         $words = $search;
@@ -197,8 +189,7 @@ echo '<a href="search.php?id='.$course->id.
                          '">'.get_string('advancedsearch','forum').'...</a>';
 echo '</div>';
 
-echo $OUTPUT->heading($strforums, 2);
-echo $OUTPUT->heading("$strsearchresults: $totalcount", 3);
+echo $OUTPUT->heading("$strsearchresults: $totalcount");
 
 $url = new moodle_url('search.php', array('search' => $search, 'id' => $course->id, 'perpage' => $perpage));
 echo $OUTPUT->paging_bar($totalcount, $page, $perpage, $url);
@@ -250,7 +241,7 @@ foreach ($posts as $post) {
     //add the ratings information to the post
     //Unfortunately seem to have do this individually as posts may be from different forums
     if ($forum->assessed != RATING_AGGREGATE_NONE) {
-        $modcontext = context_module::instance($cm->id);
+        $modcontext = get_context_instance(CONTEXT_MODULE, $cm->id);
         $ratingoptions->context = $modcontext;
         $ratingoptions->items = array($post);
         $ratingoptions->aggregate = $forum->assessed;//the aggregation method
@@ -302,12 +293,10 @@ echo $OUTPUT->paging_bar($totalcount, $page, $perpage, $url);
 echo $OUTPUT->footer();
 
 
- /**
-  * Print a full-sized search form for the specified course.
-  *
-  * @param stdClass $course The Course that will be searched.
-  * @return void The function prints the form.
-  */
+
+/**
+ * @todo Document this function
+ */
 function forum_print_big_search_form($course) {
     global $CFG, $DB, $words, $subject, $phrase, $user, $userid, $fullwords, $notwords, $datefrom, $dateto, $PAGE, $OUTPUT;
 
@@ -429,13 +418,12 @@ function forum_print_big_search_form($course) {
 
 /**
  * This function takes each word out of the search string, makes sure they are at least
- * two characters long and returns an string of the space-separated search
- * terms.
+ * two characters long and returns an array containing every good word.
  *
- * @param string $words String containing space-separated strings to search for.
- * @param string $prefix String to prepend to the each token taken out of $words.
- * @return string The filtered search terms, separated by spaces.
- * @todo Take the hardcoded limit out of this function and put it into a user-specified parameter.
+ * @param string $words String containing space-separated strings to search for
+ * @param string $prefix String to prepend to the each token taken out of $words
+ * @returns array
+ * @todo Take the hardcoded limit out of this function and put it into a user-specified parameter
  */
 function forum_clean_search_terms($words, $prefix='') {
     $searchterms = explode(' ', $words);
@@ -449,16 +437,15 @@ function forum_clean_search_terms($words, $prefix='') {
     return trim(implode(' ', $searchterms));
 }
 
- /**
-  * Retrieve a list of the forums that this user can view.
-  *
-  * @param stdClass $course The Course to use.
-  * @return array A set of formatted forum names stored against the forum id.
-  */
+/**
+ * @todo Document this function
+ */
 function forum_menu_list($course)  {
+
     $menu = array();
 
     $modinfo = get_fast_modinfo($course);
+
     if (empty($modinfo->instances['forum'])) {
         return $menu;
     }
@@ -467,7 +454,7 @@ function forum_menu_list($course)  {
         if (!$cm->uservisible) {
             continue;
         }
-        $context = context_module::instance($cm->id);
+        $context = get_context_instance(CONTEXT_MODULE, $cm->id);
         if (!has_capability('mod/forum:viewdiscussion', $context)) {
             continue;
         }
@@ -476,3 +463,4 @@ function forum_menu_list($course)  {
 
     return $menu;
 }
+

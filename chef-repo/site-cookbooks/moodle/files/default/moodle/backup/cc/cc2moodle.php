@@ -149,7 +149,7 @@ class cc2moodle {
         $cdir = static::$path_to_manifest_folder . DIRECTORY_SEPARATOR . 'course_files';
 
         if (!file_exists($cdir)) {
-            mkdir($cdir, $CFG->directorypermissions, true);
+            mkdir($cdir);
         }
 
         $sheet_base = static::loadsheet(SHEET_BASE);
@@ -338,7 +338,7 @@ class cc2moodle {
 
                     $replace_values = array($i,
                                             $i - 1,
-                                            entities::safexml($topic['title']),
+                                            $topic['title'],
                                             $node_node_course_sections_section_mods_mod);
 
                 } else {

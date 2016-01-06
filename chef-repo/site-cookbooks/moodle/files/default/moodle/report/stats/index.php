@@ -58,7 +58,7 @@ if (!empty($userid)) {
 }
 
 require_login($course);
-$context = context_course::instance($course->id);
+$context = get_context_instance(CONTEXT_COURSE, $course->id);
 require_capability('report/stats:view', $context);
 
 $PAGE->set_url(new moodle_url('/report/stats/index.php', array('course' => $course->id,
@@ -66,12 +66,8 @@ $PAGE->set_url(new moodle_url('/report/stats/index.php', array('course' => $cour
                                                                'time'   => $time,
                                                                'mode'   => $mode,
                                                                'userid' => $userid)));
-navigation_node::override_active_url(new moodle_url('/report/stats/index.php', array('course' => $course->id)));
 
-// Trigger a content view event.
-$event = \report_stats\event\report_viewed::create(array('context' => $context, 'relateduserid' => $userid,
-        'other' => array('report' => $report, 'time' => $time, 'mode' => $mode)));
-$event->trigger();
+add_to_log($course->id, "course", "report stats", "report/stats/index.php?course=$course->id", $course->id);
 stats_check_uptodate($course->id);
 
 if ($course->id == SITEID) {
@@ -91,7 +87,7 @@ if ($course->id == SITEID) {
 report_stats_report($course, $report, $mode, $user, $roleid, $time);
 
 if (empty($CFG->enablestats)) {
-    if (has_capability('moodle/site:config', context_system::instance())) {
+    if (has_capability('moodle/site:config', get_context_instance(CONTEXT_SYSTEM))) {
         redirect("$CFG->wwwroot/$CFG->admin/settings.php?section=stats", get_string('mustenablestats', 'admin'), 3);
     } else {
         print_error('statsdisable');

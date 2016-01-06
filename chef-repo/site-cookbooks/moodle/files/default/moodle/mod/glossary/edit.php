@@ -17,7 +17,7 @@ if (!$course = $DB->get_record('course', array('id'=>$cm->course))) {
 
 require_login($course, false, $cm);
 
-$context = context_module::instance($cm->id);
+$context = get_context_instance(CONTEXT_MODULE, $cm->id);
 
 if (!$glossary = $DB->get_record('glossary', array('id'=>$cm->instance))) {
     print_error('invalidid', 'glossary');
@@ -40,7 +40,7 @@ if ($id) { // if entry is specified
 
     $ineditperiod = ((time() - $entry->timecreated <  $CFG->maxeditingtime) || $glossary->editalways);
     if (!has_capability('mod/glossary:manageentries', $context) and !($entry->userid == $USER->id and ($ineditperiod and has_capability('mod/glossary:write', $context)))) {
-        if ($USER->id != $entry->userid) {
+        if ($USER->id != $fromdb->userid) {
             print_error('errcannoteditothers', 'glossary', "view.php?id=$cm->id&amp;mode=entry&amp;hook=$id");
         } elseif (!$ineditperiod) {
             print_error('erredittimeexpired', 'glossary', "view.php?id=$cm->id&amp;mode=entry&amp;hook=$id");
@@ -66,8 +66,7 @@ if ($id) { // if entry is specified
 $maxfiles = 99;                // TODO: add some setting
 $maxbytes = $course->maxbytes; // TODO: add some setting
 
-$definitionoptions = array('trusttext'=>true, 'maxfiles'=>$maxfiles, 'maxbytes'=>$maxbytes, 'context'=>$context,
-    'subdirs'=>file_area_contains_subdirs($context, 'mod_glossary', 'entry', $entry->id));
+$definitionoptions = array('trusttext'=>true, 'subdirs'=>false, 'maxfiles'=>$maxfiles, 'maxbytes'=>$maxbytes, 'context'=>$context);
 $attachmentoptions = array('subdirs'=>false, 'maxfiles'=>$maxfiles, 'maxbytes'=>$maxbytes);
 
 $entry = file_prepare_standard_editor($entry, 'definition', $definitionoptions, $context, 'mod_glossary', 'entry', $entry->id);
@@ -101,9 +100,6 @@ if ($mform->is_cancelled()){
         $entry->timecreated      = $timenow;
         $entry->sourceglossaryid = 0;
         $entry->teacherentry     = has_capability('mod/glossary:manageentries', $context);
-        $isnewentry              = true;
-    } else {
-        $isnewentry              = false;
     }
 
     $entry->concept          = trim($entry->concept);
@@ -120,12 +116,25 @@ if ($mform->is_cancelled()){
         $entry->approved = 1;
     }
 
-    if ($isnewentry) {
-        // Add new entry.
+    if (empty($entry->id)) {
+        //new entry
         $entry->id = $DB->insert_record('glossary_entries', $entry);
+
+        // Update completion state
+        $completion = new completion_info($course);
+        if ($completion->is_enabled($cm) == COMPLETION_TRACKING_AUTOMATIC && $glossary->completionentries && $entry->approved) {
+            $completion->update_state($cm, COMPLETION_COMPLETE);
+        }
+
+        add_to_log($course->id, "glossary", "add entry",
+                   "view.php?id=$cm->id&amp;mode=entry&amp;hook=$entry->id", $entry->id, $cm->id);
+
     } else {
-        // Update existing entry.
+        //existing entry
         $DB->update_record('glossary_entries', $entry);
+        add_to_log($course->id, "glossary", "update entry",
+                   "view.php?id=$cm->id&amp;mode=entry&amp;hook=$entry->id",
+                   $entry->id, $cm->id);
     }
 
     // save and relink embedded images and save attachments
@@ -165,38 +174,6 @@ if ($mform->is_cancelled()){
         }
     }
 
-    // Trigger event and update completion (if entry was created).
-    $eventparams = array(
-        'context' => $context,
-        'objectid' => $entry->id,
-        'other' => array('concept' => $entry->concept)
-    );
-    if ($isnewentry) {
-        $event = \mod_glossary\event\entry_created::create($eventparams);
-    } else {
-        $event = \mod_glossary\event\entry_updated::create($eventparams);
-    }
-    $event->add_record_snapshot('glossary_entries', $entry);
-    $event->trigger();
-    if ($isnewentry) {
-        // Update completion state
-        $completion = new completion_info($course);
-        if ($completion->is_enabled($cm) == COMPLETION_TRACKING_AUTOMATIC && $glossary->completionentries && $entry->approved) {
-            $completion->update_state($cm, COMPLETION_COMPLETE);
-        }
-    }
-
-    // Reset caches.
-    if ($isnewentry) {
-        if ($entry->usedynalink and $entry->approved) {
-            \mod_glossary\local\concept_cache::reset_glossary($glossary);
-        }
-    } else {
-        // So many things may affect the linking, let's just purge the cache always on edit.
-        \mod_glossary\local\concept_cache::reset_glossary($glossary);
-    }
-
-
     redirect("view.php?id=$cm->id&mode=entry&hook=$entry->id");
 }
 
@@ -204,13 +181,10 @@ if (!empty($id)) {
     $PAGE->navbar->add(get_string('edit'));
 }
 
-$PAGE->set_title($glossary->name);
+$PAGE->set_title(format_string($glossary->name));
 $PAGE->set_heading($course->fullname);
 echo $OUTPUT->header();
-echo $OUTPUT->heading(format_string($glossary->name), 2);
-if ($glossary->intro) {
-    echo $OUTPUT->box(format_module_intro('glossary', $glossary, $cm->id), 'generalbox', 'intro');
-}
+echo $OUTPUT->heading(format_string($glossary->name));
 
 $mform->display();
 

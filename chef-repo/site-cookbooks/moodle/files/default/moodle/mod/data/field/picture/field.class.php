@@ -27,7 +27,7 @@ class data_field_picture extends data_field_base {
     var $previewwidth  = 50;
     var $previewheight = 50;
 
-    function display_add_field($recordid = 0, $formdata = null) {
+    function display_add_field($recordid=0) {
         global $CFG, $DB, $OUTPUT, $USER, $PAGE;
 
         $file        = false;
@@ -37,19 +37,12 @@ class data_field_picture extends data_field_base {
         $itemid = null;
         $fs = get_file_storage();
 
-        if ($formdata) {
-            $fieldname = 'field_' . $this->field->id . '_file';
-            $itemid = $formdata->$fieldname;
-            $fieldname = 'field_' . $this->field->id . '_alttext';
-            if (isset($formdata->$fieldname)) {
-                $alttext = $formdata->$fieldname;
-            }
-        } else if ($recordid) {
+        if ($recordid) {
             if ($content = $DB->get_record('data_content', array('fieldid'=>$this->field->id, 'recordid'=>$recordid))) {
                 file_prepare_draft_area($itemid, $this->context->id, 'mod_data', 'content', $content->id);
                 if (!empty($content->content)) {
                     if ($file = $fs->get_file($this->context->id, 'mod_data', 'content', $content->id, '/', $content->content)) {
-                        $usercontext = context_user::instance($USER->id);
+                        $usercontext = get_context_instance(CONTEXT_USER, $USER->id);
                         if (!$files = $fs->get_area_files($usercontext->id, 'user', 'draft', $itemid, 'id DESC', false)) {
                             return false;
                         }
@@ -71,27 +64,16 @@ class data_field_picture extends data_field_base {
         } else {
             $itemid = file_get_unused_draft_itemid();
         }
-        $str = '<div title="' . s($this->field->description) . '">';
-        $str .= '<fieldset><legend><span class="accesshide">'.$this->field->name;
 
-        if ($this->field->required) {
-            $str .= '&nbsp;' . get_string('requiredelement', 'form') . '</span></legend>';
-            $image = html_writer::img($OUTPUT->pix_url('req'), get_string('requiredelement', 'form'),
-                                      array('class' => 'req', 'title' => get_string('requiredelement', 'form')));
-            $str .= html_writer::div($image, 'inline-req');
-        } else {
-            $str .= '</span></legend>';
-        }
-        $str .= '<noscript>';
+        $str = '<div title="'.s($this->field->description).'">';
+        $str .= '<fieldset><legend><span class="accesshide">'.$this->field->name.'</span></legend>';
         if ($file) {
             $src = file_encode_url($CFG->wwwroot.'/pluginfile.php/', $this->context->id.'/mod_data/content/'.$content->id.'/'.$file->get_filename());
             $str .= '<img width="'.s($this->previewwidth).'" height="'.s($this->previewheight).'" src="'.$src.'" alt="" />';
         }
-        $str .= '</noscript>';
 
         $options = new stdClass();
         $options->maxbytes  = $this->field->param3;
-        $options->maxfiles  = 1; // Only one picture permitted.
         $options->itemid    = $itemid;
         $options->accepted_types = array('web_image');
         $options->return_types = FILE_INTERNAL;
@@ -100,24 +82,21 @@ class data_field_picture extends data_field_base {
             $options->filename = $file->get_filename();
             $options->filepath = '/';
         }
+        $fp = new file_picker($options);
+        $str .= $OUTPUT->render($fp);
 
-        $fm = new form_filemanager($options);
-        // Print out file manager.
-
-        $output = $PAGE->get_renderer('core', 'files');
-        $str .= '<div class="mod-data-input">';
-        $str .= $output->render($fm);
 
         $str .= '<div class="mdl-left">';
         $str .= '<input type="hidden" name="field_'.$this->field->id.'_file" value="'.$itemid.'" />';
         $str .= '<label for="field_'.$this->field->id.'_alttext">'.get_string('alttext','data') .'</label>&nbsp;<input type="text" name="field_'
                 .$this->field->id.'_alttext" id="field_'.$this->field->id.'_alttext" value="'.s($alttext).'" />';
         $str .= '</div>';
-        $str .= '</div>';
 
         $str .= '</fieldset>';
         $str .= '</div>';
 
+        $module = array('name'=>'data_imagepicker', 'fullpath'=>'/mod/data/data.js', 'requires'=>array('core_filepicker'));
+        $PAGE->requires->js_init_call('M.data_imagepicker.init', array($fp->options), true, $module);
         return $str;
     }
 
@@ -210,7 +189,7 @@ class data_field_picture extends data_field_base {
                     if ($thumbfile = $fs->get_file($this->context->id, 'mod_data', 'content', $content->id, '/', 'thumb_'.$content->content)) {
                         $thumbfile->delete();
                     }
-                    core_php_time_limit::raise(300);
+                    @set_time_limit(300);
                     // Might be slow!
                     $this->update_thumbnail($content, $file);
                 }
@@ -235,34 +214,32 @@ class data_field_picture extends data_field_base {
         switch ($names[2]) {
             case 'file':
                 $fs = get_file_storage();
-                file_save_draft_area_files($value, $this->context->id, 'mod_data', 'content', $content->id);
-                $usercontext = context_user::instance($USER->id);
-                $files = $fs->get_area_files(
-                    $this->context->id,
-                    'mod_data', 'content',
-                    $content->id,
-                    'itemid, filepath, filename',
-                    false);
-
-                // We expect no or just one file (maxfiles = 1 option is set for the form_filemanager).
-                if (count($files) == 0) {
-                    $content->content = null;
+                $fs->delete_area_files($this->context->id, 'mod_data', 'content', $content->id);
+                $usercontext = get_context_instance(CONTEXT_USER, $USER->id);
+                $files = $fs->get_area_files($usercontext->id, 'user', 'draft', $value);
+                if (count($files)<2) {
+                    // no file
                 } else {
-                    $file = array_values($files)[0];
+                    $count = 0;
+                    foreach ($files as $draftfile) {
+                        $file_record = array('contextid'=>$this->context->id, 'component'=>'mod_data', 'filearea'=>'content', 'itemid'=>$content->id, 'filepath'=>'/');
+                        if (!$draftfile->is_directory()) {
+                            $file_record['filename'] = $draftfile->get_filename();
 
-                    if (count($files) > 1) {
-                        // This should not happen with a consistent database. Inform admins/developers about the inconsistency.
-                        debugging('more then one file found in mod_data instance {$this->data->id} picture field (field id: {$this->field->id}) area during update data record {$recordid} (content id: {$content->id})', DEBUG_NORMAL);
-                    }
+                            $content->content = $draftfile->get_filename();
 
-                    if ($file->get_imageinfo() === false) {
-                        $url = new moodle_url('/mod/data/edit.php', array('d' => $this->field->dataid));
-                        redirect($url, get_string('invalidfiletype', 'error', $file->get_filename()));
+                            $file = $fs->create_file_from_storedfile($file_record, $draftfile);
+                            $DB->update_record('data_content', $content);
+                            $this->update_thumbnail($content, $file);
+
+                            if ($count > 0) {
+                                break;
+                            } else {
+                                $count++;
+                            }
+                        }
                     }
-                    $content->content = $file->get_filename();
-                    $this->update_thumbnail($content, $file);
                 }
-                $DB->update_record('data_content', $content);
 
                 break;
 
@@ -302,24 +279,6 @@ class data_field_picture extends data_field_base {
     function file_ok($path) {
         return true;
     }
-
-    /**
-     * Custom notempty function
-     *
-     * @param string $value
-     * @param string $name
-     * @return bool
-     */
-    function notemptyfield($value, $name) {
-        global $USER;
-
-        $names = explode('_', $name);
-        if ($names[2] == 'file') {
-            $usercontext = context_user::instance($USER->id);
-            $fs = get_file_storage();
-            $files = $fs->get_area_files($usercontext->id, 'user', 'draft', $value);
-            return count($files) >= 2;
-        }
-        return false;
-    }
 }
+
+

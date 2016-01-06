@@ -11,8 +11,8 @@ YUI.add('moodle-block_community-imagegallery', function(Y) {
         event:null,
         previousevent:null,
         nextevent:null,
-        panelevent:null,
-        panel:null, //all the images boxes
+        panelevent: null,
+        panel: null, //all the images boxes
         imageidnumbers: [],
         imageloadingevent: null,
         loadingimage: null,
@@ -38,7 +38,7 @@ YUI.add('moodle-block_community-imagegallery', function(Y) {
                 headerContent:Y.one('#imagetitleoverlay').get('innerHTML'),
                 bodyContent:Y.one('#imageoverlay').get('innerHTML'),
                 visible: false, //by default it is not displayed
-                modal: false,
+                lightbox : false,
                 zIndex:100
             });
 
@@ -101,7 +101,7 @@ YUI.add('moodle-block_community-imagegallery', function(Y) {
                 + screennumber + ' / ' + this.imageidnumbers[imageid] + ' </h1></div>' + nextimagelink,
                 bodyContent:Y.one('#imageoverlay').get('innerHTML'),
                 visible: false, //by default it is not displayed
-                modal: false,
+                lightbox : false,
                 zIndex:100,
                 closeButtonTitle: this.get('closeButtonTitle')
             });
@@ -150,9 +150,9 @@ YUI.add('moodle-block_community-imagegallery', function(Y) {
             Y.one('#nextarrow').on('click', this.show, this, imageid, nextnumber);
             Y.one('#imagenumber').on('click', this.show, this, imageid, nextnumber);
 
-            // We add a new event on the body in order to hide the panel for the next click.
+            //we add a new event on the body in order to hide the panel for the next click
             this.event = Y.one(document.body).on('click', this.hide, this);
-            // We add a new event on the panel in order to hide the panel for the next click (touch device).
+            //we add a new event on the panel in order to hide the panel for the next click (touch device)
             this.panelevent = Y.one("#imageoverlay").on('click', this.hide, this);
 
             this.panel.on('visibleChange',function(e){
@@ -202,5 +202,5 @@ YUI.add('moodle-block_community-imagegallery', function(Y) {
     }
 
 }, '@VERSION@', {
-    requires:['base','node', 'moodle-core-notification']
+    requires:['base','node', 'moodle-enrol-notification']
 });

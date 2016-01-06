@@ -1,4 +1,5 @@
 <?php
+
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -15,7 +16,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * @package    mod_chat
+ * @package moodlecore
  * @subpackage backup-moodle2
  * @copyright 2010 onwards Eloy Lafuente (stronk7) {@link http://stronk7.com}
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -23,7 +24,7 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-require_once($CFG->dirroot . '/mod/chat/backup/moodle2/restore_chat_stepslib.php');
+require_once($CFG->dirroot . '/mod/chat/backup/moodle2/restore_chat_stepslib.php'); // Because it exists (must)
 
 /**
  * chat restore task that provides all the settings and steps to perform one
@@ -35,14 +36,14 @@ class restore_chat_activity_task extends restore_activity_task {
      * Define (add) particular settings this activity can have
      */
     protected function define_my_settings() {
-        // No particular settings for this activity.
+        // No particular settings for this activity
     }
 
     /**
      * Define (add) particular steps this activity can have
      */
     protected function define_my_steps() {
-        // Chat only has one structure step.
+        // chat only has one structure step
         $this->add_step(new restore_chat_activity_structure_step('chat_structure', 'chat.xml'));
     }
 

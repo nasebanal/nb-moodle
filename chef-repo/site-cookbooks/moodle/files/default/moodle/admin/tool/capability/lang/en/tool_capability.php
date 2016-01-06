@@ -17,14 +17,14 @@
 /**
  * Strings for component 'tool_capability', language 'en', branch 'MOODLE_22_STABLE'
  *
- * @package    tool_capability
+ * @package    tool
+ * @subpackage capability
  * @copyright  1999 onwards Martin Dougiamas  {@link http://moodle.com}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 $string['capabilitylabel'] = 'Capability:';
 $string['capabilityreport'] = 'Capability overview';
-$string['eventreportviewed'] = 'Report viewed';
 $string['forroles'] = 'For roles {$a}';
 $string['getreport'] = 'Get the overview';
 $string['changeoverrides'] = 'Change overrides in this context';

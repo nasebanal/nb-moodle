@@ -41,7 +41,7 @@ function report_stats_mode_menu($course, $mode, $time, $url) {
     $options = array();
     $options[STATS_MODE_GENERAL] = get_string('statsmodegeneral');
     $options[STATS_MODE_DETAILED] = get_string('statsmodedetailed');
-    if (has_capability('report/stats:view', context_system::instance())) {
+    if (has_capability('report/stats:view', get_context_instance(CONTEXT_SYSTEM))) {
         $options[STATS_MODE_RANKED] = get_string('reports');
     }
     $popupurl = $url."?course=$course->id&time=$time";
@@ -89,7 +89,7 @@ function report_stats_report($course, $report, $mode, $user, $roleid, $time) {
     $courseoptions = array();
 
     foreach ($courses as $c) {
-        $context = context_course::instance($c->id);
+        $context = get_context_instance(CONTEXT_COURSE, $c->id);
 
         if (has_capability('report/stats:view', $context)) {
             $courseoptions[$c->id] = format_string($c->shortname, true, array('context' => $context));
@@ -107,48 +107,41 @@ function report_stats_report($course, $report, $mode, $user, $roleid, $time) {
     $table->width = 'auto';
 
     if ($mode == STATS_MODE_DETAILED) {
-        $param = stats_get_parameters($time, null, $course->id, $mode); // we only care about the table and the time string (if we have time)
+        $param = stats_get_parameters($time,null,$course->id,$mode); // we only care about the table and the time string (if we have time)
 
-        list($sort, $moreparams) = users_order_by_sql('u');
-        $moreparams['courseid'] = $course->id;
-        $fields = user_picture::fields('u', array('idnumber'));
-        $sql = "SELECT DISTINCT $fields
-                  FROM {stats_user_{$param->table}} s
-                  JOIN {user} u ON u.id = s.userid
-                 WHERE courseid = :courseid";
-        if (!empty($param->stattype)) {
-            $sql .= " AND stattype = :stattype";
-            $moreparams['stattype'] = $param->stattype;
-        }
-        if (!empty($time)) {
-            $sql .= " AND timeend >= :timeafter";
-            $moreparams['timeafter'] = $param->timeafter;
-        }
-        $sql .= " ORDER BY {$sort}";
+        //TODO: lceanup this ugly mess
+        $sql = 'SELECT DISTINCT s.userid, u.firstname, u.lastname, u.idnumber
+                     FROM {stats_user_'.$param->table.'} s
+                     JOIN {user} u ON u.id = s.userid
+                     WHERE courseid = '.$course->id
+            . ((!empty($param->stattype)) ? ' AND stattype = \''.$param->stattype.'\'' : '')
+            . ((!empty($time)) ? ' AND timeend >= '.$param->timeafter : '')
+            .' ORDER BY u.lastname, u.firstname ASC';
 
-        if (!$us = $DB->get_records_sql($sql, array_merge($param->params, $moreparams))) {
+        if (!$us = $DB->get_records_sql($sql, $param->params)) {
             print_error('nousers');
         }
+
         foreach ($us as $u) {
-            $users[$u->id] = fullname($u, true);
+            $users[$u->userid] = fullname($u, true);
         }
 
         $table->align = array('left','left','left','left','left','left','left','left');
         $table->data[] = array(html_writer::label(get_string('course'), 'menucourse'), html_writer::select($courseoptions, 'course', $course->id, false),
                                html_writer::label(get_string('users'), 'menuuserid'), html_writer::select($users, 'userid', $userid, false),
-                               html_writer::label(get_string('statsreporttype'), 'menureport'), html_writer::select($reportoptions, 'report', ($report == 5) ? $report.$roleid : $report, false),
-                               html_writer::label(get_string('statstimeperiod'), 'menutime'), html_writer::select($timeoptions, 'time', $time, false),
+                               html_writer::label(get_string('statsreporttype'), 'menureport'), html_writer::select($reportoptions,'report',($report == 5) ? $report.$roleid : $report,false),
+                               html_writer::label(get_string('statstimeperiod'), 'menutime') ,html_writer::select($timeoptions,'time',$time,false),
                                '<input type="submit" value="'.get_string('view').'" />') ;
     } else if ($mode == STATS_MODE_RANKED) {
         $table->align = array('left','left','left','left','left','left');
-        $table->data[] = array(html_writer::label(get_string('statsreporttype'), 'menureport'), html_writer::select($reportoptions, 'report', ($report == 5) ? $report.$roleid : $report, false),
-                               html_writer::label(get_string('statstimeperiod'), 'menutime'), html_writer::select($timeoptions, 'time', $time, false),
+        $table->data[] = array(html_writer::label(get_string('statsreporttype'), 'menureport'), html_writer::select($reportoptions,'report',($report == 5) ? $report.$roleid : $report,false),
+                               html_writer::label(get_string('statstimeperiod'), 'menutime'), html_writer::select($timeoptions,'time',$time,false),
                                '<input type="submit" value="'.get_string('view').'" />') ;
     } else if ($mode == STATS_MODE_GENERAL) {
         $table->align = array('left','left','left','left','left','left','left');
-        $table->data[] = array(html_writer::label(get_string('course'), 'menucourse'), html_writer::select($courseoptions, 'course', $course->id, false),
-                               html_writer::label(get_string('statsreporttype'), 'menureport'), html_writer::select($reportoptions, 'report', ($report == 5) ? $report.$roleid : $report, false),
-                               html_writer::label(get_string('statstimeperiod'), 'menutime'), html_writer::select($timeoptions, 'time', $time, false),
+        $table->data[] = array(html_writer::label(get_string('course'), 'menucourse'), html_writer::select($courseoptions,'course',$course->id,false),
+                               html_writer::label(get_string('statsreporttype'), 'menureport'), html_writer::select($reportoptions,'report',($report == 5) ? $report.$roleid : $report,false),
+                               html_writer::label(get_string('statstimeperiod'), 'menutime'), html_writer::select($timeoptions,'time',$time,false),
                                '<input type="submit" value="'.get_string('view').'" />') ;
     }
 
@@ -161,11 +154,7 @@ function report_stats_report($course, $report, $mode, $user, $roleid, $time) {
     echo '</div>';
     echo '</form>';
 
-    // Display the report if:
-    //  - A report has been selected.
-    //  - A time frame has been provided
-    //  - If the mode is not detailed OR a valid user has been selected.
-    if (!empty($report) && !empty($time) && ($mode !== STATS_MODE_DETAILED || !empty($userid))) {
+    if (!empty($report) && !empty($time)) {
         if ($report == STATS_REPORT_LOGINS && $course->id != SITEID) {
             print_error('reportnotavailable');
         }
@@ -205,10 +194,14 @@ function report_stats_report($course, $report, $mode, $user, $roleid, $time) {
                     .((!empty($roleid)) ? ' '.$DB->get_field('role','name', array('id'=>$roleid)) : ''));
 
 
-            if ($mode == STATS_MODE_DETAILED) {
-                echo '<div class="graph"><img src="'.$CFG->wwwroot.'/report/stats/graph.php?mode='.$mode.'&amp;course='.$course->id.'&amp;time='.$time.'&amp;report='.$report.'&amp;userid='.$userid.'" alt="'.get_string('statisticsgraph').'" /></div>';
+            if (empty($CFG->gdversion)) {
+                echo "(".get_string("gdneed").")";
             } else {
-                echo '<div class="graph"><img src="'.$CFG->wwwroot.'/report/stats/graph.php?mode='.$mode.'&amp;course='.$course->id.'&amp;time='.$time.'&amp;report='.$report.'&amp;roleid='.$roleid.'" alt="'.get_string('statisticsgraph').'" /></div>';
+                if ($mode == STATS_MODE_DETAILED) {
+                    echo '<div class="graph"><img src="'.$CFG->wwwroot.'/report/stats/graph.php?mode='.$mode.'&amp;course='.$course->id.'&amp;time='.$time.'&amp;report='.$report.'&amp;userid='.$userid.'" alt="'.get_string('statisticsgraph').'" /></div>';
+                } else {
+                    echo '<div class="graph"><img src="'.$CFG->wwwroot.'/report/stats/graph.php?mode='.$mode.'&amp;course='.$course->id.'&amp;time='.$time.'&amp;report='.$report.'&amp;roleid='.$roleid.'" alt="'.get_string('statisticsgraph').'" /></div>';
+                }
             }
 
             $table = new html_table();
@@ -236,7 +229,7 @@ function report_stats_report($course, $report, $mode, $user, $roleid, $time) {
                         $a[] = $stat->line2;
                     }
                     if (empty($CFG->loglifetime) || ($stat->timeend-(60*60*24)) >= (time()-60*60*24*$CFG->loglifetime)) {
-                        if (has_capability('report/log:view', context_course::instance($course->id))) {
+                        if (has_capability('report/log:view', get_context_instance(CONTEXT_COURSE, $course->id))) {
                             $a[] = '<a href="'.$CFG->wwwroot.'/report/log/index.php?id='.
                                 $course->id.'&amp;chooselog=1&amp;showusers=1&amp;showcourses=1&amp;user='
                                 .$userid.'&amp;date='.usergetmidnight($stat->timeend-(60*60*24)).'">'
@@ -252,8 +245,11 @@ function report_stats_report($course, $report, $mode, $user, $roleid, $time) {
                 $roles = array();
                 $times = array();
                 $missedlines = array();
-                $coursecontext = context_course::instance($course->id);
-                $rolenames = role_fix_names(get_all_roles($coursecontext), $coursecontext, ROLENAME_ALIAS, true);
+                $rolenames = get_all_roles();
+                foreach ($rolenames as $r) {
+                    $rolenames[$r->id] = $r->name;
+                }
+                $rolenames = role_fix_names($rolenames, get_context_instance(CONTEXT_COURSE, $course->id));
                 foreach ($stats as $stat) {
                     if (!empty($stat->zerofixed)) {
                         $missedlines[] = $stat->timeend;
@@ -290,7 +286,7 @@ function report_stats_report($course, $report, $mode, $user, $roleid, $time) {
                     krsort($rolesdata);
                     $row = array_merge(array($times[$time]),$rolesdata);
                     if (empty($CFG->loglifetime) || ($stat->timeend-(60*60*24)) >= (time()-60*60*24*$CFG->loglifetime)) {
-                        if (has_capability('report/log:view', context_course::instance($course->id))) {
+                        if (has_capability('report/log:view', get_context_instance(CONTEXT_COURSE, $course->id))) {
                             $row[] = '<a href="'.$CFG->wwwroot.'/report/log/index.php?id='
                                 .$course->id.'&amp;chooselog=1&amp;showusers=1&amp;showcourses=1&amp;user='.$userid
                                 .'&amp;date='.usergetmidnight($time-(60*60*24)).'">'

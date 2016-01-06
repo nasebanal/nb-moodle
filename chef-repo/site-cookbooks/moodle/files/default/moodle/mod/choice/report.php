@@ -31,7 +31,7 @@
 
     require_login($course, false, $cm);
 
-    $context = context_module::instance($cm->id);
+    $context = get_context_instance(CONTEXT_MODULE, $cm->id);
 
     require_capability('mod/choice:readresponses', $context);
 
@@ -43,14 +43,7 @@
     $strchoices = get_string("modulenameplural", "choice");
     $strresponses = get_string("responses", "choice");
 
-    $eventdata = array();
-    $eventdata['objectid'] = $choice->id;
-    $eventdata['context'] = $context;
-    $eventdata['courseid'] = $course->id;
-    $eventdata['other']['content'] = 'choicereportcontentviewed';
-
-    $event = \mod_choice\event\report_viewed::create($eventdata);
-    $event->trigger();
+    add_to_log($course->id, "choice", "report", "report.php?id=$cm->id", "$choice->id",$cm->id);
 
     if (data_submitted() && $action == 'delete' && has_capability('mod/choice:deleteresponses',$context) && confirm_sesskey()) {
         choice_delete_responses($attemptids, $choice, $cm, $course); //delete responses.
@@ -62,7 +55,6 @@
         $PAGE->set_title(format_string($choice->name).": $strresponses");
         $PAGE->set_heading($course->fullname);
         echo $OUTPUT->header();
-        echo $OUTPUT->heading($choice->name, 2, null);
         /// Check to see if groups are being used in this choice
         $groupmode = groups_get_activity_groupmode($cm);
         if ($groupmode) {
@@ -72,11 +64,7 @@
     } else {
         $groupmode = groups_get_activity_groupmode($cm);
     }
-
-    // Check if we want to include responses from inactive users.
-    $onlyactive = $choice->includeinactive ? false : true;
-
-    $users = choice_get_response_data($choice, $cm, $groupmode, $onlyactive);
+    $users = choice_get_response_data($choice, $cm, $groupmode);
 
     if ($download == "ods" && has_capability('mod/choice:downloadresponses', $context)) {
         require_once("$CFG->libdir/odslib.class.php");
@@ -194,7 +182,7 @@
 
         /// Print names of all the fields
 
-        echo get_string("lastname")."\t".get_string("firstname") . "\t". get_string("idnumber") . "\t";
+        echo get_string("firstname")."\t".get_string("lastname") . "\t". get_string("idnumber") . "\t";
         echo get_string("group"). "\t";
         echo get_string("choice","choice"). "\n";
 

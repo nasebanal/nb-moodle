@@ -18,9 +18,10 @@
 /**
  * Provides support for the conversion of moodle1 backup to the moodle2 format
  *
- * @package   mod_workshop
- * @copyright 2011 David Mudrak <david@moodle.com>
- * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @package    mod
+ * @subpackage workshop
+ * @copyright  2011 David Mudrak <david@moodle.com>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
@@ -104,8 +105,6 @@ class moodle1_mod_workshop_handler extends moodle1_mod_handler {
         $this->currentworkshop['instructreviewers']         = '';
         $this->currentworkshop['instructreviewersformat']   = FORMAT_HTML;
         $this->currentworkshop['latesubmissions']           = 0;
-        $this->currentworkshop['conclusion']                = '';
-        $this->currentworkshop['conclusionformat']          = FORMAT_HTML;
 
         foreach (array('submissionend', 'submissionstart', 'assessmentend', 'assessmentstart') as $field) {
             if (!array_key_exists($field, $this->currentworkshop)) {
@@ -267,7 +266,7 @@ class moodle1_mod_workshop_handler extends moodle1_mod_handler {
 
         if (is_null($this->strategyhandlers)) {
             $this->strategyhandlers = array();
-            $subplugins = core_component::get_plugin_list('workshopform');
+            $subplugins = get_plugin_list('workshopform');
             foreach ($subplugins as $name => $dir) {
                 $handlerfile  = $dir.'/backup/moodle1/lib.php';
                 $handlerclass = "moodle1_workshopform_{$name}_handler";

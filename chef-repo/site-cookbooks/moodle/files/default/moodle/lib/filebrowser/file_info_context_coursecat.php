@@ -65,7 +65,7 @@ class file_info_context_coursecat extends file_info {
             if (empty($component)) {
                 // we can not list the category contents, so try parent, or top system
                 if ($this->category->parent and $pc = $DB->get_record('course_categories', array('id'=>$this->category->parent))) {
-                    $parent = context_coursecat::instance($pc->id, IGNORE_MISSING);
+                    $parent = get_context_instance(CONTEXT_COURSECAT, $pc->id);
                     return $this->browser->get_file_info($parent);
                 } else {
                     return $this->browser->get_file_info();
@@ -165,7 +165,7 @@ class file_info_context_coursecat extends file_info {
 
         $course_cats = $DB->get_records('course_categories', array('parent'=>$this->category->id), 'sortorder', 'id,visible');
         foreach ($course_cats as $category) {
-            $context = context_coursecat::instance($category->id);
+            $context = get_context_instance(CONTEXT_COURSECAT, $category->id);
             if (!$category->visible and !has_capability('moodle/category:viewhiddencategories', $context)) {
                 continue;
             }
@@ -176,7 +176,7 @@ class file_info_context_coursecat extends file_info {
 
         $courses = $DB->get_records('course', array('category'=>$this->category->id), 'sortorder', 'id,visible');
         foreach ($courses as $course) {
-            $context = context_course::instance($course->id);
+            $context = get_context_instance(CONTEXT_COURSE, $course->id);
             if (!$course->visible and !has_capability('moodle/course:viewhiddencourses', $context)) {
                 continue;
             }
@@ -254,7 +254,8 @@ class file_info_context_coursecat extends file_info {
      * @return file_info|null fileinfo instance or null for root directory
      */
     public function get_parent() {
-        $parent = $this->context->get_parent_context();
+        $cid = get_parent_contextid($this->context);
+        $parent = get_context_instance_by_id($cid);
         return $this->browser->get_file_info($parent);
     }
 }

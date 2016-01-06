@@ -1,4 +1,4 @@
-<?php
+<?PHP
 
     // Allows the admin to configure mnet stuff
 
@@ -9,7 +9,7 @@
     require_login();
     admin_externalpage_setup('net');
 
-    $context = context_system::instance();
+    $context = get_context_instance(CONTEXT_SYSTEM);
 
     require_capability('moodle/site:config', $context, $USER->id, true, "nopermissions");
 
@@ -85,7 +85,7 @@
     echo $OUTPUT->header();
 ?>
 <form method="post" action="index.php">
-    <table align="center" width="635" class="generaltable" border="0" cellpadding="5" cellspacing="0">
+    <table align="center" width="635" class="generalbox" border="0" cellpadding="5" cellspacing="0">
         <tr>
             <td  class="generalboxcontent">
             <table cellpadding="9" cellspacing="0" >
@@ -106,7 +106,7 @@
     </table>
 </form>
 <form method="post" action="index.php">
-    <table align="center" width="635" class="generaltable" border="0" cellpadding="5" cellspacing="0">
+    <table align="center" width="635" class="generalbox" border="0" cellpadding="5" cellspacing="0">
         <tr>
             <td  class="generalboxcontent">
             <table cellpadding="9" cellspacing="0" >

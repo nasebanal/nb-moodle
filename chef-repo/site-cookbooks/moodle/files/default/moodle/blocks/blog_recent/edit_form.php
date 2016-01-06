@@ -18,7 +18,7 @@
 /**
  * Form for editing tag block instances.
  *
- * @package   block_blog_recent
+ * @package   moodlecore
  * @copyright 2009 Tim Hunt
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -26,7 +26,6 @@
 /**
  * Form for editing tag block instances.
  *
- * @package   block_blog_recent
  * @copyright 2009 Tim Hunt
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
